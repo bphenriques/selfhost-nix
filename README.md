@@ -11,10 +11,9 @@ Opinionated NixOS modules for a single-admin selfhost: declare a service once an
 inputs.selfhost-nix.url = "github:bphenriques/selfhost-nix";
 inputs.selfhost-nix.inputs.nixpkgs.follows = "nixpkgs";
 
-# a host (also import sops-nix — the modules consume config.sops.*)
+# a host (secrets are path-based — wire the paths from your backend of choice, e.g. sops-nix)
 imports = [
   inputs.selfhost-nix.nixosModules.default
-  inputs.sops-nix.nixosModules.sops
 ];
 ```
 
@@ -71,14 +70,63 @@ That single `services.miniflux` block yields a Traefik route at `miniflux.home.e
 - **First-class subsystems** (the tool *is* the contract, no swap): `monitoring` (Prometheus/Alertmanager), `backup` (rustic), `vpn.wireguard`, `storage.smb`.
 - **Importing a module changes nothing by itself** — every provider/subsystem is off until enabled explicitly.
 
+## Options
+
+Full reference for every `selfhost.*` option: <https://bphenriques.github.io/selfhost-nix> (generated from the module declarations, published on each push to `main`). Build it locally with `nix build .#options-doc` → `result/index.html`.
+
 ## Secrets
 
-Path-based only: options take **file paths**, never secret values, so nothing secret reaches the Nix store. Wire them from [sops-nix](https://github.com/Mic92/sops-nix) (a required peer — the modules reference `config.sops.{templates,secrets,placeholder}`).
+Path-based only: every secret option takes a **file path**, never a value, and the framework reads only those paths — it never references a secrets backend directly. Wire the paths from whatever you use ([sops-nix](https://github.com/Mic92/sops-nix), agenix, plain files); nothing secret reaches the Nix store.
 
 ## Requirements
 
 - A consumer flake on `nixpkgs` unstable, with `selfhost-nix.inputs.nixpkgs.follows = "nixpkgs"`.
-- `sops-nix` imported alongside `nixosModules.default`.
+- A secrets backend to supply the file paths (e.g. sops-nix or agenix) — not a hard dependency; the modules reference only paths.
+
+## Tests
+
+[`tests/`](tests/) holds [`nixosTest`](https://nixos.org/manual/nixos/stable/#sec-nixos-tests) VM checks — each boots a guest importing the framework and asserts one concern in isolation. Linux with KVM required.
+
+| Check           | Concern                                                                  |
+| --------------- | ------------------------------------------------------------------------ |
+| `vm-core`       | registry + runtime-secrets + ntfy provisioning (incl. userless publisher) |
+| `vm-ingress`    | Traefik routes a hello-world service end-to-end                          |
+| `vm-monitoring` | Prometheus + blackbox health-probe a service                            |
+
+```bash
+# run one test, streaming the build/boot log
+nix build -L .#checks.x86_64-linux.vm-ingress
+
+# run every check (formatting, package builds, all VM tests)
+nix flake check -L
+
+# poke at a live guest: opens the python driver REPL, then `start_all()` and `machine.shell_interact()`
+nix run .#checks.x86_64-linux.vm-ingress.driverInteractive
+```
+
+The shared base node and the hello-world backend live in [`tests/default.nix`](tests/default.nix); add a concern by dropping a `tests/<name>.nix` beside it and listing it there.
+
+## Development
+
+```bash
+nix fmt                                      # format + lint (treefmt: nixfmt, shfmt, mdformat, nufmt, shellcheck, statix, deadnix)
+nix flake check -L                           # everything: formatting + package builds + VM tests (see Tests for running one)
+nix build .#options-doc                      # build the options site → result/index.html
+```
+
+Layout: framework modules in [`modules/nixos/`](modules/nixos) (one concern per file; per-service schema fragments in [`modules/nixos/schemas/`](modules/nixos/schemas)), CLIs in [`packages/`](packages), VM tests in [`tests/`](tests), the options-site generator in [`docs.nix`](docs.nix).
+
+Extending it:
+
+- **Add an option** — declare it in its module with a one-line `description` (descriptions *are* the published docs). If its `default` references other config (e.g. a derived URL), add a `defaultText` so the options site renders without a host config.
+- **Add a test** — see the note under [Tests](#tests).
+- **Add a provider/subsystem** — new file under `modules/nixos/`, listed in [`modules/nixos/default.nix`](modules/nixos/default.nix); gate everything behind its own `enable` so importing the module changes nothing until turned on.
+
+Docs publishing: [`.github/workflows/docs.yml`](.github/workflows/docs.yml) builds the options site on every push/PR and deploys it to GitHub Pages from `main`. One-time setup: repo **Settings → Pages → Source = "GitHub Actions"**. The site URL and source-link base live in [`docs.nix`](docs.nix) (`repo`) — update them if the repo path differs.
+
+## Support
+
+Free and open — my small way of giving back to the Nix community. No obligation, ever. If it saved you time and you feel like it, [buy me a coffee](https://buymeacoffee.com/bphenriques) ☕
 
 ## License
 

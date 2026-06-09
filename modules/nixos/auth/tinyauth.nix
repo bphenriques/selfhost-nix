@@ -1,6 +1,5 @@
-# tinyauth: bundled, opinionated forward-auth provider — the default gateway behind the ingress
-# forward-auth middleware. Federates to the selfhost OIDC provider (security/oidc.nix contract) and
-# maps per-service access groups. Sets the neutral forwardAuth.{url,path} contract.
+# tinyauth: bundled forward-auth provider. Federates to the selfhost OIDC provider (auth/oidc.nix)
+# and sets the neutral forwardAuth contract the ingress consumes.
 { config, lib, ... }:
 let
   cfg = config.selfhost;

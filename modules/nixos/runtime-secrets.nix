@@ -1,5 +1,3 @@
-# Runtime secret generation + template rendering, sops-shaped.
-# One systemd unit generates random files and renders templates from a flat namespace.
 {
   lib,
   config,
@@ -117,18 +115,12 @@ let
       regenerateIfMissing = lib.mkOption {
         type = lib.types.bool;
         default = true;
-        description = ''
-          Generate a new random value when the file is missing.
-          Set false for bootstrap secrets synced with external state — missing file then fails the unit instead of silently re-seeding.
-        '';
+        description = "Generate a new random value if the file is missing; set false to fail instead (for externally-synced secrets).";
       };
       migrateFrom = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        description = ''
-          Optional source path to copy from on first boot if the new path doesn't exist.
-          Used during migration from the legacy per-owner layout (cp -p, leaves the source in place for rollback).
-        '';
+        description = "Source path to copy from on first boot if the target is missing (one-time migration; source left in place).";
       };
       owner = lib.mkOption {
         type = lib.types.str;
@@ -152,11 +144,7 @@ let
       restartUnits = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         default = [ ];
-        description = ''
-          Units that consume this secret. Wired with requires + after on the generator.
-          Note: secret content doesn't change between deploys (random + persistent),
-          so this provides ordering only — manual rotation requires manually restarting consumers.
-        '';
+        description = "Units consuming this secret; wired requires+after on the generator (ordering only — values are persistent).";
       };
     };
   };
@@ -165,10 +153,7 @@ let
     options = {
       content = lib.mkOption {
         type = lib.types.lines;
-        description = ''
-          Template body. Reference secrets via config.selfhost.runtimePlaceholder.<secretName>
-          and OIDC credentials via config.selfhost.oidcPlaceholder.<clientName>.{id,secret}.
-        '';
+        description = "Template body; reference secrets via runtimePlaceholder.<name> and OIDC creds via oidcPlaceholder.<client>.{id,secret}.";
       };
       path = lib.mkOption {
         type = lib.types.str;

@@ -1,4 +1,3 @@
-# OIDC client provisioning derived from service declarations.
 { lib, config, ... }:
 let
   selfhostCfg = config.selfhost;

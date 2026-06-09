@@ -54,10 +54,7 @@ in
         }
       );
       default = { };
-      description = ''
-        Notification topics and visibility. Consumer-declared; framework subsystems
-        (backup, alertmanager) self-register their own homelab-* topics via mkDefault.
-      '';
+      description = "Notification topics and their visibility (framework subsystems self-register their own homelab-* topics).";
     };
 
     url = lib.mkOption {
@@ -66,22 +63,14 @@ in
       description = "Base URL of the notification endpoint; set by the active notify provider, consumed by send-notification (NOTIFY_URL).";
     };
 
+    # Notification seam used by backup, task-failure hooks, and simple service hooks. Swap to
+    # retarget all of them at once (e.g. an Apprise/gotify gateway). Producers that abstract
+    # notifications themselves (Alertmanager, *arr connectors) stay native, retargeted in their config.
     package = lib.mkOption {
       type = lib.types.package;
       default = pkgs.selfhost.send-notification;
       defaultText = lib.literalExpression "pkgs.selfhost.send-notification";
-      description = ''
-        send-notification implementation. Contract:
-          send-notification --topic <t> --message <m> [--title <T>] [--priority <p>] [--tags <x>]
-        Reads NOTIFY_URL and NOTIFY_TOKEN_FILE from the environment.
-        topic and priority are the routing keys; per-medium routing (use-case -> channel) is an
-        adapter/gateway concern, not the framework's. The framework's notification seam: used by
-        backup, task-failure hooks, and simple service hooks (e.g. transmission). Swap this package
-        to retarget all of them at once (e.g. an Apprise/gotify gateway that fans out). Producers
-        that abstract notifications
-        themselves — Alertmanager and *arr native connectors — stay native and are retargeted
-        in their own config, not here.
-      '';
+      description = "send-notification implementation. Contract: `send-notification --topic <t> --message <m> [--title <T>] [--priority <p>] [--tags <x>]`, reading NOTIFY_URL and NOTIFY_TOKEN_FILE from the env.";
     };
   };
 

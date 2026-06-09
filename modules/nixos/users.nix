@@ -16,6 +16,7 @@ let
       name = lib.mkOption {
         type = lib.types.str;
         default = "${config.firstName} ${config.lastName}";
+        defaultText = lib.literalMD "`<firstName> <lastName>`";
       };
       groups = lib.mkOption {
         type = lib.types.listOf lib.types.str;
@@ -25,6 +26,7 @@ let
         type = lib.types.bool;
         readOnly = true;
         default = lib.elem cfg.groups.admin config.groups;
+        defaultText = lib.literalMD "true if the user's `groups` include the admin group";
       };
     };
   };

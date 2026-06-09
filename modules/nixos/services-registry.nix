@@ -45,6 +45,7 @@ let
       url = lib.mkOption {
         type = lib.types.str;
         default = "${config.scheme}://${config.host}:${toString config.port}";
+        defaultText = lib.literalMD "`<scheme>://<host>:<port>`";
         description = "Full URL for proxying (derived from scheme, host and port)";
       };
 
@@ -58,6 +59,7 @@ let
       healthcheck.url = lib.mkOption {
         type = lib.types.str;
         default = "${config.url}${config.healthcheck.path}";
+        defaultText = lib.literalMD "`<url><healthcheck.path>`";
         readOnly = true;
         description = "Full health check URL (derived from url and healthcheck path)";
       };
@@ -81,12 +83,14 @@ let
       publicHost = lib.mkOption {
         type = lib.types.str;
         default = "${config.subdomain}.${cfg.domain}";
+        defaultText = lib.literalMD "`<subdomain>.<domain>`";
         description = "Public hostname (derived from subdomain and domain)";
       };
 
       publicUrl = lib.mkOption {
         type = lib.types.str;
         default = "https://${config.publicHost}";
+        defaultText = lib.literalMD "`https://<publicHost>`";
         description = "Full public URL (derived from publicHost)";
       };
 
@@ -155,11 +159,7 @@ in
         }
       );
       default = { };
-      description = ''
-        Registry of selfhost services: routing, metadata, and integrations.
-        HTTP ingress is optional (controlled via ingress.enable).
-        Service schema is composed from base options and per-concern fragments in schemas/.
-      '';
+      description = "Registry of selfhost services: routing, metadata, and integrations (HTTP ingress optional via ingress.enable).";
     };
 
     external = lib.mkOption {
@@ -200,43 +200,77 @@ in
       description = "External services not managed by this host (shown on homepage dashboard via integrations.homepage)";
     };
 
+    # Port registry: modules append their local listening sockets (services here, exporters in
+    # monitoring.nix, …); the assertion below checks the whole set is collision-free.
+    internal.listeningPorts = lib.mkOption {
+      type = lib.types.listOf (
+        lib.types.submodule {
+          options = {
+            name = lib.mkOption {
+              type = lib.types.str;
+              description = "Owner identifier, shown in collision messages.";
+            };
+            host = lib.mkOption {
+              type = lib.types.str;
+              default = "127.0.0.1";
+              description = "Listen address.";
+            };
+            port = lib.mkOption {
+              type = lib.types.port;
+              description = "Listen port.";
+            };
+          };
+        }
+      );
+      default = [ ];
+      internal = true;
+      description = "Local listening sockets registered across the framework; asserted collision-free.";
+    };
+
   };
 
   config = lib.mkIf cfg.enable {
+    # Register every service's backend socket into the shared port registry.
+    selfhost.internal.listeningPorts = map (s: {
+      name = "service/${s.name}";
+      inherit (s) host port;
+    }) (lib.attrValues cfg.services);
+
     assertions =
       let
+        selfhostLib = import ./lib.nix { inherit lib; };
         allServices = lib.attrValues cfg.services;
-        ingressServices = lib.filter (s: s.ingress.enable) allServices;
 
-        allHosts = lib.concatMap (s: [ s.publicHost ] ++ s.aliases) ingressServices;
-        dupHosts = lib.filter (h: lib.count (x: x == h) allHosts > 1) (lib.unique allHosts);
+        # Public hosts and aliases must be unique across ingress-enabled services.
+        ingressHosts = lib.concatMap (s: [ s.publicHost ] ++ s.aliases) (
+          lib.filter (s: s.ingress.enable) allServices
+        );
+        dupHosts = lib.attrNames (selfhostLib.collisions (builtins.groupBy lib.id ingressHosts));
 
-        # Services listening on the same host (default 127.0.0.1)
-        allPorts = map (s: { inherit (s) name host port; }) allServices;
-        dupPorts = lib.filter (
-          p: lib.count (q: q.host == p.host && q.port == p.port) allPorts > 1
-        ) allPorts;
+        # One check over the whole registry: services + monitoring exporters + anything else registered.
+        portCollisions = selfhostLib.collisions (
+          builtins.groupBy (e: selfhostLib.socket e.host e.port) cfg.internal.listeningPorts
+        );
 
-        dualAuthServices = lib.filter (
-          s: (lib.attrByPath [ "oidc" "enable" ] false s) && s.forwardAuth.enable
-        ) allServices;
+        dualAuth = lib.filter (s: s.oidc.enable && s.forwardAuth.enable) allServices;
+        names = lib.concatMapStringsSep ", " (x: x.name);
       in
       [
         {
           assertion = dupHosts == [ ];
-          message = "Service public hosts and aliases must be unique. Conflicting: ${toString dupHosts}";
+          message = "Service public hosts and aliases must be unique. Conflicting: ${lib.concatStringsSep ", " dupHosts}";
         }
         {
-          assertion = dupPorts == [ ];
-          message = "Services have port collisions on the same host: ${
-            lib.concatMapStringsSep ", " (p: "${p.name} (${p.host}:${toString p.port})") dupPorts
+          assertion = portCollisions == { };
+          message = "Listening port collisions: ${
+            lib.concatStringsSep "; " (
+              lib.mapAttrsToList (socket: group: "${socket} ← ${names group}") portCollisions
+            )
           }";
         }
         {
-          assertion = dualAuthServices == [ ];
-          message = "Services must not enable both OIDC and forwardAuth. Offending: ${
-            lib.concatMapStringsSep ", " (s: s.name) dualAuthServices
-          }";
+          assertion = dualAuth == [ ];
+          message = "Services must not enable both OIDC and forwardAuth. Offending: ${names dualAuth}";
         }
       ];
   };

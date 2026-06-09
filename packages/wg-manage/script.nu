@@ -19,12 +19,15 @@ let allowed_ips_full = $env.WG_SERVER_ALLOWED_IPS? | default $client_subnet
 let clients_dir = $"($data_dir)/clients"
 let server_pubkey_file = $"($data_dir)/server/public.key"
 if not ($server_pubkey_file | path exists) { error make {msg: "Server key not found. Start wireguard service first."} }
+
 def get_server_pubkey [] {
   open --raw $server_pubkey_file | str trim
 }
+
 def get_live_peers [] {
   wg show $interface dump | lines | skip 1 | each { $in | split row "\t" | get 0 }
 }
+
 def validate_iface_name [device: string] {
   let iface_name = $"($selfhost_name)-($device)"
   if ($iface_name | str length) > 15 {
@@ -34,10 +37,12 @@ def validate_iface_name [device: string] {
     error make {msg: $"Interface name '($iface_name)' contains invalid characters [allowed: a-z, 0-9, -]"}
   }
 }
+
 def conf_file [name: string, device: string] {
   validate_iface_name $device
   $"($clients_dir)/($name)/($selfhost_name)-($device).conf"
 }
+
 def get_client [name: string] {
   let dir = $"($clients_dir)/($name)"
   if not ($dir | path exists) {
@@ -45,15 +50,19 @@ def get_client [name: string] {
   }
   open $"($dir)/meta.json"
 }
+
 def show_qr [name: string] {
   let meta = get_client $name
   open --raw (conf_file $name $meta.device) | qrencode -t ANSIUTF8
 }
+
 def list_clients [] {
   if not ($clients_dir | path exists) { return [] }
   ls $clients_dir | where type == dir | each {|d| $"($d.name)/meta.json" } | where { $in | path exists } | each { open $in }
 }
+
 def next_ip [] {
+
   # Assumes IPv4 /24 subnet
   let parts = $client_subnet | split row "/"
   let base_ip = $parts | get 0
@@ -77,6 +86,7 @@ def next_ip [] {
     $"($prefix).($next)"
   }
 }
+
 def render_conf [priv_key: string, ip: string] {
   $"[Interface]
 PrivateKey = ($priv_key)
@@ -90,6 +100,7 @@ AllowedIPs = ($allowed_ips_full)
 PersistentKeepalive = 25
 "
 }
+
 # Not thread-safe: concurrent calls may assign the same IP
 def create_client [name: string, --ip: string, --device: string] {
   let dir = $"($clients_dir)/($name)"
@@ -113,6 +124,7 @@ def create_client [name: string, --ip: string, --device: string] {
   wg set $interface peer $pub_key allowed-ips $"($client_ip)/32"
   print $"Client '($name)' added (($client_ip))"
 }
+
 def "main list" [] {
   let clients = list_clients
   if ($clients | is-empty) {
@@ -121,6 +133,7 @@ def "main list" [] {
     $clients | select name ip | print
   }
 }
+
 def "main status" [] {
   let clients = list_clients
   if ($clients | is-empty) {
@@ -156,7 +169,9 @@ def "main status" [] {
     { status: $status, name: $c.name, ip: $c.ip, handshake: $handshake }
   }
 }
+
 def "main show" [name: string] { show_qr $name }
+
 def "main add" [name: string, --device: string, --ip: string] {
   let dir = $"($clients_dir)/($name)"
   if ($dir | path exists) {
@@ -166,6 +181,7 @@ def "main add" [name: string, --device: string, --ip: string] {
   }
   show_qr $name
 }
+
 def "main remove" [...names: string] {
   for name in $names {
     let dir = $"($clients_dir)/($name)"
@@ -179,6 +195,7 @@ def "main remove" [...names: string] {
     print $"Client '($name)' removed"
   }
 }
+
 def "main bootstrap" [config_file: path] {
   for entry in (open $config_file) {
     let dir = $"($clients_dir)/($entry.name)"
@@ -198,6 +215,7 @@ def "main bootstrap" [config_file: path] {
   }
   for p in ($live_peers | where { $in not-in $file_pubkeys }) { print $"Warning: unknown peer ($p | str substring 0..8)..." }
 }
+
 def main [] {
   print "wg-manage - WireGuard client management
 

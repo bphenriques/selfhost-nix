@@ -36,11 +36,20 @@
     {
       overlays.default = final: _prev: { selfhost = selfhostPackages final; };
 
-      packages = forAllSystems (system: selfhostPackages nixpkgs.legacyPackages.${system});
+      packages = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        selfhostPackages pkgs
+        // {
+          options-doc = import ./docs.nix { inherit pkgs self; };
+        }
+      );
 
-      # Importing this both loads the framework modules and registers the overlay, so the modules'
-      # `pkgs.selfhost.*` references resolve. Consumer must also import sops-nix (the modules use
-      # config.sops.{templates,secrets,placeholder}).
+      # Loads the framework modules and registers the overlay so `pkgs.selfhost.*` resolves.
+      # Secrets are path-based: modules read only file paths, so the consumer wires them from
+      # any backend (sops-nix, agenix, plain files).
       nixosModules.default = {
         imports = [ ./modules/nixos ];
         nixpkgs.overlays = [ self.overlays.default ];
@@ -50,10 +59,15 @@
 
       checks = forAllSystems (
         system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
         {
           formatting = treefmtEval.${system}.config.build.check self;
         }
-        // selfhostPackages nixpkgs.legacyPackages.${system}
+        // selfhostPackages pkgs
+        # VM integration tests (nixosTest); Linux-only.
+        // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux (import ./tests { inherit pkgs self; })
       );
 
       devShells = forAllSystems (system: {

@@ -1,6 +1,5 @@
-# Pocket-ID: bundled, opinionated OIDC provider — the selfhost's first-class implementation of
-# the OIDC contract (auth/oidc.nix). Provisions users/groups/clients via the pocket-id-manage CLI.
-# Expects a host-declared `smtp-password` sops secret (the mail contract). Fork to vary.
+# Pocket-ID: bundled OIDC provider implementing the auth/oidc.nix contract; provisions
+# users/groups/clients via the pocket-id-manage CLI. Fork to vary.
 {
   config,
   pkgs,
@@ -74,6 +73,12 @@ in
       default = 8094;
       description = "Pocket-ID listen port (localhost, behind ingress).";
     };
+    smtpPasswordFile = lib.mkOption {
+      type = lib.types.str;
+      default = cfg.mail.passwordFile;
+      defaultText = lib.literalExpression "config.selfhost.mail.passwordFile";
+      description = "SMTP password file readable by the Pocket-ID user (defaults to selfhost.mail.passwordFile; override with a service-owned copy).";
+    };
   };
 
   config = lib.mkIf cfg.auth.oidc.pocket-id.enable {
@@ -130,7 +135,7 @@ in
         SMTP_FROM = smtpCfg.from;
         SMTP_USER = smtpCfg.user;
         SMTP_TLS = smtpCfg.tls;
-        SMTP_PASSWORD_FILE = config.sops.templates.pocket-id-smtp-password.path;
+        SMTP_PASSWORD_FILE = cfg.auth.oidc.pocket-id.smtpPasswordFile;
 
         # Invite only
         ALLOW_USER_SIGNUPS = "withToken";
@@ -139,11 +144,6 @@ in
         EMAIL_ONE_TIME_ACCESS_AS_ADMIN_ENABLED = true;
         EMAIL_ONE_TIME_ACCESS_AS_UNAUTHENTICATED_ENABLED = false;
       };
-    };
-
-    sops.templates."pocket-id-smtp-password" = {
-      owner = config.services.pocket-id.user;
-      content = config.sops.placeholder."smtp-password";
     };
 
     # Credentials base dir (tmpfs); 0755 so services can traverse to their own 0750 client subdirs.

@@ -57,6 +57,7 @@ in
           callbackURLs = lib.mkOption {
             type = lib.types.listOf lib.types.str;
             default = [ "${serviceConfig.publicUrl}/oauth2/oidc/callback" ];
+            defaultText = lib.literalMD "`[ <publicUrl>/oauth2/oidc/callback ]`";
             description = "Callback URLs for the OIDC client";
           };
 
@@ -90,10 +91,7 @@ in
             dependentServices = lib.mkOption {
               type = lib.types.listOf lib.types.str;
               default = [ ];
-              description = ''
-                Systemd services that depend on this OIDC client's credentials.
-                Automatically wires requires/after/partOf.
-              '';
+              description = "Systemd services needing this client's credentials; auto-wired requires/after/partOf.";
             };
 
             loadCredentials = lib.mkOption {

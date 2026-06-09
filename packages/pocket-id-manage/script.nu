@@ -1,19 +1,10 @@
 #!/usr/bin/env nu
-# Pocket-ID management CLI.
-#
-# Subcommands:
-#   provision-users    Provision Nix-managed users and groups (systemd)
-#   provision-client   Provision a single OIDC client with credentials (systemd)
-#   invite             Create a guest user and send invite email (manual)
-#   reinvite           Resend one-time access email (manual)
-#   list               List all users with groups (manual)
-#   remove             Remove CLI-managed guest users (manual)
-# Good enough for selfhost scale; Pocket-ID unlikely to exceed 100 users/groups/clients.
-const PAGINATION_LIMIT = 100
+const PAGINATION_LIMIT = 100 # selfhost scale; Pocket-ID won't exceed 100 users/groups/clients
 
 let base_url = $env.POCKET_ID_URL
 let api_key = open $env.POCKET_ID_API_KEY_FILE | str trim
 let headers = {"X-API-KEY": $api_key}
+
 # --- Shared helpers ---
 def wait_ready [] {
   for attempt in 1..60 {
@@ -25,6 +16,7 @@ def wait_ready [] {
   }
   error make {msg: "Pocket ID failed to start in time"}
 }
+
 def get_all [resource: string] {
   let r = http get $"($base_url)/api/($resource)?pagination[limit]=($PAGINATION_LIMIT)" --headers $headers --full --allow-errors
   if $r.status != 200 {
@@ -32,6 +24,7 @@ def get_all [resource: string] {
   }
   $r.body.data
 }
+
 def find_user [username: string] {
   let user = get_all "users" | where username == $username | get 0?
   if $user == null {
@@ -39,6 +32,7 @@ def find_user [username: string] {
   }
   $user
 }
+
 def find_group [name: string] {
   let group = get_all "user-groups" | where name == $name | get 0?
   if $group == null {
@@ -46,6 +40,7 @@ def find_group [name: string] {
   }
   $group
 }
+
 def send_invite [user_id: string, email: string] {
   let r = http post $"($base_url)/api/users/($user_id)/one-time-access-email" "{}" --headers $headers --content-type application/json --full --allow-errors
   if $r.status == 204 {
@@ -54,6 +49,7 @@ def send_invite [user_id: string, email: string] {
     error make {msg: $"Failed to send invite email to ($email): ($r.status) - ($r.body)"}
   }
 }
+
 def write_credential [path: string, content: string, group: string] {
   let tmp = $"($path).tmp"
   $content | save --force $tmp
@@ -61,6 +57,7 @@ def write_credential [path: string, content: string, group: string] {
   chown $"root:($group)" $tmp
   mv --force $tmp $path # atomic rename
 }
+
 def resolve_group_ids [group_names: list<string>] {
   let existing = get_all "user-groups"
   $group_names | each { |g|
@@ -69,6 +66,7 @@ def resolve_group_ids [group_names: list<string>] {
     $found.id
   }
 }
+
 # --- Systemd: provision Nix-managed users and groups ---
 def "main provision-users" [] {
   let config = open $env.OIDC_CONFIG_FILE
@@ -137,6 +135,7 @@ def "main provision-users" [] {
   print $"Wrote users mapping to ($users_file)"
   print "Pocket ID base provisioning complete"
 }
+
 # --- Systemd: provision a single OIDC client ---
 def "main provision-client" [] {
   let client = open $env.OIDC_CLIENT_CONFIG_FILE
@@ -204,6 +203,7 @@ def "main provision-client" [] {
   }
   print $"OIDC client ($client.name) provisioning complete"
 }
+
 # --- Manual: guest management ---
 # Create a guest user, assign to guests group, and send invite email.
 def "main guest invite" [
@@ -247,6 +247,7 @@ def "main guest invite" [
   print $"Assigned to group: ($guests_group)"
   send_invite $user_id $email
 }
+
 # Remove guest users. Only removes users in the guests group.
 def "main guest remove" [...usernames: string] {
   let guests_group = $env.POCKET_ID_GUESTS_GROUP
@@ -271,11 +272,13 @@ def "main guest remove" [...usernames: string] {
     }
   }
 }
+
 # Resend one-time access email to any user.
 def "main reinvite" [username: string] {
   let user = find_user $username
   send_invite $user.id $user.email
 }
+
 # List all users with their groups.
 def "main list" [] {
   let users = get_all "users"
@@ -296,6 +299,7 @@ def "main list" [] {
     }
   }
 }
+
 def main [] {
   print "pocket-id-manage - Pocket-ID management
 

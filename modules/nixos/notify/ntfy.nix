@@ -1,5 +1,5 @@
-# ntfy: bundled, opinionated notify provider — the default backend behind `notify.package`.
-# Runs the ntfy-sh server, wires the notify endpoint, and provisions topics/publisher tokens.
+# ntfy: bundled notify provider — the default backend behind `notify.package` (runs ntfy-sh and
+# provisions topics/publisher tokens).
 {
   config,
   lib,
@@ -108,6 +108,9 @@ in
       environment = {
         NTFY_ADMIN_PASSWORD_FILE = cfg.runtimeSecrets.ntfy-admin-password.path;
         NTFY_PROVISION_FILE = configFile;
+        # `ntfy user add` needs the server's auth DB, which only exists once it has started;
+        # `after = ntfy-sh.service` isn't enough, so the script polls this health endpoint first.
+        NTFY_BASE_URL = serviceCfg.url;
       };
       script = lib.getExe pkgs.selfhost.ntfy-manage;
     };

@@ -15,11 +15,7 @@
     systemdServices = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
-      description = ''
-        Systemd unit names that need the declared mounts.
-        If empty, auto-resolved: OCI container units use the backend prefix (e.g. podman-<name>),
-        otherwise defaults to the service name.
-      '';
+      description = "Units needing the declared mounts; if empty, auto-resolved from the service or OCI-container name.";
     };
   };
 }

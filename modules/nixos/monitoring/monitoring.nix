@@ -182,8 +182,9 @@ let
   allRules = lib.concatMap (s: s.rules) allScopes;
   allSystemdOverrides = map (s: s.systemdOverrides) allScopes;
 
-  # Port collision detection (best-effort: exporter↔exporter + exporter↔service; service↔service is in services-registry.nix)
-  allPortEntries =
+  # Exporter/blackbox sockets contributed to the shared port registry (services-registry.nix adds
+  # the services and runs the single collision assertion over the union).
+  exporterPorts =
     let
       fromExporters =
         scopeName: exporters:
@@ -192,7 +193,8 @@ let
             expName: expCfg:
             lib.optional (expCfg ? listenAddress && expCfg ? port) {
               name = "${scopeName}/${expName}";
-              inherit (expCfg) listenAddress port;
+              host = expCfg.listenAddress;
+              inherit (expCfg) port;
             }
           ) exporters
         );
@@ -210,19 +212,10 @@ let
     ++ lib.optionals hasHealthchecks [
       {
         name = "healthcheck/blackbox";
-        listenAddress = "127.0.0.1";
+        host = "127.0.0.1";
         port = mon.blackboxPort;
       }
-    ]
-    ++ map (s: {
-      name = "service/${s.name}";
-      listenAddress = s.host;
-      inherit (s) port;
-    }) (lib.attrValues cfg.services);
-
-  dupPorts = lib.filter (
-    e: lib.count (q: q.listenAddress == e.listenAddress && q.port == e.port) allPortEntries > 1
-  ) allPortEntries;
+    ];
 in
 {
   options.selfhost.monitoring = {
@@ -281,13 +274,9 @@ in
           assertion = dupExporterNames == [ ];
           message = "Duplicate Prometheus exporter names across scopes: ${toString dupExporterNames}";
         }
-        {
-          assertion = dupPorts == [ ];
-          message = "Monitoring port collisions: ${
-            lib.concatMapStringsSep ", " (e: "${e.name} (${e.listenAddress}:${toString e.port})") dupPorts
-          }";
-        }
       ];
+
+      selfhost.internal.listeningPorts = exporterPorts;
 
       selfhost.services.prometheus = {
         displayName = "Prometheus";

@@ -6,7 +6,7 @@
     ./users.nix
     ./resource-control.nix
     ./runtime-secrets.nix
-    ./homepage.nix
+    ./dashboards/homepage.nix
 
     ./ingress/traefik.nix
     ./auth/oidc.nix

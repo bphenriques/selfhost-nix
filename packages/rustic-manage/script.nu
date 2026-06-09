@@ -1,5 +1,4 @@
 #!/usr/bin/env nu
-# Rustic backup management: backup and verify.
 def require_env [name: string] {
   let val = $env | get -o $name
   if $val == null or ($val | is-empty) {
@@ -8,10 +7,12 @@ def require_env [name: string] {
     $val
   }
 }
+
 def notify-success [body: string] {
   let send = require_env "SEND_NOTIFICATION"
   ^$send --topic (require_env "NOTIFY_TOPIC") --title "Backup OK" --tags "white_check_mark" --message $body
 }
+
 # Run backup, prune old snapshots, and notify. `profile` selects the rustic config (/etc/rustic/<profile>.toml).
 def "main backup" [profile: string] {
   let summary_file = $"(require_env 'STATE_DIR')/($profile)-last-summary.txt"
@@ -31,12 +32,14 @@ def "main backup" [profile: string] {
   ^rustic -P $profile forget
   try { notify-success $summary } catch {|e| print $"notify failed: ($e.msg)" }
 }
+
 def "main verify" [profile: string] {
   print "=== Checking repository integrity ==="
   ^rustic -P $profile check
   print "=== Checking data integrity (500MB subset) ==="
   ^rustic -P $profile check "--read-data" "--read-data-subset=500MB" # Reasonable sample for homelab-scale backups
 }
+
 def main [] {
   print "rustic-manage - Rustic backup management
 

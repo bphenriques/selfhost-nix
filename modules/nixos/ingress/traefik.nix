@@ -27,6 +27,9 @@ let
         }
         // lib.listToAttrs aliasRouters;
         services."${service.name}-svc".loadBalancer.servers = [ { inherit (service) url; } ];
+      }
+      # Traefik's file provider rejects an empty `middlewares: {}`, so only emit it when non-empty.
+      // lib.optionalAttrs (service.traefik.middlewares != { }) {
         inherit (service.traefik) middlewares;
       };
     };
@@ -66,6 +69,14 @@ in
   };
 
   config = lib.mkIf cfg.ingress.traefik.enable {
+    # Register the localhost metrics endpoint so it's part of the port-collision check.
+    selfhost.internal.listeningPorts = [
+      {
+        name = "traefik/metrics";
+        port = ingressCfg.metricsPort;
+      }
+    ];
+
     selfhost.monitoring.scopes.traefik = {
       scrapeConfigs = [
         {
@@ -89,7 +100,7 @@ in
       in
       [
         {
-          assertion = forwardAuthServices == [ ] || cfg.auth.forwardAuth.url != "";
+          assertion = forwardAuthServices == [ ] || cfg.auth.forwardAuth.url != null;
           message = "Services enable forwardAuth but no forward-auth provider is active (selfhost.auth.forwardAuth.url is unset): ${
             lib.concatMapStringsSep ", " (s: s.name) forwardAuthServices
           }. Traefik would silently skip auth for these services.";
@@ -180,7 +191,7 @@ in
         (
           routes:
           routes
-          ++ lib.optional (cfg.auth.forwardAuth.url != "") {
+          ++ lib.optional (cfg.auth.forwardAuth.url != null) {
             http.middlewares.forwardAuth.forwardAuth = {
               address = "${cfg.auth.forwardAuth.url}${cfg.auth.forwardAuth.path}";
               trustForwardHeader = true;

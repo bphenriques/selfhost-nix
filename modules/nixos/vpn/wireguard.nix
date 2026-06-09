@@ -143,10 +143,7 @@ in
       readOnly = true;
       default = clients;
       defaultText = lib.literalMD "derived from `users.*.services.wireguard`";
-      description = ''
-        Derived per-device peers (from users.*.services.wireguard), for consumer firewall/routing
-        rules. Each entry: { name, device, ip, fullAccess }.
-      '';
+      description = "Derived per-device peers `{ name, device, ip, fullAccess }` for consumer firewall/routing rules.";
     };
   };
 

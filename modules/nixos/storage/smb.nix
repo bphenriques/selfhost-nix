@@ -82,12 +82,7 @@ let
         uid = mkOption {
           type = types.int;
           default = 0;
-          description = ''
-            UID presented as the file owner on the client.
-            Defaults to root (0), which forces all access through group permissions.
-            Set to a user's UID on single-user machines so that tools requiring
-            owner-level operations (e.g., chmod, git) work correctly on the mount.
-          '';
+          description = "File-owner UID on the client (default 0/root → access via group; set per-user for owner-level ops like chmod/git).";
         };
         gid = mkOption {
           type = types.int;
@@ -96,11 +91,7 @@ let
         systemd.dependentServices = mkOption {
           type = types.listOf types.str;
           default = [ ];
-          description = ''
-            Systemd services that depend on this mount being available.
-            Use for non-registry units or dynamic cases (e.g., Immich per-user mounts).
-            Registry services should use storage.smb instead.
-          '';
+          description = "Extra units needing this mount, for non-registry/dynamic cases (registry services should use storage.smb).";
         };
       };
     }
@@ -112,12 +103,7 @@ in
 
     hostname = mkOption {
       type = types.str;
-      description = ''
-        IP address or hostname of the selfhost server.
-
-        Prefer using an IP address or a hostname defined in /etc/hosts
-        to ensure reliable resolution at boot time (before mDNS/Avahi is ready).
-      '';
+      description = "IP or hostname of the SMB server; prefer an IP or /etc/hosts entry for reliable resolution at boot.";
     };
 
     credentialsPath = mkOption {
