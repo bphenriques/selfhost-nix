@@ -4,18 +4,14 @@ let
   cfg = selfhostCfg.auth.oidc;
   credentialsBaseDir = "/run/homelab-oidc";
 
-  # Extract services that have OIDC enabled
   oidcServices = lib.filterAttrs (_: svc: svc.oidc.enable) selfhostCfg.services;
 
-  # Derive clients from services
   derivedClients = lib.mapAttrs (
     _: svc: svc.oidc // { inherit (svc.access) allowedGroups; }
   ) oidcServices;
 
-  # Users enabled for OIDC
   enabledUsers = lib.filterAttrs (_: u: u.services.oidc.enable) selfhostCfg.users;
 
-  # Derive groups from user memberships
   allGroups = lib.unique (
     (lib.attrValues selfhostCfg.groups)
     ++ lib.concatLists (lib.mapAttrsToList (_: u: u.groups) enabledUsers)

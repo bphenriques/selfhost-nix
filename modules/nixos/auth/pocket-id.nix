@@ -1,5 +1,4 @@
-# Pocket-ID: bundled OIDC provider implementing the auth/oidc.nix contract; provisions
-# users/groups/clients via the pocket-id-manage CLI. Fork to vary.
+# Provisions Pocket-ID users/groups/clients via the pocket-id-manage CLI.
 {
   config,
   pkgs,

@@ -1,5 +1,4 @@
-# ntfy: bundled notify provider — the default backend behind `notify.package` (runs ntfy-sh and
-# provisions topics/publisher tokens).
+# Runs the ntfy-sh server and provisions topics/publisher tokens.
 {
   config,
   lib,

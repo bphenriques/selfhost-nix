@@ -1,5 +1,4 @@
-# tinyauth: bundled forward-auth provider. Federates to the selfhost OIDC provider (auth/oidc.nix)
-# and sets the neutral forwardAuth contract the ingress consumes.
+# tinyauth forward-auth gateway, federated to the selfhost OIDC provider (auth/oidc.nix).
 { config, lib, ... }:
 let
   cfg = config.selfhost;

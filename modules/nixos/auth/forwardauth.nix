@@ -1,5 +1,3 @@
-# Neutral forward-auth contract: the endpoint a provider (e.g. tinyauth) supplies and the ingress
-# consumes. Per-service opt-in is `services.<name>.forwardAuth.enable` (schemas/ingress.nix).
 { lib, ... }:
 {
   options.selfhost.auth.forwardAuth = {

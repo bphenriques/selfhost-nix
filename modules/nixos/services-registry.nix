@@ -49,7 +49,6 @@ let
         description = "Full URL for proxying (derived from scheme, host and port)";
       };
 
-      # Health check
       healthcheck.path = lib.mkOption {
         type = lib.types.str;
         default = "/";
@@ -100,7 +99,6 @@ let
         description = "Alternative subdomains";
       };
 
-      # Ingress
       ingress.enable = lib.mkEnableOption "HTTP ingress route for this service" // {
         default = true;
       };
@@ -230,7 +228,6 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Register every service's backend socket into the shared port registry.
     selfhost.internal.listeningPorts = map (s: {
       name = "service/${s.name}";
       inherit (s) host port;

@@ -1,5 +1,4 @@
-# Notify subsystem (contract): topic registry + the per-task failure-notification wiring.
-# Delivery is delegated to `notify.package` (the send-notification command), so the backend is swappable.
+# Topic registry + per-task failure-notification wiring; delivery goes through `notify.package`.
 {
   lib,
   config,

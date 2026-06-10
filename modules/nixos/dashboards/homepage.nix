@@ -1,6 +1,5 @@
-# Dashboard concern + bundled gethomepage provider.
-# Generates service/external tiles from the registry, and (when enabled) runs homepage-dashboard
-# with optional custom background/favicon. Disable and read the generated* lists from your own impl.
+# Generates dashboard tiles from the registry, and (when enabled) runs homepage-dashboard with
+# optional custom background/favicon.
 {
   lib,
   config,
@@ -51,20 +50,28 @@ let
     in
     map mkServiceEntry svcs ++ map mkExternalEntry exts;
 
-  # Symlink a custom background/favicon into the public assets, only when one is set.
+  # Custom assets to symlink into homepage's public image dir (only the ones that are set).
+  assets = lib.filter (a: a.source != null) [
+    {
+      name = "background.png";
+      source = hp.background;
+    }
+    {
+      name = "favicon.svg";
+      source = hp.favicon;
+    }
+  ];
+
   package =
-    if hp.background == null && hp.favicon == null then
+    if assets == [ ] then
       pkgs.homepage-dashboard
     else
       pkgs.homepage-dashboard.overrideAttrs (old: {
         postInstall = (old.postInstall or "") + ''
           mkdir -p $out/share/homepage/public/images
-          ${lib.optionalString (
-            hp.background != null
-          ) "ln -s ${hp.background} $out/share/homepage/public/images/background.png"}
-          ${lib.optionalString (
-            hp.favicon != null
-          ) "ln -s ${hp.favicon} $out/share/homepage/public/images/favicon.svg"}
+          ${lib.concatMapStringsSep "\n" (
+            a: "ln -s ${a.source} $out/share/homepage/public/images/${a.name}"
+          ) assets}
         '';
       });
 in

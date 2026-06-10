@@ -24,7 +24,6 @@ let
     else
       [ svc.name ];
 
-  # Services and tasks that declare storage mounts
   servicesWithStorage = lib.filter (svc: svc.storage.smb != [ ]) (
     lib.attrValues selfhostCfg.services
   );
