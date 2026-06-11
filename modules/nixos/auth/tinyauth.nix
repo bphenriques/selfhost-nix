@@ -20,6 +20,7 @@ in
       services.tinyauth = {
         description = "ForwardAuth Gateway";
         port = cfg.auth.forwardAuth.tinyauth.port;
+        integrations.homepage.enable = false; # Transparent auth gateway, not a destination.
         access.allowedGroups = with cfg.groups; [
           users
           admin

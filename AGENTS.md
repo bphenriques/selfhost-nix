@@ -23,6 +23,7 @@ Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.
 
 - A one-line `description` on every option — descriptions are the published options site.
 - Add `defaultText` when a `default` references other config (e.g. a derived URL), so the site renders without a host config.
+- Don't mirror upstream — never wrap an existing nixpkgs setting (`services.*`, a `staticConfigOptions.*` key, …) in a `selfhost.*` option just to re-expose it; that doubles the docs and the maintenance. Set a sensible default with `lib.mkDefault` (or a freeform `settings`/`extraConfig` passthrough) and let the consumer override the upstream knob directly. Add a dedicated option only for the framework's own surface (contracts, generated config) or where a type/validation genuinely earns its keep.
 
 ## Secrets
 
@@ -30,9 +31,9 @@ Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.
 
 ## Comments
 
-- Only when they add what the code can't — the *why*, a non-obvious constraint, or a cross-file pointer.
-- Never restate what a clear variable + an intuitive expression already say; never echo an option's name as a section label; don't repeat architecture that lives in the README.
-- One line where possible; clear yet brief.
+- Default to none. If the code is clear, it gets no comment — every comment must earn its place.
+- Add one only for what the code can't say: the *why*, a non-obvious constraint, or a cross-file pointer. Never restate clear code, echo an option's name as a label, or repeat architecture that lives in the README.
+- When you do comment, one line and succinct — cut every word the sentence survives without.
 
 ## CLIs (`packages/`)
 

@@ -5,13 +5,10 @@
       options = {
         enable = lib.mkEnableOption "homepage entry for this service";
 
-        tab = lib.mkOption {
-          type = lib.types.enum [
-            "Home"
-            "Admin"
-          ];
-          default = "Home";
-          description = "Homepage tab to display this service on";
+        group = lib.mkOption {
+          type = lib.types.str;
+          default = "Services";
+          description = "Free-form tile group this service belongs to; you map groups to tabs/layout in your dashboard.";
         };
 
         icon = lib.mkOption {

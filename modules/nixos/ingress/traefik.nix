@@ -141,7 +141,8 @@ in
     services.traefik = {
       enable = true;
       staticConfigOptions = {
-        log.level = "ERROR";
+        # Defaults the consumer can override directly on services.traefik.staticConfigOptions.*
+        log.level = lib.mkDefault "ERROR";
         entryPoints = {
           web = {
             address = "0.0.0.0:80";
@@ -154,10 +155,10 @@ in
           websecure = {
             address = "0.0.0.0:443";
 
-            # Extended timeouts for large uploads (Immich). Entrypoint-scoped (Traefik has no per-router timeout).
+            # Raise for large uploads; entrypoint-scoped (Traefik has no per-router timeout).
             transport.respondingTimeouts = {
-              readTimeout = "600s";
-              idleTimeout = "600s";
+              readTimeout = lib.mkDefault "600s";
+              idleTimeout = lib.mkDefault "600s";
             };
             http.tls = {
               certResolver = "default";

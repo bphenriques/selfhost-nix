@@ -284,10 +284,7 @@ in
         port = mon.prometheusPort;
         healthcheck.path = "/-/healthy";
         forwardAuth.enable = true;
-        integrations.homepage = {
-          enable = true;
-          tab = "Admin";
-        };
+        integrations.homepage.group = "Admin";
         integrations.monitoring = {
           scrapeConfigs = [
             {
@@ -349,10 +346,7 @@ in
         port = mon.alertmanager.port;
         healthcheck.path = "/-/healthy";
         forwardAuth.enable = true;
-        integrations.homepage = {
-          enable = true;
-          tab = "Admin";
-        };
+        integrations.homepage.group = "Admin";
         integrations.notify = {
           enable = true;
           topic = lib.mkDefault "homelab-alert";

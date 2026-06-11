@@ -51,6 +51,8 @@ That single `services.miniflux` block yields a Traefik route at `miniflux.home.e
 
 - **Monitoring registry** — custom extensions for exporters, scrape configs, and alert rules.
 
+- **Dashboard tiles** — `integrations.homepage` generates tiles from the registry, grouped by `group`. Set `dashboards.homepage.enable = true` for a managed, out-of-the-box homepage; leave it off and read `dashboards.generatedTiles` into a homepage you own for full control over visuals, tabs, and layout.
+
 - **Reasonable hardening** — leans on NixOS and systemd defaults for service isolation.
 
 - **User provisioning** — a central module configures what each user can access; per-service flags drive OIDC provisioning and configure-time setup:

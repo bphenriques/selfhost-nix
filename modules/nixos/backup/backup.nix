@@ -49,11 +49,7 @@ let
           exclude-if-present = [ ".nobackup" ];
           git-ignore = true;
           no-require-git = true;
-          globs = [
-            "!@eaDir"
-            "!.stfolder"
-            "!.Trash*"
-          ];
+          inherit (t) globs;
           snapshots = [ { sources = [ (targetSrc name) ]; } ];
         };
         forget = {
@@ -213,6 +209,21 @@ in
                   yearly = lib.mkOption { type = lib.types.str; };
                 };
               };
+            };
+
+            globs = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [
+                "!@eaDir"
+                "!.stfolder"
+                "!.stversions"
+                "!.Trash*"
+                "!@Recycle"
+                "!$RECYCLE.BIN"
+                "!.DS_Store"
+                "!Thumbs.db"
+              ];
+              description = "rustic include/exclude globs ('!' = exclude). Default excludes common NAS/sync/OS metadata.";
             };
 
             bindings = lib.mkOption {

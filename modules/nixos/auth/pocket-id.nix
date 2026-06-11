@@ -88,8 +88,6 @@ in
         subdomain = "auth";
         inherit port;
         healthcheck.path = "/health";
-        integrations.homepage.enable = true;
-        integrations.homepage.tab = "Home";
       };
 
       auth.oidc.provider = {
@@ -125,7 +123,6 @@ in
         TRUST_PROXY = true;
         ANALYTICS_DISABLED = true;
         ENCRYPTION_KEY_FILE = cfg.runtimeSecrets.pocket-id-encryption-key.path;
-        ACCENT_COLOR = "default";
         STATIC_API_KEY_FILE = cfg.runtimeSecrets.pocket-id-api-key.path;
         UI_CONFIG_DISABLED = true;
 

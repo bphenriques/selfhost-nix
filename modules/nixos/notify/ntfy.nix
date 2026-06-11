@@ -48,8 +48,7 @@ in
         description = "Push Notifications";
         port = cfg.notify.ntfy.port;
         healthcheck.path = "/v1/health";
-        integrations.homepage.enable = true;
-        integrations.homepage.tab = "Admin";
+        integrations.homepage.group = "Admin";
       };
 
       notify.url = serviceCfg.url;

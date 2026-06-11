@@ -1,26 +1,13 @@
 { lib, config, ... }:
 let
   cfg = config.selfhost;
+  selfhostLib = import ./lib.nix { inherit lib; };
 
   baseServiceModule = { name, config, ... }: {
+    # No ingress route means no link to render, so default to no dashboard tile.
+    config.integrations.homepage.enable = lib.mkDefault config.ingress.enable;
+
     options = {
-      name = lib.mkOption {
-        type = lib.types.str;
-        default = name;
-        description = "Service identifier (defaults to attribute name)";
-      };
-
-      displayName = lib.mkOption {
-        type = lib.types.str;
-        default = name;
-        description = "Human-readable service name (defaults to attribute name)";
-      };
-
-      description = lib.mkOption {
-        type = lib.types.str;
-        description = "Short description of the service";
-      };
-
       # Routing (backend)
       host = lib.mkOption {
         type = lib.types.str;
@@ -145,6 +132,7 @@ in
             selfhostCfg = cfg;
           };
           modules = [
+            ./schemas/metadata.nix
             baseServiceModule
             ./schemas/ingress.nix
             ./schemas/oidc.nix
@@ -163,35 +151,17 @@ in
     external = lib.mkOption {
       type = lib.types.attrsOf (
         lib.types.submodule [
+          ./schemas/metadata.nix
           ./schemas/homepage.nix
-          ({ name, ... }: {
-            options = {
-              name = lib.mkOption {
-                type = lib.types.str;
-                default = name;
-                description = "Entry identifier (defaults to attribute name)";
-              };
-
-              displayName = lib.mkOption {
-                type = lib.types.str;
-                default = name;
-                description = "Human-readable entry name (defaults to attribute name)";
-              };
-
-              description = lib.mkOption {
-                type = lib.types.str;
-                description = "Short description";
-              };
-
-              url = lib.mkOption {
-                type = lib.types.str;
-                description = "Direct URL to the external service";
-              };
+          {
+            options.url = lib.mkOption {
+              type = lib.types.str;
+              description = "Direct URL to the external service";
             };
 
             # External entries exist solely to appear on the dashboard.
             config.integrations.homepage.enable = lib.mkDefault true;
-          })
+          }
         ]
       );
       default = { };
@@ -228,14 +198,14 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # A remote proxy target binds nothing here, so only local listeners can collide.
     selfhost.internal.listeningPorts = map (s: {
       name = "service/${s.name}";
       inherit (s) host port;
-    }) (lib.attrValues cfg.services);
+    }) (lib.filter (s: s.host == "127.0.0.1" || s.host == "localhost") (lib.attrValues cfg.services));
 
     assertions =
       let
-        selfhostLib = import ./lib.nix { inherit lib; };
         allServices = lib.attrValues cfg.services;
 
         # Public hosts and aliases must be unique across ingress-enabled services.
@@ -270,5 +240,19 @@ in
           message = "Services must not enable both OIDC and forwardAuth. Offending: ${names dualAuth}";
         }
       ];
+
+    # allowedGroups are only enforced by a framework auth mechanism; a service that sets them but
+    # enables neither relies on its own auth (or is unrestricted). Warn, don't block — the framework
+    # can't tell deliberate native-auth from a forgotten enforcer.
+    warnings =
+      let
+        unenforced = lib.filter (
+          s: s.access.allowedGroups != [ ] && !s.oidc.enable && !s.forwardAuth.enable
+        ) (lib.attrValues cfg.services);
+      in
+      lib.optional (unenforced != [ ])
+        "Services set access.allowedGroups but enable no framework auth (oidc/forwardAuth), so the groups are not enforced — the service must authenticate itself: ${
+          lib.concatMapStringsSep ", " (s: s.name) unenforced
+        }";
   };
 }
