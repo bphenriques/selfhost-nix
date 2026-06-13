@@ -4,6 +4,7 @@
   programs = {
     # Formatters
     nixfmt.enable = true; # Official Nix formatter.
+    nixfmt.width = 120;
 
     # Checks
     deadnix.enable = true; # Detect unused Nix code

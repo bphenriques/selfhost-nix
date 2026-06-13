@@ -101,9 +101,7 @@ let
     ++ (lib.concatLists (lib.mapAttrsToList (_: t: t.restartUnits) cfg.runtimeTemplates))
   );
 
-  templateParentDirs = lib.unique (
-    map (t: builtins.dirOf t.path) (lib.attrValues cfg.runtimeTemplates)
-  );
+  templateParentDirs = lib.unique (map (t: builtins.dirOf t.path) (lib.attrValues cfg.runtimeTemplates));
 
   secretSubmodule = { name, ... }: {
     options = {

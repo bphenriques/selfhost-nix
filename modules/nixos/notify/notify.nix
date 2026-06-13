@@ -73,7 +73,5 @@ in
     };
   };
 
-  config.systemd.services = lib.mkMerge (
-    lib.attrValues (lib.mapAttrs mkFailureOverrides tasksWithNotify)
-  );
+  config.systemd.services = lib.mkMerge (lib.attrValues (lib.mapAttrs mkFailureOverrides tasksWithNotify));
 }

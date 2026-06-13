@@ -272,18 +272,14 @@ in
               assertion = ipCollisions == { };
               message = "WireGuard IP collision detected: ${
                 lib.concatStringsSep ", " (
-                  lib.mapAttrsToList (
-                    ip: cs: "${ip} -> [${lib.concatMapStringsSep ", " (c: c.name) cs}]"
-                  ) ipCollisions
+                  lib.mapAttrsToList (ip: cs: "${ip} -> [${lib.concatMapStringsSep ", " (c: c.name) cs}]") ipCollisions
                 )
               }";
             }
             {
               assertion = tooLong == [ ];
               message = "WireGuard device name too long (max ${toString maxDeviceLen} chars with prefix '${prefix}'): ${
-                lib.concatMapStringsSep ", " (
-                  c: "'${c.device}' (${toString (builtins.stringLength c.device)} chars)"
-                ) tooLong
+                lib.concatMapStringsSep ", " (c: "'${c.device}' (${toString (builtins.stringLength c.device)} chars)") tooLong
               }";
             }
           ];

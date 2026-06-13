@@ -5,8 +5,6 @@
   ...
 }:
 let
-  inherit (lib) mkOption types;
-
   cfg = config.selfhost.storage.smb;
   selfhostCfg = config.selfhost;
 
@@ -24,23 +22,17 @@ let
     else
       [ svc.name ];
 
-  servicesWithStorage = lib.filter (svc: svc.storage.smb != [ ]) (
-    lib.attrValues selfhostCfg.services
-  );
+  servicesWithStorage = lib.filter (svc: svc.storage.smb != [ ]) (lib.attrValues selfhostCfg.services);
   tasksWithStorage = lib.filter (task: task.storage.smb != [ ]) (lib.attrValues selfhostCfg.tasks);
 
-  # Build mount→units mapping from service registry
   serviceMountDeps = lib.foldl' (
     acc: svc:
     let
       units = resolveServiceUnits svc;
     in
-    lib.foldl' (
-      acc2: mountName: acc2 // { ${mountName} = (acc2.${mountName} or [ ]) ++ units; }
-    ) acc svc.storage.smb
+    lib.foldl' (acc2: mountName: acc2 // { ${mountName} = (acc2.${mountName} or [ ]) ++ units; }) acc svc.storage.smb
   ) { } servicesWithStorage;
 
-  # Build mount→units mapping from task registry
   taskMountDeps = lib.foldl' (
     acc: task:
     lib.foldl' (
@@ -48,47 +40,44 @@ let
     ) acc task.storage.smb
   ) { } tasksWithStorage;
 
-  # Merge registry-derived deps with explicit dependentServices per mount
   allDependentUnits =
     mountName: mountCfg:
     lib.unique (
-      mountCfg.systemd.dependentServices
-      ++ (serviceMountDeps.${mountName} or [ ])
-      ++ (taskMountDeps.${mountName} or [ ])
+      mountCfg.systemd.dependentServices ++ (serviceMountDeps.${mountName} or [ ]) ++ (taskMountDeps.${mountName} or [ ])
     );
 
   hasDepServices = mountName: mountCfg: allDependentUnits mountName mountCfg != [ ];
 
-  smbMountCfg = types.submodule (
+  smbMountCfg = lib.types.submodule (
     { name, config, ... }: {
       options = {
-        localMount = mkOption {
-          type = types.str;
+        localMount = lib.mkOption {
+          type = lib.types.str;
           default = "/mnt/homelab-${name}";
           description = "Local mount point for the share";
         };
-        remote = mkOption {
-          type = types.str;
+        remote = lib.mkOption {
+          type = lib.types.str;
           default = name;
           readOnly = true;
           description = "Remote folder name on the selfhost server";
         };
-        group = mkOption {
-          type = types.str;
+        group = lib.mkOption {
+          type = lib.types.str;
           default = "homelab-${name}";
           description = "Name of the group with access to the mount";
         };
-        uid = mkOption {
-          type = types.int;
+        uid = lib.mkOption {
+          type = lib.types.int;
           default = 0;
           description = "File-owner UID on the client (default 0/root → access via group; set per-user for owner-level ops like chmod/git).";
         };
-        gid = mkOption {
-          type = types.int;
+        gid = lib.mkOption {
+          type = lib.types.int;
           description = "GID for the mount group (required for SMB mount options)";
         };
-        systemd.dependentServices = mkOption {
-          type = types.listOf types.str;
+        systemd.dependentServices = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
           default = [ ];
           description = "Extra units needing this mount, for non-registry/dynamic cases (registry services should use storage.smb).";
         };
@@ -100,18 +89,18 @@ in
   options.selfhost.storage.smb = {
     enable = lib.mkEnableOption "Home-server storage";
 
-    hostname = mkOption {
-      type = types.str;
+    hostname = lib.mkOption {
+      type = lib.types.str;
       description = "IP or hostname of the SMB server; prefer an IP or /etc/hosts entry for reliable resolution at boot.";
     };
 
-    credentialsPath = mkOption {
-      type = types.str;
+    credentialsPath = lib.mkOption {
+      type = lib.types.str;
       description = "Path to the SMB credentials file (must be provided by the host, e.g. via sops-nix)";
     };
 
-    mounts = mkOption {
-      type = types.attrsOf smbMountCfg;
+    mounts = lib.mkOption {
+      type = lib.types.attrsOf smbMountCfg;
       default = { };
       description = "Attributes where the key is the remote root folder to configure";
       example = lib.literalExpression ''
@@ -127,17 +116,13 @@ in
 
     assertions =
       let
-        # Collision detection for GIDs
         allGids = lib.mapAttrsToList (_: m: m.gid) cfg.mounts;
         dupGids = lib.filter (gid: lib.count (g: g == gid) allGids > 1) (lib.unique allGids);
 
-        # Verify resolved systemd units exist
         allResolvedUnits =
-          lib.concatMap resolveServiceUnits servicesWithStorage
-          ++ lib.concatMap (task: task.systemdServices) tasksWithStorage;
+          lib.concatMap resolveServiceUnits servicesWithStorage ++ lib.concatMap (task: task.systemdServices) tasksWithStorage;
         missingUnits = lib.filter (unit: !(config.systemd.services ? ${unit})) allResolvedUnits;
 
-        # Tasks with storage mounts must declare systemdServices
         tasksMissingUnits = lib.filter (task: task.storage.smb != [ ] && task.systemdServices == [ ]) (
           lib.attrValues selfhostCfg.tasks
         );
@@ -161,9 +146,7 @@ in
 
     environment.systemPackages = [ pkgs.cifs-utils ];
 
-    users.groups = lib.mapAttrs' (
-      _name: mountCfg: lib.nameValuePair mountCfg.group { inherit (mountCfg) gid; }
-    ) cfg.mounts;
+    users.groups = lib.mapAttrs' (_name: mountCfg: lib.nameValuePair mountCfg.group { inherit (mountCfg) gid; }) cfg.mounts;
 
     fileSystems = lib.mapAttrs' (
       name: mountCfg:
@@ -212,7 +195,6 @@ in
       }
     ) cfg.mounts;
 
-    # Auto-wire systemd dependencies for services that depend on mounts
     systemd.services = lib.mkMerge (
       lib.mapAttrsToList (
         name: mountCfg:

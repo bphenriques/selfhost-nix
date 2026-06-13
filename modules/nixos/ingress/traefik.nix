@@ -7,9 +7,7 @@ let
     rule = "Host(`${host}`)";
     entryPoints = [ "websecure" ];
     service = "${service.name}-svc";
-    middlewares =
-      lib.optionals service.forwardAuth.enable [ "forwardAuth" ]
-      ++ lib.attrNames service.traefik.middlewares;
+    middlewares = lib.optionals service.forwardAuth.enable [ "forwardAuth" ] ++ lib.attrNames service.traefik.middlewares;
   };
 
   mkTraefikRoute =
@@ -35,36 +33,13 @@ let
     };
 in
 {
-  options.selfhost.ingress = {
-    traefik.enable = lib.mkEnableOption "Traefik reverse-proxy ingress implementation";
-
-    acme = {
-      email = lib.mkOption {
-        type = lib.types.str;
-        description = "ACME account email for certificate registration";
-      };
-
-      dnsProvider = lib.mkOption {
-        type = lib.types.str;
-        description = "lego DNS-01 challenge provider name (e.g. 'cloudflare'); see the Traefik/lego provider list";
-      };
-
-      credentialsEnvFile = lib.mkOption {
-        type = lib.types.str;
-        description = "Path to an env file with the DNS provider's credentials (e.g. CF_DNS_API_TOKEN). Provided by the host, e.g. via sops-nix.";
-      };
-    };
+  options.selfhost.ingress.traefik = {
+    enable = lib.mkEnableOption "Traefik reverse-proxy ingress implementation";
 
     metricsPort = lib.mkOption {
       type = lib.types.port;
       default = 8082;
       description = "Port for Traefik's Prometheus metrics endpoint (localhost only)";
-    };
-
-    allowedInterfaces = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ ];
-      description = "Network interfaces to allow HTTP/HTTPS traffic on. If empty, allows on all interfaces (not recommended).";
     };
   };
 
@@ -73,7 +48,7 @@ in
     selfhost.internal.listeningPorts = [
       {
         name = "traefik/metrics";
-        port = ingressCfg.metricsPort;
+        port = ingressCfg.traefik.metricsPort;
       }
     ];
 
@@ -84,7 +59,7 @@ in
           scrape_interval = "120s";
           static_configs = [
             {
-              targets = [ "127.0.0.1:${toString ingressCfg.metricsPort}" ];
+              targets = [ "127.0.0.1:${toString ingressCfg.traefik.metricsPort}" ];
               labels.instance = config.networking.hostName;
             }
           ];
@@ -94,9 +69,7 @@ in
 
     assertions =
       let
-        forwardAuthServices = lib.filter (s: s.forwardAuth.enable && s.ingress.enable) (
-          lib.attrValues cfg.services
-        );
+        forwardAuthServices = lib.filter (s: s.forwardAuth.enable && s.ingress.enable) (lib.attrValues cfg.services);
       in
       [
         {
@@ -172,7 +145,7 @@ in
           };
         };
 
-        entryPoints.metrics.address = "127.0.0.1:${toString ingressCfg.metricsPort}";
+        entryPoints.metrics.address = "127.0.0.1:${toString ingressCfg.traefik.metricsPort}";
         metrics.prometheus = {
           entryPoint = "metrics";
           addRoutersLabels = true;

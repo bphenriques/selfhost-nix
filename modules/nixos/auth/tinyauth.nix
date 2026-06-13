@@ -73,7 +73,6 @@ in
       );
     };
 
-    systemd.services.tinyauth.serviceConfig.SupplementaryGroups =
-      serviceCfg.oidc.systemd.supplementaryGroups;
+    systemd.services.tinyauth.serviceConfig.SupplementaryGroups = serviceCfg.oidc.systemd.supplementaryGroups;
   };
 }

@@ -39,9 +39,7 @@ let
   allGroups = lib.unique (map groupOf (homepageServices ++ homepageExternals));
 
   tilesByGroup = lib.genAttrs allGroups (
-    group:
-    map mkServiceEntry (servicesByGroup.${group} or [ ])
-    ++ map mkExternalEntry (externalsByGroup.${group} or [ ])
+    group: map mkServiceEntry (servicesByGroup.${group} or [ ]) ++ map mkExternalEntry (externalsByGroup.${group} or [ ])
   );
 in
 {

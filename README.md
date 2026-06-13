@@ -71,7 +71,7 @@ Each concern is a **provider-neutral contract**: the consuming modules read the 
 
 - **Namespace**: concerns group the contract + its swappable impl; on-disk state is prefixed `homelab-`.
 - **Providers** (swappable; you enable the bundled default explicitly): `<concern>.<impl>.enable` — `ingress.traefik`, `auth.oidc.pocket-id`, `auth.forwardAuth.tinyauth`, `notify.ntfy`. Disable one and supply your own reading the same contract (`ingress`, `auth.oidc`, `auth.forwardAuth`, `notify`).
-- **First-class subsystems** (the tool *is* the contract, no swap): `monitoring` (Prometheus/Alertmanager), `backup` (rustic), `vpn.wireguard`, `storage.smb`.
+- **First-class subsystems** (the tool *is* the contract, no swap): `monitoring` (Prometheus/Alertmanager), `backup` (rustic), `vpn.wireguard`, `storage.smb`, `runtimeSecrets`/`runtimeTemplates` (boot-time secret generation), `resourceControl` (systemd slices).
 - **Importing a module changes nothing by itself** — every provider/subsystem is off until enabled explicitly.
 
 ## Options

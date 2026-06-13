@@ -73,9 +73,7 @@ in
       }) (lib.filterAttrs (_: units: units != [ ]) collectedUnits);
 
       systemd.services = lib.mkMerge (
-        lib.mapAttrsToList (
-          sliceName: units: lib.mkIf (units != [ ]) (mkSliceOverrides sliceName units)
-        ) collectedUnits
+        lib.mapAttrsToList (sliceName: units: lib.mkIf (units != [ ]) (mkSliceOverrides sliceName units)) collectedUnits
       );
     })
   ];

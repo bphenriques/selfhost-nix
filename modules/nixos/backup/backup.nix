@@ -114,8 +114,7 @@ let
         "ntfy-configure.service"
       ];
       requires = hookDeps;
-      unitConfig.RequiresMountsFor =
-        lib.attrValues t.bindings ++ lib.optional (lib.hasPrefix "/" t.repository) t.repository;
+      unitConfig.RequiresMountsFor = lib.attrValues t.bindings ++ lib.optional (lib.hasPrefix "/" t.repository) t.repository;
       environment = rusticManageEnv;
       serviceConfig = hardenedServiceConfig // {
         ExecStartPre = lib.getExe (mkAssembleScript name hooks);
@@ -264,9 +263,9 @@ in
   config = lib.mkIf (cfg.targets != { }) {
     assertions =
       let
-        badBindingKeys = lib.filter (
-          k: !(lib.hasPrefix "/" k) || k == "/extras" || lib.hasPrefix "/extras/" k
-        ) (lib.concatMap (t: lib.attrNames t.bindings) (lib.attrValues cfg.targets));
+        badBindingKeys = lib.filter (k: !(lib.hasPrefix "/" k) || k == "/extras" || lib.hasPrefix "/extras/" k) (
+          lib.concatMap (t: lib.attrNames t.bindings) (lib.attrValues cfg.targets)
+        );
 
         nameCollisions = lib.concatLists (
           lib.mapAttrsToList (
@@ -295,13 +294,9 @@ in
     # A content-less target is allowed (e.g. a repo connectivity test) but usually a mistake.
     warnings =
       let
-        empty = lib.attrNames (
-          lib.filterAttrs (_: t: t.bindings == { } && t.services == [ ] && t.hooks == { }) cfg.targets
-        );
+        empty = lib.attrNames (lib.filterAttrs (_: t: t.bindings == { } && t.services == [ ] && t.hooks == { }) cfg.targets);
       in
-      lib.optional (
-        empty != [ ]
-      ) "Backup target(s) snapshot an empty tree (no bindings/services/hooks): ${toString empty}";
+      lib.optional (empty != [ ]) "Backup target(s) snapshot an empty tree (no bindings/services/hooks): ${toString empty}";
 
     selfhost.notify.topics."homelab-backup".public = lib.mkDefault false;
     selfhost.tasks.backup.integrations.notify.topic = lib.mkDefault "homelab-backup";

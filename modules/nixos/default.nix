@@ -8,6 +8,7 @@
     ./runtime-secrets.nix
     ./dashboards/homepage.nix
 
+    ./ingress/ingress.nix
     ./ingress/traefik.nix
     ./auth/oidc.nix
     ./auth/forwardauth.nix

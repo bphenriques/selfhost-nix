@@ -45,9 +45,7 @@ let
 
   enabledScopes = lib.filter (s: s.enable) (lib.attrValues cfg.monitoring.scopes);
 
-  servicesWithMonitoring = lib.filter (s: s.integrations.monitoring.enable) (
-    lib.attrValues cfg.services
-  );
+  servicesWithMonitoring = lib.filter (s: s.integrations.monitoring.enable) (lib.attrValues cfg.services);
 
   serviceMonitoringScopes = map (s: {
     inherit (s.integrations.monitoring)
@@ -58,9 +56,7 @@ let
       ;
   }) servicesWithMonitoring;
 
-  healthcheckedServices = lib.filter (
-    s: s.integrations.monitoring.healthcheck
-  ) servicesWithMonitoring;
+  healthcheckedServices = lib.filter (s: s.integrations.monitoring.healthcheck) servicesWithMonitoring;
 
   hasHealthchecks = healthcheckedServices != [ ];
 
@@ -174,9 +170,7 @@ let
   # Shallow merge for exporters (duplicates caught by the assertion below).
   allExporters = lib.foldl' (acc: s: acc // s.exporters) { } allScopes;
   allExporterNames = lib.concatMap (s: lib.attrNames s.exporters) allScopes;
-  dupExporterNames = lib.filter (n: lib.count (m: m == n) allExporterNames > 1) (
-    lib.unique allExporterNames
-  );
+  dupExporterNames = lib.filter (n: lib.count (m: m == n) allExporterNames > 1) (lib.unique allExporterNames);
 
   allScrapeConfigs = lib.concatMap (s: s.scrapeConfigs) allScopes;
   allRules = lib.concatMap (s: s.rules) allScopes;
@@ -205,9 +199,7 @@ let
       )
     )
     ++ lib.concatLists (
-      map (
-        s: fromExporters "service/${s.name}" s.integrations.monitoring.exporters
-      ) servicesWithMonitoring
+      map (s: fromExporters "service/${s.name}" s.integrations.monitoring.exporters) servicesWithMonitoring
     )
     ++ lib.optionals hasHealthchecks [
       {

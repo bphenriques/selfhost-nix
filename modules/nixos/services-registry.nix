@@ -209,9 +209,7 @@ in
         allServices = lib.attrValues cfg.services;
 
         # Public hosts and aliases must be unique across ingress-enabled services.
-        ingressHosts = lib.concatMap (s: [ s.publicHost ] ++ s.aliases) (
-          lib.filter (s: s.ingress.enable) allServices
-        );
+        ingressHosts = lib.concatMap (s: [ s.publicHost ] ++ s.aliases) (lib.filter (s: s.ingress.enable) allServices);
         dupHosts = lib.attrNames (selfhostLib.collisions (builtins.groupBy lib.id ingressHosts));
 
         # One check over the whole registry: services + monitoring exporters + anything else registered.
@@ -230,9 +228,7 @@ in
         {
           assertion = portCollisions == { };
           message = "Listening port collisions: ${
-            lib.concatStringsSep "; " (
-              lib.mapAttrsToList (socket: group: "${socket} ← ${names group}") portCollisions
-            )
+            lib.concatStringsSep "; " (lib.mapAttrsToList (socket: group: "${socket} ← ${names group}") portCollisions)
           }";
         }
         {
@@ -246,9 +242,9 @@ in
     # can't tell deliberate native-auth from a forgotten enforcer.
     warnings =
       let
-        unenforced = lib.filter (
-          s: s.access.allowedGroups != [ ] && !s.oidc.enable && !s.forwardAuth.enable
-        ) (lib.attrValues cfg.services);
+        unenforced = lib.filter (s: s.access.allowedGroups != [ ] && !s.oidc.enable && !s.forwardAuth.enable) (
+          lib.attrValues cfg.services
+        );
       in
       lib.optional (unenforced != [ ])
         "Services set access.allowedGroups but enable no framework auth (oidc/forwardAuth), so the groups are not enforced — the service must authenticate itself: ${

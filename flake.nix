@@ -20,9 +20,7 @@
         "aarch64-linux"
       ];
       forAllSystems = lib.genAttrs systems;
-      treefmtEval = forAllSystems (
-        system: treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} ./treefmt.nix
-      );
+      treefmtEval = forAllSystems (system: treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} ./treefmt.nix);
 
       # Single source of truth for the package set; shared by the overlay and the packages output.
       selfhostPackages = pkgs: {

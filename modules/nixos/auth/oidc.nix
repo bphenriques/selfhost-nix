@@ -6,15 +6,12 @@ let
 
   oidcServices = lib.filterAttrs (_: svc: svc.oidc.enable) selfhostCfg.services;
 
-  derivedClients = lib.mapAttrs (
-    _: svc: svc.oidc // { inherit (svc.access) allowedGroups; }
-  ) oidcServices;
+  derivedClients = lib.mapAttrs (_: svc: svc.oidc // { inherit (svc.access) allowedGroups; }) oidcServices;
 
   enabledUsers = lib.filterAttrs (_: u: u.services.oidc.enable) selfhostCfg.users;
 
   allGroups = lib.unique (
-    (lib.attrValues selfhostCfg.groups)
-    ++ lib.concatLists (lib.mapAttrsToList (_: u: u.groups) enabledUsers)
+    (lib.attrValues selfhostCfg.groups) ++ lib.concatLists (lib.mapAttrsToList (_: u: u.groups) enabledUsers)
   );
 in
 {
@@ -175,7 +172,6 @@ in
           )
         ) derivedClients;
 
-        # Wire each client's dependent services to that client's provision unit
         systemd.services = lib.mkIf hasProvisionUnits (
           lib.mkMerge (
             lib.mapAttrsToList (
