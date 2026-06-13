@@ -38,8 +38,8 @@ Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.
 
 ## Docs
 
-- The published site (`nix build .#docs`) is concept chapters followed by the generated options reference.
-- For prose explaining a *model* rather than an option (e.g. how WireGuard provisioning works), co-locate a `<module>.md` next to the module; the build picks it up as a chapter. Keep narrative there, never in code comments — options self-document via their `description`.
+- The published site (`nix build .#docs`) is an [mdBook](https://rust-lang.github.io/mdBook/): an intro (`docs/introduction.md`), the concept chapters, then the generated options reference. `docs.nix` assembles the book and the table of contents — there is no theme or CSS to maintain.
+- For prose explaining a *model* rather than an option (e.g. how WireGuard provisioning works), co-locate a `<module>.md` next to the module; it is picked up and sorted into the chapter list automatically. Keep narrative there, never in code comments — options self-document via their `description`.
 
 ## CLIs (`packages/`)
 

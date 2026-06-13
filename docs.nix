@@ -1,5 +1,5 @@
-# selfhost docs site (GitHub Pages): co-located concept chapters (modules/**/*.md) ahead of the
-# generated `selfhost.*` options reference. See AGENTS.md "Docs".
+# selfhost docs site (GitHub Pages, mdBook): an intro, the co-located concept chapters
+# (modules/**/*.md), and the generated `selfhost.*` options reference. See AGENTS.md "Docs".
 { pkgs, self }:
 let
   inherit (pkgs) lib;
@@ -30,27 +30,51 @@ let
       };
   };
 
-  conceptChapters = lib.sort (a: b: toString a < toString b) (
-    lib.filter (p: lib.hasSuffix ".md" (toString p)) (lib.filesystem.listFilesRecursive (self + "/modules/nixos"))
+  # Concept chapters: every *.md co-located with a module, titled by its first heading.
+  chapterTitle =
+    p: lib.removePrefix "# " (lib.findFirst (lib.hasPrefix "# ") "# Untitled" (lib.splitString "\n" (builtins.readFile p)));
+
+  # `file` is the basename (clean page URL, e.g. wireguard.html), so chapter basenames must be unique.
+  chapters = lib.sort (a: b: a.title < b.title) (
+    map (p: {
+      inherit p;
+      title = chapterTitle p;
+      file = baseNameOf p;
+    }) (lib.filter (p: lib.hasSuffix ".md" (toString p)) (lib.filesystem.listFilesRecursive (self + "/modules/nixos")))
   );
 
-  optionsHeader = pkgs.writeText "options-reference.md" ''
-    # Options reference
+  # Introduction (prefix) → chapters (auto-sorted) → options reference (suffix). Only the two pins are
+  # fixed, so a new co-located chapter appears automatically.
+  summary = pkgs.writeText "SUMMARY.md" ''
+    # Summary
+
+    [Introduction](introduction.md)
+
+    ${lib.concatMapStringsSep "\n" (c: "- [${c.title}](${c.file})") chapters}
+
+    [Options reference](options.md)
   '';
 
-  pandocInputs = lib.concatStringsSep " " (map toString (conceptChapters ++ [ optionsHeader ]));
+  bookToml = pkgs.writeText "book.toml" ''
+    [book]
+    title = "selfhost-nix"
+    authors = ["Bruno Henriques"]
+    description = "Opinionated NixOS modules for a single-admin selfhost — subsystem concepts and the full selfhost.* options reference."
+    language = "en"
+    src = "src"
 
-  # Inlined (not linked) so the page stays a single self-contained file that opens over file://.
-  styleHeader = pkgs.writeText "docs-head.html" ''
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-    ${builtins.readFile ./docs.css}
-    </style>
+    [output.html]
+    site-url = "/selfhost-nix/"
+    preferred-dark-theme = "navy"
+    git-repository-url = "${repo}"
   '';
 in
-pkgs.runCommand "selfhost-docs" { nativeBuildInputs = [ pkgs.pandoc ]; } ''
-  mkdir -p $out
-  pandoc --standalone --toc --toc-depth=1 --to html --metadata title="selfhost-nix" \
-    --include-in-header=${styleHeader} \
-    ${pandocInputs} ${optionsDoc.optionsCommonMark} -o $out/index.html
+pkgs.runCommand "selfhost-docs" { nativeBuildInputs = [ pkgs.mdbook ]; } ''
+  mkdir -p src
+  cp ${./docs/introduction.md} src/introduction.md
+  ${lib.concatMapStringsSep "\n" (c: "cp ${c.p} src/${c.file}") chapters}
+  { echo "# Options reference"; echo; cat ${optionsDoc.optionsCommonMark}; } > src/options.md
+  cp ${summary} src/SUMMARY.md
+  cp ${bookToml} book.toml
+  mdbook build -d $out
 ''
