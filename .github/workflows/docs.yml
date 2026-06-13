@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: cachix/install-nix-action@v31
-      - run: nix build .#options-doc
+      - run: nix build .#docs
       - run: cp -rL result public
       - uses: actions/upload-pages-artifact@v5
         with:

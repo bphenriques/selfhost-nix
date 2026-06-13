@@ -1,4 +1,3 @@
-# Topic registry + per-task failure-notification wiring; delivery goes through `notify.package`.
 {
   lib,
   config,

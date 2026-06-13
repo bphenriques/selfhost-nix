@@ -1,7 +1,3 @@
-# Registry of externally-defined systemd units (timers, oneshots, maintenance jobs) that opt into
-# selfhost cross-cutting concerns. It does not create or schedule units — define those with
-# systemd.services/systemd.timers as usual, then list them here so notify-on-failure (notify.nix)
-# and storage mounts (smb.nix) attach to them. Schema composed from the fragments in schemas/.
 { lib, config, ... }:
 let
   cfg = config.selfhost;

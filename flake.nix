@@ -41,7 +41,7 @@
         in
         selfhostPackages pkgs
         // {
-          options-doc = import ./docs.nix { inherit pkgs self; };
+          docs = import ./docs.nix { inherit pkgs self; };
         }
       );
 

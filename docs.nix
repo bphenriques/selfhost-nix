@@ -1,4 +1,5 @@
-# selfhost.* options reference as a static HTML site (published to GitHub Pages).
+# selfhost docs site (GitHub Pages): co-located concept chapters (modules/**/*.md) ahead of the
+# generated `selfhost.*` options reference. See AGENTS.md "Docs".
 { pkgs, self }:
 let
   inherit (pkgs) lib;
@@ -28,9 +29,28 @@ let
         ) opt.declarations;
       };
   };
+
+  conceptChapters = lib.sort (a: b: toString a < toString b) (
+    lib.filter (p: lib.hasSuffix ".md" (toString p)) (lib.filesystem.listFilesRecursive (self + "/modules/nixos"))
+  );
+
+  optionsHeader = pkgs.writeText "options-reference.md" ''
+    # Options reference
+  '';
+
+  pandocInputs = lib.concatStringsSep " " (map toString (conceptChapters ++ [ optionsHeader ]));
+
+  # Inlined (not linked) so the page stays a single self-contained file that opens over file://.
+  styleHeader = pkgs.writeText "docs-head.html" ''
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+    ${builtins.readFile ./docs.css}
+    </style>
+  '';
 in
-pkgs.runCommand "selfhost-options-doc" { nativeBuildInputs = [ pkgs.pandoc ]; } ''
+pkgs.runCommand "selfhost-docs" { nativeBuildInputs = [ pkgs.pandoc ]; } ''
   mkdir -p $out
-  pandoc --standalone --to html --metadata title="selfhost-nix — options reference" \
-    ${optionsDoc.optionsCommonMark} -o $out/index.html
+  pandoc --standalone --toc --toc-depth=1 --to html --metadata title="selfhost-nix" \
+    --include-in-header=${styleHeader} \
+    ${pandocInputs} ${optionsDoc.optionsCommonMark} -o $out/index.html
 ''

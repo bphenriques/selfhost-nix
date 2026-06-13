@@ -1,7 +1,3 @@
-# WireGuard VPN: server interface, key generation, per-user device registry, and client
-# provisioning. The server generates each client keypair; `wg-manage show <name>` renders a QR to
-# scan onto the device in person (no email). LAN routing (forward + NAT) is an opt-in nftables impl
-# (lanAccess); disable it and build your own from the exposed `peers` list. Gated, opt-in like smb.
 {
   config,
   lib,
@@ -12,37 +8,11 @@ let
   cfg = config.selfhost;
   wg = cfg.vpn.wireguard;
 
-  fullAccessPeers = builtins.filter (c: c.fullAccess) wg.peers;
-
-  # Deny-by-default: only established, allowed subnets, and fullAccess clients forward; rest dropped.
-  forwardRules = [
-    "ct state established,related accept"
-  ]
-  ++ lib.concatMap (s: [
-    "ip saddr ${s} accept"
-    "ip daddr ${s} accept"
-  ]) wg.lanAccess.extraAllowedSubnets
-  ++ map (c: ''iifname "${wg.interface}" ip saddr ${c.ip} accept'') fullAccessPeers
-  ++ [ ''iifname "${wg.interface}" drop'' ];
-
-  nftablesContent = ''
-    chain forward {
-      type filter hook forward priority 0; policy drop;
-      ${lib.concatStringsSep "\n      " forwardRules}
-    }
-  ''
-  + lib.optionalString wg.lanAccess.masquerade ''
-    chain postrouting {
-      type nat hook postrouting priority srcnat; policy accept;
-      ip saddr ${wg.clientSubnet} ip daddr ${wg.lanAccess.subnet} masquerade
-    }
-  '';
-
-  enabledUsers = lib.filterAttrs (_: u: u.services.wireguard.enable) cfg.users;
-
   dataDir = "/var/lib/wireguard";
   serverKeyFile = "${dataDir}/server/private.key";
   serverPubKeyFile = "${dataDir}/server/public.key";
+
+  enabledUsers = lib.filterAttrs (_: u: u.services.wireguard.enable) cfg.users;
 
   clients = lib.concatLists (
     lib.mapAttrsToList (
@@ -128,12 +98,6 @@ in
       subnet = lib.mkOption {
         type = lib.types.str;
         description = "LAN subnet full-access clients may reach; added to their AllowedIPs and used as the masquerade destination. Required when lanAccess.enable.";
-      };
-      extraAllowedSubnets = lib.mkOption {
-        type = lib.types.listOf lib.types.str;
-        default = [ ];
-        example = [ "10.88.0.0/15" ];
-        description = "Extra subnets allowed to forward through the wg host (e.g. container networks).";
       };
       masquerade = lib.mkEnableOption "srcnat masquerade of client traffic into the LAN (enable only if the LAN lacks routes back to the client subnet)";
     };
@@ -287,14 +251,39 @@ in
         environment.systemPackages = [ wgManage ];
       }
 
-      (lib.mkIf wg.lanAccess.enable {
-        boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
-        networking.nftables.enable = true;
-        networking.nftables.tables.wireguard-access = {
-          family = "inet";
-          content = nftablesContent;
-        };
-      })
+      (lib.mkIf wg.lanAccess.enable (
+        let
+          fullAccessPeers = builtins.filter (c: c.fullAccess) wg.peers;
+
+          # Govern only WireGuard clients: fullAccess devices forward to the LAN, the rest reach just
+          # the server. Other forwarding (containers, bridges) is left to whatever manages it, so this
+          # never has to know about podman/microvm/etc.
+          forwardRules = map (c: ''iifname "${wg.interface}" ip saddr ${c.ip} accept'') fullAccessPeers ++ [
+            ''iifname "${wg.interface}" drop''
+          ];
+
+          nftablesContent = ''
+            chain forward {
+              type filter hook forward priority 0; policy accept;
+              ${lib.concatStringsSep "\n      " forwardRules}
+            }
+          ''
+          + lib.optionalString wg.lanAccess.masquerade ''
+            chain postrouting {
+              type nat hook postrouting priority srcnat; policy accept;
+              ip saddr ${wg.clientSubnet} ip daddr ${wg.lanAccess.subnet} masquerade
+            }
+          '';
+        in
+        {
+          boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
+          networking.nftables.enable = true;
+          networking.nftables.tables.wireguard-access = {
+            family = "inet";
+            content = nftablesContent;
+          };
+        }
+      ))
     ]
   );
 }

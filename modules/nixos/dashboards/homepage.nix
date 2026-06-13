@@ -1,5 +1,3 @@
-# Builds read-only `dashboards.generatedTiles` from the registry; the bundle renders them, or a
-# consumer reads them into their own dashboard (README "Dashboard tiles").
 { lib, config, ... }:
 let
   cfg = config.selfhost;

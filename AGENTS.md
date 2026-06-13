@@ -1,6 +1,6 @@
 # Agent Instructions
 
-Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.md) for the architecture (contracts, providers, subsystems) and [Development](./README.md#development) for layout and how to extend.
+Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.md) for the architecture (contracts, providers, subsystems); this file is the contributor guide — conventions and how to extend.
 
 ## Code style
 
@@ -15,9 +15,10 @@ Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.
 
 ## Contracts & providers
 
-- Each concern is a **provider-neutral contract**: consumers read the contract, never the provider. This is stated once in README "Shape" — don't restate it in module headers.
+- Each concern is a **provider-neutral contract**: consumers read the contract, never the provider. This is stated once in README "How it works" — don't restate it in module headers.
 - Providers register their HTTP service via `selfhost.services.<name>` and any local listening socket via `selfhost.internal.listeningPorts` (a single assertion checks the union for collisions).
 - Naming: providers are `<concern>.<impl>.enable`; on-disk state is prefixed `homelab-`.
+- A new provider/subsystem is a file under `modules/nixos/`, imported in `modules/nixos/default.nix`; gate everything behind its own `enable`.
 
 ## Options
 
@@ -34,6 +35,11 @@ Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.
 - Default to none. If the code is clear, it gets no comment — every comment must earn its place.
 - Add one only for what the code can't say: the *why*, a non-obvious constraint, or a cross-file pointer. Never restate clear code, echo an option's name as a label, or repeat architecture that lives in the README.
 - When you do comment, one line and succinct — cut every word the sentence survives without.
+
+## Docs
+
+- The published site (`nix build .#docs`) is concept chapters followed by the generated options reference.
+- For prose explaining a *model* rather than an option (e.g. how WireGuard provisioning works), co-locate a `<module>.md` next to the module; the build picks it up as a chapter. Keep narrative there, never in code comments — options self-document via their `description`.
 
 ## CLIs (`packages/`)
 

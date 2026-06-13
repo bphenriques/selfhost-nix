@@ -1,4 +1,3 @@
-# Rustic backup: one isolated, independent pipeline per target (own content, repo, retention, schedule).
 {
   config,
   lib,

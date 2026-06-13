@@ -1,5 +1,3 @@
-# Provider-neutral ingress contract: TLS/ACME and which interfaces expose HTTP. The active
-# implementation (traefik by default) reads these; per-service routing lives in the registry.
 { lib, ... }:
 {
   options.selfhost.ingress = {
