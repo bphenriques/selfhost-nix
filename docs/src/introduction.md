@@ -4,6 +4,9 @@ selfhost-nix is a set of opinionated NixOS modules for a single-admin selfhost: 
 and get ingress, authentication, secrets, monitoring, a dashboard tile, backups, and notifications
 wired from that one definition.
 
+> Built for one person's fleet and shared as a reference and starting point. Opinionated by design —
+> each bundled default is swappable behind a neutral contract, and you fork to vary the rest.
+
 ## How it's organised
 
 Each concern is a **provider-neutral contract**. Consuming modules read the contract, never the
@@ -19,6 +22,7 @@ Everything is off until you enable it — importing the modules changes nothing 
 
 ## Reading these docs
 
-The chapters that follow explain each subsystem's *model* — the why and how behind it. For the exact
-knobs, see the [Options reference](options.md), where every `selfhost.*` option is listed with its
-type, default, and source location.
+New here? [Getting started](getting-started.md) covers installing and enabling it. The chapters after
+that explain each subsystem's *model* — the why and how behind it. For the exact knobs, see the
+[Options reference](options.md), where every `selfhost.*` option is listed with its type, default, and
+source location.

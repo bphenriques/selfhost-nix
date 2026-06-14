@@ -2,3 +2,6 @@ result
 result-*
 .direnv
 .claude
+
+# mdbook local build output
+docs/book/

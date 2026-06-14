@@ -1,0 +1,12 @@
+[book]
+title = "selfhost-nix"
+authors = ["Bruno Henriques"]
+description = "Opinionated NixOS modules for a single-admin selfhost — subsystem concepts and the full selfhost.* options reference."
+language = "en"
+src = "src"
+
+[output.html]
+site-url = "/selfhost-nix/"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/bphenriques/selfhost-nix"
+edit-url-template = "https://github.com/bphenriques/selfhost-nix/edit/main/docs/{path}"

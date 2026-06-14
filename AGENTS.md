@@ -38,8 +38,9 @@ Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.
 
 ## Docs
 
-- The published site (`nix build .#docs`) is an [mdBook](https://rust-lang.github.io/mdBook/): an intro (`docs/introduction.md`), the concept chapters, then the generated options reference. `docs.nix` assembles the book and the table of contents — there is no theme or CSS to maintain.
-- For prose explaining a *model* rather than an option (e.g. how WireGuard provisioning works), co-locate a `<module>.md` next to the module; it is picked up and sorted into the chapter list automatically. Keep narrative there, never in code comments — options self-document via their `description`.
+- The site (`nix build .#docs`) is an [mdBook](https://rust-lang.github.io/mdBook/) in `docs/`: prose chapters in `docs/src/`, ordered by `docs/src/SUMMARY.md`. `docs.nix` only injects the generated options reference over the `options.md` placeholder — no theme or CSS to maintain. Preview with `mdbook serve docs`.
+- Chapters explain a subsystem's *model* (the why/how), never its options — options self-document via their `description`. A new chapter is a `docs/src/<name>.md` plus a line in `SUMMARY.md`.
+- **Keep code and docs in sync in the same change.** When a module's behaviour or model shifts, update its chapter alongside it — light, succinct, and above all relevant. If an edit doesn't change the model a reader needs, don't write it.
 
 ## CLIs (`packages/`)
 
