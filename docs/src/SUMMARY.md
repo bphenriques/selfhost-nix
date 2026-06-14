@@ -4,6 +4,7 @@
 
 - [Getting started](getting-started.md)
 - [Service registry](services-registry.md)
+- [Contracts & implementations](contracts.md)
 - [Ingress & TLS](ingress.md)
 - [Authentication & access control](access-control.md)
 - [Notifications](notify.md)

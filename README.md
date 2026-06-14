@@ -1,8 +1,10 @@
 # selfhost-nix
 
-Opinionated NixOS modules for a single-admin selfhost: declare a service once and get ingress, auth, secrets, monitoring, homepage, backups, and notifications wired from that one definition.
+Opinionated NixOS modules for a single-admin selfhost: declare a service once and get reverse proxy + TLS, single sign-on, a dashboard, metrics with alerting, backups, and notifications wired from that one definition.
 
-> **Personal-first and opinionated.** Built for my own fleet and shared as a reference / starting point. The bundled defaults are my choices — Traefik, Pocket-ID, tinyauth, Prometheus, rustic, ntfy — each disable-able behind a neutral contract. Fork to vary the rest.
+Flip a few flags and you have, integrated out of the box: **Pocket-ID** (SSO), **tinyauth** (forward-auth), **WireGuard** (VPN), **Homepage** (dashboard), **ntfy** (notifications), and **Prometheus + Alertmanager** (metrics with alerting) — each swappable behind a neutral contract.
+
+> **Personal-first, community-second.** Built for my own fleet and shared as a reference and starting point. My availability is limited, so support is best-effort — but issues and PRs are welcome.
 
 ## Use
 
@@ -11,7 +13,7 @@ Opinionated NixOS modules for a single-admin selfhost: declare a service once an
 inputs.selfhost-nix.url = "github:bphenriques/selfhost-nix";
 inputs.selfhost-nix.inputs.nixpkgs.follows = "nixpkgs";
 
-# a host (secrets are path-based — wire the paths from your backend of choice, e.g. sops-nix)
+# a host (on nixpkgs unstable; secrets are path-based — wire the paths from your backend, e.g. sops-nix)
 imports = [ inputs.selfhost-nix.nixosModules.default ];
 ```
 
@@ -37,27 +39,23 @@ selfhost = {
 };
 ```
 
-That single `services.miniflux` block yields a Traefik route at `miniflux.home.example.com`, a Pocket-ID OIDC client, a homepage tile, and a Prometheus healthcheck — no per-service wiring.
+That single `services.miniflux` block yields a Traefik route at `miniflux.home.example.com`, a Pocket-ID OIDC client, a homepage tile, and a Prometheus healthcheck — no per-service wiring. For a full real-world host wiring a dozen services, see [my dotfiles](https://github.com/bphenriques/dotfiles).
 
-## How it works
+## Status & scope
 
-Each concern is a **provider-neutral contract**: consuming modules read the contract, never the provider, so a bundled default is swappable for your own — or *is* the contract where swapping wouldn't make sense. Importing a module changes nothing until you enable something.
+**Unstable.** The option surface may change without migration notes until at least the next NixOS stable release.
 
-- **Providers** (swap the default): `ingress.traefik`, `auth.oidc.pocket-id`, `auth.forwardAuth.tinyauth`, `notify.ntfy` — disable one and supply your own reading the same contract.
-- **Subsystems** (the tool *is* the contract): `monitoring`, `backup`, `vpn.wireguard`, `storage.smb`, `runtimeSecrets`/`runtimeTemplates`, `resourceControl`.
+Deliberately out of scope:
 
-Access is layered across three tiers (`admin`, `users`, `guests`), enforced per service by OIDC group restriction or ForwardAuth — never both. Secrets are path-based: every secret option takes a **file path**, never a value, wired from whatever backend you use ([sops-nix](https://github.com/Mic92/sops-nix), agenix, plain files) — nothing secret reaches the Nix store.
-
-The [docs](https://bphenriques.github.io/selfhost-nix) explain each subsystem's model in depth.
+- **Public internet exposure.** Defaults assume a private network (LAN/VPN). Putting services on the public internet is a security decision you own — *not* supported out of the box, and not to be taken lightly.
+- **Containers as the model.** Bundled services are native NixOS/nixpkgs services; you can register a container you run yourself, but the framework doesn't bundle or orchestrate containers.
+- **A module for every service.** Only what nixpkgs supports trivially gets bundled; chasing the long tail isn't worth maintaining across versions (for now).
+- **Multi-admin / multi-tenant.** Single admin by design.
+- **Non-NixOS.** NixOS modules only — no nix-darwin or other targets.
 
 ## Docs
 
-Concepts and the full `selfhost.*` options reference: <https://bphenriques.github.io/selfhost-nix> (built from the module declarations, published on each push to `main`). Build locally with `nix build .#docs` → `result/index.html`.
-
-## Requirements
-
-- A consumer flake on `nixpkgs` unstable, with `selfhost-nix.inputs.nixpkgs.follows = "nixpkgs"`.
-- A secrets backend for the file paths (sops-nix, agenix, …) — not a hard dependency.
+Concepts and the full `selfhost.*` options reference: <https://bphenriques.github.io/selfhost-nix> (built from the module declarations). Build locally with `nix build .#docs` → `result/index.html`.
 
 ## Development
 
@@ -67,7 +65,7 @@ nix flake check -L       # formatting + package builds + VM tests
 nix build .#docs         # docs site → result/index.html
 ```
 
-[`tests/`](tests/) holds [`nixosTest`](https://nixos.org/manual/nixos/stable/#sec-nixos-tests) VM checks — one concern each, Linux + KVM; run one with `nix build -L .#checks.x86_64-linux.vm-ingress`. Conventions and how to extend it (add an option, a concept doc, a provider, a test) live in [`AGENTS.md`](AGENTS.md).
+[`tests/`](tests/) holds [`nixosTest`](https://nixos.org/manual/nixos/stable/#sec-nixos-tests) VM checks — one concern each, Linux + KVM; run one with `nix build -L .#checks.x86_64-linux.vm-ingress`. Conventions and how to extend it live in [`AGENTS.md`](AGENTS.md).
 
 ## Support
 

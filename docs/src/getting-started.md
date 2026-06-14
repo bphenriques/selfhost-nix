@@ -1,5 +1,9 @@
 # Getting started
 
+> ⚠️ **These services are meant for a private network — LAN or VPN, not the public internet.** The
+> defaults harden nothing for internet exposure; doing it safely is entirely your responsibility and is
+> [out of scope](ingress.md#exposure). Don't port-forward `80`/`443` to this host and assume it's safe.
+
 ## Add the flake input
 
 ```nix
@@ -38,10 +42,10 @@ selfhost = {
 };
 ```
 
-That one `services.miniflux` block yields a Traefik route at `miniflux.home.example.com`, a Pocket-ID
-OIDC client, a homepage tile, and a Prometheus healthcheck. Each concern is off until enabled, so start
-with what you need and grow into the rest — the [Service registry](services-registry.md) chapter explains
-what a declaration wires up.
+That one block gives a Traefik route, a Pocket-ID client, a homepage tile, and a Prometheus healthcheck
+— no per-service wiring. Start with what you need; the [Service registry](services-registry.md) chapter
+explains what a declaration sets up. For a real-world host wiring a dozen services, see
+[bphenriques/dotfiles](https://github.com/bphenriques/dotfiles).
 
 ## Prerequisites
 

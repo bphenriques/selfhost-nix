@@ -4,25 +4,16 @@ selfhost-nix is a set of opinionated NixOS modules for a single-admin selfhost: 
 and get ingress, authentication, secrets, monitoring, a dashboard tile, backups, and notifications
 wired from that one definition.
 
-> Built for one person's fleet and shared as a reference and starting point. Opinionated by design —
-> each bundled default is swappable behind a neutral contract, and you fork to vary the rest.
+> ⚠️ **Built for a private network — LAN or VPN.** Nothing here is hardened for the public internet.
+> Don't take the defaults as internet-safe: if you ever expose a service, that is yours to design and
+> secure, and it is [out of scope](ingress.md#exposure). Inform yourself first.
 
-## How it's organised
+> Built for one person's fleet and shared as a reference and starting point. Opinionated by design and
+> still unstable — each bundled default is swappable behind a neutral contract, and you fork to vary
+> the rest.
 
-Each concern is a **provider-neutral contract**. Consuming modules read the contract, never the
-implementation, so a bundled default is swappable for your own — or *is* the contract where swapping
-wouldn't make sense:
+Each concern is a **provider-neutral contract** — a bundled default you can swap for your own (see
+[Contracts & implementations](contracts.md)). Everything is off until you enable it.
 
-- **Providers** (swap the default): ingress (Traefik), OIDC (Pocket-ID), forward-auth (tinyauth),
-  notifications (ntfy).
-- **Subsystems** (the tool is the contract): monitoring, backups, WireGuard, SMB storage, runtime
-  secrets, resource control.
-
-Everything is off until you enable it — importing the modules changes nothing on its own.
-
-## Reading these docs
-
-New here? [Getting started](getting-started.md) covers installing and enabling it. The chapters after
-that explain each subsystem's *model* — the why and how behind it. For the exact knobs, see the
-[Options reference](options.md), where every `selfhost.*` option is listed with its type, default, and
-source location.
+New here? [Getting started](getting-started.md) installs and enables it; the chapters after explain each
+subsystem's *model*, and the [Options reference](options.md) lists every `selfhost.*` option.

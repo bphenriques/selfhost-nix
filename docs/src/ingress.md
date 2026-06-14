@@ -15,3 +15,6 @@ file holding its API token, wired from your secrets backend.
 
 HTTP is opened only on `allowedInterfaces` (e.g. LAN and VPN), keeping services off the public internet.
 Per-service authentication at the edge is opt-in through `forwardAuth.enable`.
+
+Exposing services to the public internet is **out of scope**: there's no bundled hardening for it, and it
+is a deliberate, security-sensitive decision you would own entirely.

@@ -15,10 +15,10 @@ Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.
 
 ## Contracts & providers
 
-- Each concern is a **provider-neutral contract**: consumers read the contract, never the provider. This is stated once in README "How it works" — don't restate it in module headers.
+- A swappable concern is an **interface** + an **implementation**: the interface is `selfhost.<concern>` (the provider-neutral options consumers read); the implementation is `selfhost.<concern>.<impl>`, enabled with `.enable`, and *sets* the interface when active. Consumers read the interface, never the implementation. At most one implementation active per interface — the catalog and rules live in the docs "Contracts & implementations" chapter; keep it in sync when adding one. Don't restate the model in module headers.
+- Subsystems (`monitoring`, `backup`, `vpn.wireguard`, `storage.smb`) have no split — the tool is the contract.
 - Providers register their HTTP service via `selfhost.services.<name>` and any local listening socket via `selfhost.internal.listeningPorts` (a single assertion checks the union for collisions).
-- Naming: providers are `<concern>.<impl>.enable`; on-disk state is prefixed `homelab-`.
-- A new provider/subsystem is a file under `modules/nixos/`, imported in `modules/nixos/default.nix`; gate everything behind its own `enable`.
+- A new provider/subsystem is a file under `modules/nixos/`, imported in `modules/nixos/default.nix`; gate everything behind its own `enable`. On-disk state is prefixed `homelab-`.
 
 ## Options
 
