@@ -1,10 +1,28 @@
 # selfhost-nix
 
-Opinionated NixOS modules for a single-admin selfhost: declare a service once and get reverse proxy + TLS, single sign-on, a dashboard, metrics with alerting, backups, and notifications wired from that one definition.
+[![Nix Flakes](https://img.shields.io/badge/Nix-flakes-5277C3?logo=nixos&logoColor=white)](https://nixos.org/)
+[![Docs](https://img.shields.io/badge/docs-site-blue)](https://bphenriques.github.io/selfhost-nix)
+[![Status](https://img.shields.io/badge/status-unstable-orange)](#status--scope)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
-Flip a few flags and you have, integrated out of the box: **Pocket-ID** (SSO), **tinyauth** (forward-auth), **WireGuard** (VPN), **Homepage** (dashboard), **ntfy** (notifications), and **Prometheus + Alertmanager** (metrics with alerting) — each swappable behind a neutral contract.
+The major hindrance when self-hosting is keeping a clean(er) design across reverse proxy, OIDC, metrics, backups, and notifications without repeating the same wiring for every service. My goal of this project is helping those who pursue self-hosting as a hobby and face similar issues:
 
-> **Personal-first, community-second.** Built for my own fleet and shared as a reference and starting point. My availability is limited, so support is best-effort — but issues and PRs are welcome.
+- **Declare a service once**: one definition wires its route, auth, metrics, dashboard, backup, and notifications. No copy-paste per service.
+- **Agnostic to a point**: every concern has a provider-neutral contract. I hold an opinion and ship one implementation each, easy to toggle off and replace.
+- **Identity and secrets provision themselves**: declare users and groups and they appear in the OIDC provider; each service gets its OIDC client, runtime API keys, and notification token generated at boot and handed to the unit. None of it lands in the Nix store.
+- **Remote access is WireGuard, and only WireGuard**: a built-in VPN with per-device provisioning; no other transport.
+- **Simple to the point of boring**: on purpose. Plenty is out of scope — private-network-only, single admin, native NixOS services ([the list](#status--scope)).
+
+Flip a few flags and you have, out of the box: **Pocket-ID** (SSO), **tinyauth** (forward-auth), **Homepage** (dashboard), **ntfy** (notifications), and **Prometheus + Alertmanager** (metrics with alerting).
+
+I built this to run my own fleet and I'm sharing it in case it's useful to you. It's opinionated because it only has to suit one person — me. I work on it in spare time, so support is slow, but issues and PRs are welcome.
+
+🚧 **Work in progress** — the honest rough edges:
+
+- One implementation per contract so far (Traefik, Pocket-ID, tinyauth, ntfy). The swap seam exists; the alternatives aren't written.
+- Partial automated coverage — a few VM tests, not every concern.
+- The bundled service catalog grows as I need things — it won't ever cover everything.
+- Docs are young and still filling in.
 
 ## Use
 
