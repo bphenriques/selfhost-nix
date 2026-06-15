@@ -2,19 +2,19 @@
 
 The registry is the heart of the framework: `selfhost.services.<name>` declares a service once, and
 every concern reads from that single definition. From a port and a few flags you get a routed,
-monitored, backed-up, discoverable service — without repeating that wiring per service. It *registers*
+monitored, backed-up, discoverable service, without repeating that wiring per service. It *registers*
 the service; you still run it and connect a few generated values (see [Recipes](recipes.md)).
 
 ## What a declaration gives you
 
-An entry carries its own routing identity — `host`/`port` for the backend and a derived public `url`
+An entry carries its own routing identity: `host`/`port` for the backend and a derived public `url`
 (`https://<subdomain>.<domain>`). From there, opt-in integrations attach to it:
 
-- `ingress.enable` (default) — a reverse-proxy route at the public URL.
-- `oidc.enable` / `forwardAuth.enable` — authentication.
-- `integrations.homepage` / `integrations.monitoring` / `integrations.notify` — a dashboard tile,
+- `ingress.enable` (default): a reverse-proxy route at the public URL.
+- `oidc.enable` / `forwardAuth.enable`: authentication.
+- `integrations.homepage` / `integrations.monitoring` / `integrations.notify`: a dashboard tile,
   health/metrics, failure alerts.
-- `backup.package` — a pre-backup hook a backup target can pick up.
+- `backup.package`: a pre-backup hook a backup target can pick up.
 
 Each subsystem filters the registry for the services that opted into it, so adding a capability is one
 flag, not a new wiring block.

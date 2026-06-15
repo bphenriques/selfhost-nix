@@ -1,8 +1,8 @@
 # Runtime secrets & templates
 
-Some secrets shouldn't live in the Nix store or even your secrets backend — API keys a service mints for
+Some secrets shouldn't live in the Nix store or even your secrets backend: API keys a service mints for
 itself, encryption keys generated once. `runtimeSecrets` generates these at boot (`openssl rand`) into a
-persistent directory (include `runtimeSecretsDir` in backups), regenerating if missing — or failing, for
+persistent directory (include `runtimeSecretsDir` in backups), regenerating if missing, or failing, for
 values you sync externally.
 
 ## Templates

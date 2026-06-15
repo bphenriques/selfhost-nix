@@ -2,7 +2,7 @@
 
 Every concern ships with one bundled implementation. Where it makes sense, that implementation sits
 behind a **provider-neutral contract** you can disable and swap for your own; the rest are the contract
-itself — exposing an interface there would cost more than it's worth, so you disable it and handle the
+itself; exposing an interface there would cost more than it's worth, so you disable it and handle the
 concern yourself.
 
 | Concern               | Implementation            | Enable                             | Swappable |
@@ -24,7 +24,7 @@ concern yourself.
 - An **implementation** is `selfhost.<concern>.<impl>` (e.g. `selfhost.notify.ntfy`), turned on with
   `.enable`; it sets the interface when active. At most one is active per interface.
 - A **swappable** concern: disable the bundled implementation and set the interface yourself. A
-  non-swappable one has no interface — the tool *is* the contract; disable it and handle that concern
+  non-swappable one has no interface: the tool *is* the contract; disable it and handle that concern
   however you like.
 
-One implementation each today — the split exists so a second can drop in cleanly.
+One implementation each today: the split exists so a second can drop in cleanly.

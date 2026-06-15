@@ -169,7 +169,7 @@ in
     };
 
     # Port registry: modules append their local listening sockets (services here, exporters in
-    # monitoring.nix, …); the assertion below checks the whole set is collision-free.
+    # monitoring.nix, ...); the assertion below checks the whole set is collision-free.
     internal.listeningPorts = lib.mkOption {
       type = lib.types.listOf (
         lib.types.submodule {
@@ -238,7 +238,7 @@ in
       ];
 
     # allowedGroups are only enforced by a framework auth mechanism; a service that sets them but
-    # enables neither relies on its own auth (or is unrestricted). Warn, don't block — the framework
+    # enables neither relies on its own auth (or is unrestricted). Warn, don't block; the framework
     # can't tell deliberate native-auth from a forgotten enforcer.
     warnings =
       let
@@ -247,7 +247,7 @@ in
         );
       in
       lib.optional (unenforced != [ ])
-        "Services set access.allowedGroups but enable no framework auth (oidc/forwardAuth), so the groups are not enforced — the service must authenticate itself: ${
+        "Services set access.allowedGroups but enable no framework auth (oidc/forwardAuth), so the groups are not enforced; the service must authenticate itself: ${
           lib.concatMapStringsSep ", " (s: s.name) unenforced
         }";
   };

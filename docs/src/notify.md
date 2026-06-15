@@ -7,6 +7,6 @@ stay native and are pointed at the endpoint directly.
 
 ## Topics & publishers
 
-Messages are organised into topics (`notify.topics`). A topic is private by default — publishing needs a
-token — or `public` for token-less posts. Each service or task that opts in (`integrations.notify.enable`)
+Messages are organised into topics (`notify.topics`). A topic is private by default (publishing needs a
+token), or `public` for token-less posts. Each service or task that opts in (`integrations.notify.enable`)
 becomes a publisher with its own access-scoped token, generated at boot and never stored in the Nix store.

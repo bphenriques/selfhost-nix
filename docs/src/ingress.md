@@ -2,7 +2,7 @@
 
 Every service with `ingress.enable` (the default) is routed from `https://<subdomain>.<domain>` to its
 local backend. Routing is provider-neutral: the registry holds the routes and the active implementation
-(Traefik by default, `ingress.traefik.enable`) reads them — disable it and supply your own reading the
+(Traefik by default, `ingress.traefik.enable`) reads them; disable it and supply your own reading the
 same registry.
 
 ## TLS

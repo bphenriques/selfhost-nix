@@ -8,9 +8,9 @@ notify.
 
 A target assembles its tree from two sources:
 
-- **Service hooks** — a registry service declares `backup.package`, a script that writes into `OUTPUT_DIR`
+- **Service hooks**: a registry service declares `backup.package`, a script that writes into `OUTPUT_DIR`
   ordered after the relevant unit; the target lists which services to include.
-- **Bindings** — arbitrary paths mounted read-only into the snapshot tree.
+- **Bindings**: arbitrary paths mounted read-only into the snapshot tree.
 
 Standalone `hooks` cover content not tied to a registry service. Each run assembles into a scratch area,
-snapshots it, and cleans up — on success or failure.
+snapshots it, and cleans up, on success or failure.

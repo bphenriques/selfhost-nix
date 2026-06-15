@@ -17,7 +17,7 @@ The major hindrance when self-hosting is keeping a clean(er) design across rever
 This flake is the foundation of my own [self-hosting environment](https://github.com/bphenriques/dotfiles). I hope it is useful for you. I work on it in spare time, so support is slow, but issues and PRs are welcome.
 
 > [!WARNING]
-> **Work in progress** — expect some rough edges:
+> **Work in progress**, expect some rough edges:
 >
 > 1. You might not find what you need. The framework grows as I hit the need, though it is open to simple, idiomatic extensions.
 > 2. Docs are young and still filling in.

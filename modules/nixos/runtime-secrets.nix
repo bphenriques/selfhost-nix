@@ -142,7 +142,7 @@ let
       restartUnits = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         default = [ ];
-        description = "Units consuming this secret; wired requires+after on the generator (ordering only — values are persistent).";
+        description = "Units consuming this secret; wired requires+after on the generator (ordering only; values are persistent).";
       };
     };
   };

@@ -1,6 +1,6 @@
 # Getting started
 
-> ⚠️ **These services are meant for a private network — LAN or VPN, not the public internet.** The
+> ⚠️ **These services are meant for a private network: LAN or VPN, not the public internet.** The
 > defaults harden nothing for internet exposure; doing it safely is entirely your responsibility and is
 > [out of scope](ingress.md#exposure). Don't port-forward `80`/`443` to this host and assume it's safe.
 
@@ -42,8 +42,8 @@ selfhost = {
 };
 ```
 
-That block **registers** miniflux with the framework — a Traefik route, a Pocket-ID client, a homepage
-tile, and a Prometheus healthcheck — without repeating that wiring per service. It does not *run*
+That block **registers** miniflux with the framework: a Traefik route, a Pocket-ID client, a homepage
+tile, and a Prometheus healthcheck, without repeating that wiring per service. It does not *run*
 miniflux: you still enable the upstream `services.miniflux` and connect it to the generated files.
 [Recipes](recipes.md) walks a service end to end; for a real host wiring a dozen, see
 [bphenriques/dotfiles](https://github.com/bphenriques/dotfiles).
@@ -53,4 +53,4 @@ miniflux: you still enable the upstream `services.miniflux` and connect it to th
 - A flake on **nixpkgs unstable**, with `selfhost-nix.inputs.nixpkgs.follows = "nixpkgs"`.
 - A **secrets backend** ([sops-nix](https://github.com/Mic92/sops-nix), agenix, or plain files). The
   framework is path-based: every secret option takes a **file path**, never a value, and reads only that
-  path — so nothing secret reaches the Nix store. You wire the paths; the backend is your choice.
+  path, so nothing secret reaches the Nix store. You wire the paths; the backend is your choice.
