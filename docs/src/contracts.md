@@ -1,32 +1,30 @@
 # Contracts & implementations
 
-Every swappable concern is split in two: an **interface** — a provider-neutral contract that consuming
-modules read — and an **implementation** that satisfies it. Consumers depend only on the interface, so
-the bundled implementation can be replaced with your own without touching anything downstream.
+Every concern ships with one bundled implementation. Where it makes sense, that implementation sits
+behind a **provider-neutral contract** you can disable and swap for your own; the rest are the contract
+itself — exposing an interface there would cost more than it's worth, so you disable it and handle the
+concern yourself.
 
-## The standard
+| Concern               | Implementation            | Enable                             | Swappable |
+| --------------------- | ------------------------- | ---------------------------------- | --------- |
+| Ingress + TLS         | Traefik                   | `ingress.traefik.enable`           | yes       |
+| OIDC / SSO            | Pocket-ID                 | `auth.oidc.pocket-id.enable`       | yes       |
+| Forward-auth          | tinyauth                  | `auth.forwardAuth.tinyauth.enable` | yes       |
+| Notifications         | ntfy                      | `notify.ntfy.enable`               | yes       |
+| Dashboard             | Homepage                  | `dashboards.homepage.enable`       | yes       |
+| Monitoring + alerting | Prometheus + Alertmanager | `monitoring.enable`                | no        |
+| Backups               | rustic                    | `backup.targets`                   | no        |
+| VPN                   | WireGuard                 | `vpn.wireguard.enable`             | no        |
+| SMB storage           | CIFS                      | `storage.smb.enable`               | no        |
+
+## How swapping works
 
 - The **interface** is `selfhost.<concern>` (e.g. `selfhost.notify`): the options other modules read,
   never knowing who fills them.
 - An **implementation** is `selfhost.<concern>.<impl>` (e.g. `selfhost.notify.ntfy`), turned on with
-  `.enable`, and it sets the interface's values when active.
-- At most one implementation is active per interface. To swap, disable the bundled one and set the
-  interface yourself.
+  `.enable`; it sets the interface when active. At most one is active per interface.
+- A **swappable** concern: disable the bundled implementation and set the interface yourself. A
+  non-swappable one has no interface — the tool *is* the contract; disable it and handle that concern
+  however you like.
 
-## Interfaces and their implementations
-
-| Interface          | Provides                                          | Bundled implementation                |
-| ------------------ | ------------------------------------------------- | ------------------------------------- |
-| `ingress`          | reverse-proxy routes + TLS for the registry       | Traefik — `ingress.traefik.enable`    |
-| `auth.oidc`        | OIDC provider + user/group/client provisioning    | Pocket-ID — `auth.oidc.pocket-id.enable` |
-| `auth.forwardAuth` | edge forward-auth gateway                         | tinyauth — `auth.forwardAuth.tinyauth.enable` |
-| `notify`           | notification delivery (topics + `send-notification`) | ntfy — `notify.ntfy.enable`        |
-
-One implementation each today — the split exists so a second can drop in cleanly, and so you can
-replace any of them with your own reading the same interface.
-
-## Subsystems are not swappable
-
-`monitoring` (Prometheus/Alertmanager), `backup` (rustic), `vpn.wireguard`, and `storage.smb` have no
-interface/implementation split: the tool *is* the contract. They're first-class subsystems, not
-providers.
+One implementation each today — the split exists so a second can drop in cleanly.

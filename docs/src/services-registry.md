@@ -2,7 +2,8 @@
 
 The registry is the heart of the framework: `selfhost.services.<name>` declares a service once, and
 every concern reads from that single definition. From a port and a few flags you get a routed,
-monitored, backed-up, discoverable service — no per-service wiring.
+monitored, backed-up, discoverable service — without repeating that wiring per service. It *registers*
+the service; you still run it and connect a few generated values (see [Recipes](recipes.md)).
 
 ## What a declaration gives you
 

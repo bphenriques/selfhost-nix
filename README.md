@@ -2,92 +2,90 @@
 
 [![Nix Flakes](https://img.shields.io/badge/Nix-flakes-5277C3?logo=nixos&logoColor=white)](https://nixos.org/)
 [![Docs](https://img.shields.io/badge/docs-site-blue)](https://bphenriques.github.io/selfhost-nix)
-[![Status](https://img.shields.io/badge/status-unstable-orange)](#status--scope)
+[![Status](https://img.shields.io/badge/status-unstable-orange)](#out-of-scope)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
-The major hindrance when self-hosting is keeping a clean(er) design across reverse proxy, OIDC, metrics, backups, and notifications without repeating the same wiring for every service. My goal of this project is helping those who pursue self-hosting as a hobby and face similar issues:
+The major hindrance when self-hosting is keeping a clean(er) design across reverse proxy, OIDC, metrics, backups, and notifications without repeating the same wiring for every service. My goal is to help those who pursue self-hosting as a hobby and face similar issues:
 
-- **Declare a service once**: one definition wires its route, auth, metrics, dashboard, backup, and notifications. No copy-paste per service.
-- **Agnostic to a point**: every concern has a provider-neutral contract. I hold an opinion and ship one implementation each, easy to toggle off and replace.
-- **Identity and secrets provision themselves**: declare users and groups and they appear in the OIDC provider; each service gets its OIDC client, runtime API keys, and notification token generated at boot and handed to the unit. None of it lands in the Nix store.
-- **Remote access is WireGuard, and only WireGuard**: a built-in VPN with per-device provisioning; no other transport.
-- **Simple to the point of boring**: on purpose. Plenty is out of scope — private-network-only, single admin, native NixOS services ([the list](#status--scope)).
+- **Single declaration**: one definition sets reverse proxy, authentication, monitoring, backups and notifications.
+- **Open for extension**: interface-first design with at least one implementation provided for those who want to start with _something_.
+- **Automated OIDC clients**: automatically provision OIDC clients per service (scoped to specific groups).
+- **Automated runtime secrets**: following a familiar interface, each service may declare runtime secrets safely stored outside the Nix store.
+- **WireGuard Access**: provides a simple WireGuard (VPN) implementation for (safer) access to the local network.
+- **Opinionated**: on purpose. There are many options out there and plenty is out of scope to keep this project simple(r). Read below ([what is out of scope](#out-of-scope)).
 
-Flip a few flags and you have, out of the box: **Pocket-ID** (SSO), **tinyauth** (forward-auth), **Homepage** (dashboard), **ntfy** (notifications), and **Prometheus + Alertmanager** (metrics with alerting).
+This flake is the foundation of my own [self-hosting environment](https://github.com/bphenriques/dotfiles). I hope it is useful for you. I work on it in spare time, so support is slow, but issues and PRs are welcome.
 
-I built this to run my own fleet and I'm sharing it in case it's useful to you. It's opinionated because it only has to suit one person — me. I work on it in spare time, so support is slow, but issues and PRs are welcome.
+> [!WARNING]
+> **Work in progress** — expect some rough edges:
+>
+> 1. You might not find what you need. The framework grows as I hit the need, though it is open to simple, idiomatic extensions.
+> 2. Docs are young and still filling in.
+> 3. Partial automated test coverage.
+> 4. Options may change without migration notes until at least the next NixOS release.
 
-🚧 **Work in progress** — the honest rough edges:
+## Getting Started
 
-- One implementation per contract so far (Traefik, Pocket-ID, tinyauth, ntfy). The swap seam exists; the alternatives aren't written.
-- Partial automated coverage — a few VM tests, not every concern.
-- The bundled service catalog grows as I need things — it won't ever cover everything.
-- Docs are young and still filling in.
+Check the [docs](https://bphenriques.github.io/selfhost-nix) on how to start, the [providers](https://bphenriques.github.io/selfhost-nix/contracts.html), and [recipes](https://bphenriques.github.io/selfhost-nix/recipes.html). 
 
-## Use
-
+For the curious, after most Flake ceremonies, it will resemble something like this:
 ```nix
-# flake.nix
-inputs.selfhost-nix.url = "github:bphenriques/selfhost-nix";
-inputs.selfhost-nix.inputs.nixpkgs.follows = "nixpkgs";
+{ config, ... }:
+{
+  selfhost = {
+    enable = true;
+    domain = "home.example.com";
 
-# a host (on nixpkgs unstable; secrets are path-based — wire the paths from your backend, e.g. sops-nix)
-imports = [ inputs.selfhost-nix.nixosModules.default ];
-```
+    ingress.traefik.enable           = true; # reverse proxy + TLS
+    auth.oidc.pocket-id.enable       = true; # SSO (OIDC)
+    auth.forwardAuth.tinyauth.enable = true; # forward-auth gateway
+    notify.ntfy.enable               = true; # notifications
+    monitoring.enable                = true; # metrics + alerting
 
-```nix
-selfhost = {
-  enable = true;
-  domain = "home.example.com";
-
-  # Opinionated providers — each a disable-able default behind a neutral contract.
-  ingress.traefik.enable           = true;
-  auth.oidc.pocket-id.enable       = true;
-  auth.forwardAuth.tinyauth.enable = true;
-  notify.ntfy.enable               = true;
-  monitoring.enable                = true;
+    services.miniflux = {
+      port = 8081;
+      healthcheck.path = "/healthcheck";
+      oidc.enable = true;
+      integrations.homepage.enable = true;
+      integrations.monitoring.enable = true;
+    };
+  };
 
   services.miniflux = {
-    port = 8081;
-    healthcheck.path = "/healthcheck";
-    oidc.enable = true;                       # app-level SSO client
-    integrations.homepage.enable = true;
-    integrations.monitoring.enable = true;
+    enable = true;
+    # wire the selfhost-generated files (OIDC client/secret, derived URL/port) into miniflux
   };
-};
+}
 ```
 
-That single `services.miniflux` block yields a Traefik route at `miniflux.home.example.com`, a Pocket-ID OIDC client, a homepage tile, and a Prometheus healthcheck — no per-service wiring. For a full real-world host wiring a dozen services, see [my dotfiles](https://github.com/bphenriques/dotfiles).
+The `selfhost.services.miniflux` block **registers** a Traefik route at `miniflux.home.example.com`, a dedicated Pocket-ID client, a homepage tile, and a healthcheck. You still enable the upstream `services.miniflux` and wire in the generated files.
 
-## Status & scope
+## Out of Scope
 
-**Unstable.** The option surface may change without migration notes until at least the next NixOS stable release.
-
-Deliberately out of scope:
-
-- **Public internet exposure.** Defaults assume a private network (LAN/VPN). Putting services on the public internet is a security decision you own — *not* supported out of the box, and not to be taken lightly.
-- **Containers as the model.** Bundled services are native NixOS/nixpkgs services; you can register a container you run yourself, but the framework doesn't bundle or orchestrate containers.
-- **A module for every service.** Only what nixpkgs supports trivially gets bundled; chasing the long tail isn't worth maintaining across versions (for now).
-- **Multi-admin / multi-tenant.** Single admin by design.
-- **Non-NixOS.** NixOS modules only — no nix-darwin or other targets.
-
-## Docs
-
-Concepts and the full `selfhost.*` options reference: <https://bphenriques.github.io/selfhost-nix> (built from the module declarations). Build locally with `nix build .#docs` → `result/index.html`.
+- **Public internet exposure**: default setup promotes WireGuard. Putting services on the public internet is a security decision that needs careful consideration and this flake will not lighten that decision for you.
+- **Containers**: bundled services are native NixOS/nixpkgs services to keep maintenance burden low. You can run containers yourself and wire through `selfhost.services`.
+- **All combinations**: only what NixOS/nixpkgs supports natively _might_ get bundled. I do not want to carry the maintenance.
+- **Multi-admin / multi-tenant**: Single admin by design. Keeps things simple and matches the nature of the hobby.
+- **Non-NixOS**: no `nix-darwin` or other targets (for now).
 
 ## Development
 
 ```bash
-nix fmt                  # format + lint (treefmt)
-nix flake check -L       # formatting + package builds + VM tests
-nix build .#docs         # docs site → result/index.html
+nix fmt                                        # format + lint (treefmt)
+nix flake check -L                             # run everything: formatting, package builds, and all VM tests
+nix build -L .#checks.x86_64-linux.vm-ingress  # run a single VM test
+nix build .#docs                               # docs site → result/index.html
 ```
 
-[`tests/`](tests/) holds [`nixosTest`](https://nixos.org/manual/nixos/stable/#sec-nixos-tests) VM checks — one concern each, Linux + KVM; run one with `nix build -L .#checks.x86_64-linux.vm-ingress`. Conventions and how to extend it live in [`AGENTS.md`](AGENTS.md).
+VM tests ([`nixosTest`](https://nixos.org/manual/nixos/stable/#sec-nixos-tests), one concern per file under [`tests/`](tests/); Linux + KVM) are exposed as flake checks, so `nix flake check` runs them all in one go. Conventions and how to extend live in [`AGENTS.md`](AGENTS.md).
 
 ## Support
 
-Free and open — my small way of giving back to the Nix community. No obligation, ever. If it saved you time and you feel like it, [buy me a coffee](https://buymeacoffee.com/bphenriques) ☕
+I don't expect anything back but if it saved you time and you feel like it, [buy me a coffee](https://buymeacoffee.com/bphenriques) ☕
+
+## AI Disclaimer
+
+AI was used to learn and iterate faster. I drive the architecture, review and own every line.
 
 ## License
 

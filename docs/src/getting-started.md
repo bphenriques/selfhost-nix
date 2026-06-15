@@ -42,9 +42,10 @@ selfhost = {
 };
 ```
 
-That one block gives a Traefik route, a Pocket-ID client, a homepage tile, and a Prometheus healthcheck
-— no per-service wiring. Start with what you need; the [Service registry](services-registry.md) chapter
-explains what a declaration sets up. For a real-world host wiring a dozen services, see
+That block **registers** miniflux with the framework — a Traefik route, a Pocket-ID client, a homepage
+tile, and a Prometheus healthcheck — without repeating that wiring per service. It does not *run*
+miniflux: you still enable the upstream `services.miniflux` and connect it to the generated files.
+[Recipes](recipes.md) walks a service end to end; for a real host wiring a dozen, see
 [bphenriques/dotfiles](https://github.com/bphenriques/dotfiles).
 
 ## Prerequisites

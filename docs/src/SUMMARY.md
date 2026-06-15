@@ -3,6 +3,7 @@
 [Introduction](introduction.md)
 
 - [Getting started](getting-started.md)
+- [Recipes](recipes.md)
 - [Service registry](services-registry.md)
 - [Contracts & implementations](contracts.md)
 - [Ingress & TLS](ingress.md)
