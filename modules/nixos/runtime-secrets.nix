@@ -96,12 +96,54 @@ let
       fi
     '';
 
-  allRestartUnits = lib.unique (
-    (lib.concatLists (lib.mapAttrsToList (_: s: s.restartUnits) cfg.runtimeSecrets))
-    ++ (lib.concatLists (lib.mapAttrsToList (_: t: t.restartUnits) cfg.runtimeTemplates))
-  );
+  # OIDC credential files are written (and the secret rotated) at runtime by the provider's
+  # per-client provisioning units, which run *after* the provider — which in turn depends on the
+  # secrets pass. A template embedding those creds therefore cannot render in the secrets pass
+  # (cycle) and must re-render whenever its client re-provisions. Such templates are split into
+  # per-client render units bound (after/requires/partOf) to their provisioning unit; everything
+  # else renders in the secrets pass, which stays ahead of the provider.
+  clientProvisionUnitPrefix = cfg.auth.oidc.systemd.clientProvisionUnitPrefix;
+  templateOidcClients =
+    t:
+    lib.filter (
+      name: lib.hasInfix oidcPlaceholderMap.${name}.id t.content || lib.hasInfix oidcPlaceholderMap.${name}.secret t.content
+    ) (lib.attrNames oidcClients);
+  # Guarded so a missing provider surfaces as the assertion below, not a null-coercion error.
+  provisionUnitsFor =
+    t:
+    lib.optionals (clientProvisionUnitPrefix != null) (
+      map (name: "${clientProvisionUnitPrefix}${name}.service") (templateOidcClients t)
+    );
 
-  templateParentDirs = lib.unique (map (t: builtins.dirOf t.path) (lib.attrValues cfg.runtimeTemplates));
+  oidcTemplates = lib.filterAttrs (_: t: templateOidcClients t != [ ]) cfg.runtimeTemplates;
+  plainTemplates = lib.filterAttrs (_: t: templateOidcClients t == [ ]) cfg.runtimeTemplates;
+
+  renderUnitName = name: "homelab-runtime-template-${lib.replaceStrings [ "." "/" ] [ "-" "-" ] name}";
+
+  secretRestartUnits = lib.unique (lib.concatLists (lib.mapAttrsToList (_: s: s.restartUnits) cfg.runtimeSecrets));
+  plainTemplateRestartUnits = lib.unique (lib.concatLists (lib.mapAttrsToList (_: t: t.restartUnits) plainTemplates));
+
+  parentDirsOf = templates: lib.unique (map (t: builtins.dirOf t.path) (lib.attrValues templates));
+
+  # pocket-id (and other secret consumers) depend on this; it must not depend on any OIDC creds.
+  mainServiceExists = cfg.runtimeSecrets != { } || plainTemplates != { };
+  mainServiceDep = lib.optional mainServiceExists "homelab-runtime-secrets.service";
+
+  # Order a secret/template's consumer units behind whatever renders it.
+  mkConsumerDeps =
+    generatorUnit: extra: restartUnits:
+    lib.listToAttrs (
+      map (
+        unit:
+        lib.nameValuePair (lib.removeSuffix ".service" unit) (
+          {
+            after = [ generatorUnit ];
+            requires = [ generatorUnit ];
+          }
+          // extra
+        )
+      ) restartUnits
+    );
 
   secretSubmodule = { name, ... }: {
     options = {
@@ -177,6 +219,21 @@ let
       };
     };
   };
+  renderPath = with pkgs; [
+    coreutils
+    openssl
+    replace-secret
+    gnugrep
+  ];
+  hardening = {
+    Type = "oneshot";
+    RemainAfterExit = true;
+    UMask = "0077";
+    ProtectSystem = "strict";
+    ProtectHome = true;
+    PrivateTmp = true;
+    NoNewPrivileges = true;
+  };
 in
 {
   options.selfhost = {
@@ -222,6 +279,13 @@ in
   };
 
   config = lib.mkIf (cfg.runtimeSecrets != { } || cfg.runtimeTemplates != { }) {
+    assertions = [
+      {
+        assertion = oidcTemplates == { } || clientProvisionUnitPrefix != null;
+        message = "selfhost.runtimeTemplates referencing oidcPlaceholder require an OIDC provider with selfhost.auth.oidc.systemd.clientProvisionUnitPrefix set (so rendering can be ordered after client provisioning): ${toString (lib.attrNames oidcTemplates)}";
+      }
+    ];
+
     systemd.tmpfiles.rules = [
       "d ${secretsDir} 0755 root root -"
     ]
@@ -229,60 +293,61 @@ in
 
     systemd.services = lib.mkMerge (
       [
-        {
+        (lib.optionalAttrs mainServiceExists {
           homelab-runtime-secrets = {
             description = "Generate runtime secrets and render templates";
             wantedBy = [ "multi-user.target" ];
-            before = allRestartUnits;
-            path = with pkgs; [
-              coreutils
-              openssl
-              replace-secret
-              gnugrep
-            ];
-            serviceConfig = {
-              Type = "oneshot";
-              RemainAfterExit = true;
-              UMask = "0077";
-              ProtectSystem = "strict";
-              ReadWritePaths = [ secretsDir ] ++ templateParentDirs;
-              ProtectHome = true;
-              PrivateTmp = true;
-              NoNewPrivileges = true;
+            before = secretRestartUnits ++ plainTemplateRestartUnits;
+            path = renderPath;
+            serviceConfig = hardening // {
+              ReadWritePaths = [ secretsDir ] ++ parentDirsOf plainTemplates;
             };
             script = ''
               set -euo pipefail
               ${lib.concatStringsSep "\n" (lib.mapAttrsToList mkSecretScript cfg.runtimeSecrets)}
-              ${lib.concatStringsSep "\n" (lib.mapAttrsToList mkTemplateScript cfg.runtimeTemplates)}
+              ${lib.concatStringsSep "\n" (lib.mapAttrsToList mkTemplateScript plainTemplates)}
+            '';
+          };
+        })
+      ]
+      # Per-client render units for OIDC-templated env files: bound (partOf) to their provisioning
+      # unit so they render after creds exist and re-render on each secret rotation. Consumers are
+      # restarted by oidc.nix's dependentServices wiring (also partOf the provisioning unit); this
+      # unit only guarantees the re-render lands before that restart.
+      ++ (lib.mapAttrsToList (
+        name: t:
+        let
+          provisionUnits = provisionUnitsFor t;
+        in
+        {
+          ${renderUnitName name} = {
+            description = "Render runtime template ${name} (OIDC)";
+            wantedBy = provisionUnits;
+            after = mainServiceDep ++ provisionUnits;
+            requires = mainServiceDep ++ provisionUnits;
+            partOf = provisionUnits;
+            before = t.restartUnits;
+            restartTriggers = [ t.content ];
+            path = renderPath;
+            serviceConfig = hardening // {
+              ReadWritePaths = [ (builtins.dirOf t.path) ];
+            };
+            script = ''
+              set -euo pipefail
+              ${mkTemplateScript name t}
             '';
           };
         }
-      ]
+      ) oidcTemplates)
+      # Consumers order behind their generator: secrets/plain templates behind the secrets pass,
+      # OIDC templates behind their per-client render unit (templates also restart on body changes).
+      ++ (lib.mapAttrsToList (_: s: mkConsumerDeps "homelab-runtime-secrets.service" { } s.restartUnits) cfg.runtimeSecrets)
       ++ (lib.mapAttrsToList (
-        _: s:
-        lib.listToAttrs (
-          map (unit: {
-            name = lib.removeSuffix ".service" unit;
-            value = {
-              after = [ "homelab-runtime-secrets.service" ];
-              requires = [ "homelab-runtime-secrets.service" ];
-            };
-          }) s.restartUnits
-        )
-      ) cfg.runtimeSecrets)
+        _: t: mkConsumerDeps "homelab-runtime-secrets.service" { restartTriggers = [ t.content ]; } t.restartUnits
+      ) plainTemplates)
       ++ (lib.mapAttrsToList (
-        _: t:
-        lib.listToAttrs (
-          map (unit: {
-            name = lib.removeSuffix ".service" unit;
-            value = {
-              after = [ "homelab-runtime-secrets.service" ];
-              requires = [ "homelab-runtime-secrets.service" ];
-              restartTriggers = [ t.content ];
-            };
-          }) t.restartUnits
-        )
-      ) cfg.runtimeTemplates)
+        name: t: mkConsumerDeps "${renderUnitName name}.service" { restartTriggers = [ t.content ]; } t.restartUnits
+      ) oidcTemplates)
     );
   };
 }
