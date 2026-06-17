@@ -49,10 +49,12 @@ let
     mv -f "$tmp" "$path"
   '';
 
-  fatalBranch = name: ''
-    echo "FATAL: ${name} missing at $path and regenerateIfMissing=false." >&2
-    echo "Restore from backup or set regenerateIfMissing=true to recreate." >&2
-    exit 1
+  # Best-effort: a non-regenerating secret that's missing is left absent and logged rather than aborting
+  # secret generation, so one secret's absence doesn't block the others. Its consumers fail when they read it.
+  # (A secret consumed via a runtimeTemplate is the exception: the render below still hard-fails on it.)
+  warnMissingBranch = name: ''
+    echo "WARNING: ${name} missing at $path and regenerateIfMissing=false; leaving absent." >&2
+    echo "  Restore from backup or set regenerateIfMissing=true; consumers of ${name} will fail until then." >&2
   '';
 
   mkSecretScript = name: s: ''
@@ -64,10 +66,12 @@ let
       fi
     ''}
     if [ ! -e "$path" ]; then
-      ${if s.regenerateIfMissing then generateBranch name s else fatalBranch name}
+      ${if s.regenerateIfMissing then generateBranch name s else warnMissingBranch name}
     fi
-    chown ${lib.escapeShellArg s.owner}:${lib.escapeShellArg (resolveGroup s)} "$path"
-    chmod ${lib.escapeShellArg s.mode} "$path"
+    if [ -e "$path" ]; then
+      chown ${lib.escapeShellArg s.owner}:${lib.escapeShellArg (resolveGroup s)} "$path"
+      chmod ${lib.escapeShellArg s.mode} "$path"
+    fi
   '';
 
   # Filter placeholders down to those actually used in the template to avoid
@@ -155,7 +159,7 @@ let
       regenerateIfMissing = lib.mkOption {
         type = lib.types.bool;
         default = true;
-        description = "Generate a new random value if the file is missing; set false to fail instead (for externally-synced secrets).";
+        description = "Generate a new random value if the file is missing. When false (externally-synced secrets), the file is left absent and logged rather than aborting secret generation; consumers fail until it is restored.";
       };
       migrateFrom = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
