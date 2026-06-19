@@ -15,6 +15,7 @@
     ./auth/pocket-id.nix
     ./auth/tinyauth.nix
     ./vpn/wireguard.nix
+    ./ddns/desec.nix
     ./storage/smb.nix
     ./mail/mail.nix
     ./monitoring/monitoring.nix
