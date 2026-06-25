@@ -18,6 +18,28 @@ let
   bindSpec = g: "${smb.${g.mount}.localMount}:${fbRoot}/${g.user}/${g.mount}";
 in
 {
+  # The service owns its own per-user surface (kept out of core's user schema).
+  options.selfhost.users = lib.mkOption {
+    type = lib.types.attrsOf (
+      lib.types.submodule {
+        options.services.filebrowser = {
+          enable = lib.mkEnableOption "a FileBrowser entry for this user (access is gated by the service auth, not this flag)";
+          storage = lib.mkOption {
+            type = lib.types.attrsOf (
+              lib.types.enum [
+                "ro"
+                "rw"
+              ]
+            );
+            default = { };
+            description = "selfhost SMB mounts this user may access, keyed by permission; unioned into their scope (read-write iff any is `rw`).";
+          };
+          admin = lib.mkEnableOption "FileBrowser admin";
+        };
+      }
+    );
+  };
+
   config = lib.mkIf (cfg.enable && cfg.enableSelfhostIntegration) {
     warnings = lib.mapAttrsToList (
       name: _: "selfhost.users.${name}.services.filebrowser is enabled with no storage grants — empty FileBrowser."

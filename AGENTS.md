@@ -10,7 +10,7 @@ Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.
   - "is X active" that's derivable → check the data (e.g. the registry is non-empty), don't store a flag.
   - No empty-string or null sentinels where a real signal already exists.
 - Lean and YAGNI: no speculative abstraction, no over-engineering. Read neighbouring files and match existing patterns before adding new ones.
-- Single-responsibility modules: one concern per file in `modules/nixos/`; per-service option fragments in `modules/nixos/schemas/`.
+- Single-responsibility modules: one concern per file in `modules/nixos/`; core per-user option fragments in `modules/nixos/schemas/` (a blessed service instead declares its own per-user surface — see below).
 - Gate everything behind an `enable`: importing a module must change nothing until it's turned on.
 
 ## Contracts & providers
@@ -19,6 +19,7 @@ Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.
 - Subsystems (`monitoring`, `backup`, `vpn.wireguard`, `storage.smb`) have no split: the tool is the contract.
 - Providers register their HTTP service via `selfhost.services.<name>` and any local listening socket via `selfhost.internal.listeningPorts` (a single assertion checks the union for collisions).
 - A new provider/subsystem is a file under `modules/nixos/`, imported in `modules/nixos/default.nix`; gate everything behind its own `enable`. On-disk state is prefixed `homelab-`.
+- **Framework vs blessed services**: the dirs above are framework concerns. A blessed app service (e.g. filebrowser) lives in its own `modules/nixos/services/<name>/` folder and owns its whole surface — including its per-user options, which it declares directly on `selfhost.users.*` rather than adding to core's `schemas/`. Core never enumerates a service.
 
 ## Options
 

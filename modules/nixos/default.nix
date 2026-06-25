@@ -17,12 +17,14 @@
     ./vpn/wireguard.nix
     ./ddns/desec.nix
     ./storage/smb.nix
-    ./filebrowser
-    ./filebrowser/selfhost.nix
     ./mail/mail.nix
     ./monitoring/monitoring.nix
     ./backup/backup.nix
     ./notify/notify.nix
     ./notify/ntfy.nix
+
+    # Blessed services: apps that build on the framework above (each gated by its own enable).
+    ./services/filebrowser
+    ./services/filebrowser/selfhost.nix
   ];
 }

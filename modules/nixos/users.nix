@@ -58,7 +58,6 @@ in
         lib.types.submodule [
           baseUserModule
           ./schemas/user-oidc.nix
-          ./schemas/user-filebrowser.nix
         ]
       );
       default = { };

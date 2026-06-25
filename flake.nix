@@ -54,7 +54,7 @@
       };
 
       # Standalone access module (no selfhost framework); the selfhost adapter lives in nixosModules.default.
-      nixosModules.filebrowser-multiuser = ./modules/nixos/filebrowser;
+      nixosModules.filebrowser-multiuser = ./modules/nixos/services/filebrowser;
 
       formatter = forAllSystems (system: treefmtEval.${system}.config.build.wrapper);
 
