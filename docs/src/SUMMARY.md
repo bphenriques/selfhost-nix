@@ -12,6 +12,7 @@
 - [Monitoring](monitoring.md)
 - [Backups](backup.md)
 - [SMB storage](smb.md)
+- [FileBrowser](filebrowser.md)
 - [WireGuard VPN](wireguard.md)
 - [Dashboard](homepage.md)
 - [Runtime secrets & templates](runtime-secrets.md)

@@ -53,6 +53,9 @@
         nixpkgs.overlays = [ self.overlays.default ];
       };
 
+      # Standalone access module (no selfhost framework); the selfhost adapter lives in nixosModules.default.
+      nixosModules.filebrowser-multiuser = ./modules/nixos/filebrowser;
+
       formatter = forAllSystems (system: treefmtEval.${system}.config.build.wrapper);
 
       checks = forAllSystems (

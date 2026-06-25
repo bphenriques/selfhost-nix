@@ -62,4 +62,5 @@ in
   vm-core = runTest ./core.nix;
   vm-ingress = runTest ./ingress.nix;
   vm-monitoring = runTest ./monitoring.nix;
+  vm-filebrowser = runTest ./filebrowser.nix;
 }
