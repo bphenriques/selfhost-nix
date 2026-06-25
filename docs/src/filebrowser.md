@@ -2,7 +2,8 @@
 
 `services.filebrowser-multiuser` adds the per-user access model [FileBrowser](https://filebrowser.org)
 lacks: proxy-auth users, each scoped to a directory with its own permissions, reconciled into its
-database. It sits on `services.filebrowser` (NixOS) and reads root/branding/view from there.
+database. It sits on `services.filebrowser` (NixOS) and reads root/branding/view from there. This base
+module is standalone — usable without the selfhost framework (a non-selfhost host drives it directly).
 
 ## Access, not storage
 
@@ -26,7 +27,9 @@ runner; don't pair it with stateful FileBrowser features.
 
 ## Selfhost integration
 
-`enableSelfhostIntegration` exposes a per-user opt-in under `selfhost.users.<name>.services.filebrowser`: a
-set of SMB `storage` grants (`ro`/`rw`) is assembled into the user's scope via service-namespace binds, and
-the service registers behind the active forwardAuth. Names stay in the private user config; the binding is
-generic.
+On a selfhost host, `selfhost.apps.filebrowser.enable` runs the app (enabling the base above). Its
+`enableSelfhostIntegration` (default on) exposes a per-user opt-in under
+`selfhost.users.<name>.services.filebrowser`: a set of SMB `storage` grants (`ro`/`rw`) is assembled into the
+user's scope via service-namespace binds, and the service registers behind the active forwardAuth. Turn it
+off to run the app but wire users, storage and auth yourself. Names stay in the private user config; the
+binding is generic.

@@ -13,7 +13,8 @@ wired from that one definition.
 > the rest.
 
 Each concern is a **provider-neutral contract**: a bundled default you can swap for your own (see
-[Contracts & implementations](contracts.md)). Everything is off until you enable it.
+[Contracts & implementations](contracts.md)). Everything is off until you enable it. On top of the
+concerns sit a few curated [first-party apps](apps.md) you turn on with one toggle.
 
 New here? [Getting started](getting-started.md) installs and enables it; the chapters after explain each
 subsystem's *model*, and the [Options reference](options.md) lists every `selfhost.*` option.

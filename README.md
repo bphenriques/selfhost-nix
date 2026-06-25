@@ -60,6 +60,10 @@ For the curious, after most Flake ceremonies, it will resemble something like th
 
 The `selfhost.services.miniflux` block **registers** a Traefik route at `miniflux.home.example.com`, a dedicated Pocket-ID client, a homepage tile, and a healthcheck. You still enable the upstream `services.miniflux` and wire in the generated files.
 
+## What it wires vs what you set
+
+This flake **wires the cross-cutting concerns** (ingress, auth, monitoring, backups, notifications) and bundles each service's selfhost-specific glue. It does **not** replicate or proxy `services.<name>` options that nixpkgs already exposes — you still set the deployment specifics (paths, storage, tuning) on the upstream service yourself. The bundled apps default sanely and compose with whatever concerns you've enabled, but expect to be deliberate: this is a wiring layer, not a turnkey that sets every option for you.
+
 ## Out of Scope
 
 - **Public internet exposure**: default setup promotes WireGuard. Putting services on the public internet is a security decision that needs careful consideration and this flake will not lighten that decision for you.

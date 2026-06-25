@@ -73,7 +73,7 @@ in
       in
       [
         {
-          assertion = forwardAuthServices == [ ] || cfg.auth.forwardAuth.url != null;
+          assertion = forwardAuthServices == [ ] || cfg.auth.forwardAuth.enabled;
           message = "Services enable forwardAuth but no forward-auth provider is active (selfhost.auth.forwardAuth.url is unset): ${
             lib.concatMapStringsSep ", " (s: s.name) forwardAuthServices
           }. Traefik would silently skip auth for these services.";

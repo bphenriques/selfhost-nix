@@ -12,6 +12,7 @@
 - [Monitoring](monitoring.md)
 - [Backups](backup.md)
 - [SMB storage](smb.md)
+- [First-party apps](apps.md)
 - [FileBrowser](filebrowser.md)
 - [WireGuard VPN](wireguard.md)
 - [Dashboard](homepage.md)

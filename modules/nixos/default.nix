@@ -23,8 +23,12 @@
     ./notify/notify.nix
     ./notify/ntfy.nix
 
-    # Blessed services: apps that build on the framework above (each gated by its own enable).
+    # First-party apps (selfhost.apps.<name>): bundled apps on top of the framework, each default-off.
+    ./services/bentopdf
     ./services/filebrowser
     ./services/filebrowser/selfhost.nix
+    ./services/miniflux
+    ./services/radicale
+    ./services/transmission
   ];
 }

@@ -41,6 +41,14 @@ let
 in
 {
   options.selfhost.notify = {
+    enabled = lib.mkOption {
+      type = lib.types.bool;
+      readOnly = true;
+      default = config.selfhost.notify.url != "";
+      defaultText = lib.literalMD "true once a provider sets `url`";
+      description = "Whether a notify provider is active. Compose service defaults against this.";
+    };
+
     topics = lib.mkOption {
       type = lib.types.attrsOf (
         lib.types.submodule {
@@ -72,5 +80,19 @@ in
     };
   };
 
-  config.systemd.services = lib.mkMerge (lib.attrValues (lib.mapAttrs mkFailureOverrides tasksWithNotify));
+  config = {
+    assertions =
+      let
+        missingTopic = lib.filterAttrs (_: x: x.integrations.notify.enable && x.integrations.notify.topic == null);
+        names = lib.attrNames (missingTopic config.selfhost.services) ++ lib.attrNames (missingTopic config.selfhost.tasks);
+      in
+      [
+        {
+          assertion = names == [ ];
+          message = "integrations.notify.enable is set without a topic for: ${lib.concatStringsSep ", " names}. Set integrations.notify.topic.";
+        }
+      ];
+
+    systemd.services = lib.mkMerge (lib.attrValues (lib.mapAttrs mkFailureOverrides tasksWithNotify));
+  };
 }

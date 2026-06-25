@@ -1,8 +1,9 @@
-{ lib, ... }:
+{ lib, selfhostCfg, ... }:
 {
   options.integrations.monitoring = {
     enable = lib.mkEnableOption "monitoring for this service" // {
-      default = true;
+      default = selfhostCfg.monitoring.enable;
+      defaultText = lib.literalMD "follows `selfhost.monitoring.enable`";
     };
 
     healthcheck = lib.mkOption {

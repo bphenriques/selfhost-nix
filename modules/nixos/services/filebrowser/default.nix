@@ -1,7 +1,6 @@
 # Per-user proxy-auth access management on top of `services.filebrowser` (model: docs filebrowser chapter).
 {
   config,
-  options,
   lib,
   pkgs,
   ...
@@ -11,17 +10,10 @@ let
   fb = config.services.filebrowser.settings;
   fbPkg = config.services.filebrowser.package; # seed with the same filebrowser the service serves
 
-  configureScript = pkgs.runCommandLocal "filebrowser-configure.nu" { } ''
-    ${lib.getExe pkgs.nushell} --no-config-file --commands 'if not (nu-check "${./configure.nu}") { exit 1 }'
-    cp ${./configure.nu} $out
-  '';
-  filebrowser-configure = pkgs.writeShellApplication {
+  filebrowser-configure = (import ../../builders.nix { inherit pkgs lib; }).writeNushellApplication {
     name = "filebrowser-configure";
-    runtimeInputs = [
-      pkgs.nushell
-      fbPkg
-    ];
-    text = ''exec nu ${configureScript} "$@"'';
+    runtimeInputs = [ fbPkg ];
+    script = ./configure.nu;
   };
 
   permKeys = [
@@ -83,7 +75,6 @@ in
 {
   options.services.filebrowser-multiuser = {
     enable = lib.mkEnableOption "per-user access management for services.filebrowser";
-    enableSelfhostIntegration = lib.mkEnableOption "mapping selfhost.users into this module + registering behind selfhost forwardAuth";
     authHeader = lib.mkOption {
       type = lib.types.str;
       default = "Remote-User";
@@ -136,10 +127,6 @@ in
       {
         assertion = config.services.filebrowser.enable;
         message = "services.filebrowser-multiuser needs services.filebrowser.enable.";
-      }
-      {
-        assertion = !cfg.enableSelfhostIntegration || (options ? selfhost);
-        message = "services.filebrowser-multiuser.enableSelfhostIntegration requires the selfhost stack (and its adapter); it has no effect on its own.";
       }
       {
         assertion = !(fb ? users || fb ? defaults);
