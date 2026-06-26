@@ -5,9 +5,6 @@
 let base_url = $env.GITEA_URL
 let config_flag = $"-c=($env.GITEA_CONFIG)"
 let admin_password = open $env.GITEA_ADMIN_PASSWORD_FILE | str trim
-let source_name = $env.OIDC_PROVIDER_NAME
-let client_id = open $env.OIDC_CLIENT_ID_FILE | str trim
-let client_secret = open $env.OIDC_CLIENT_SECRET_FILE | str trim
 let users = open $env.GITEA_USERS_FILE
 
 def wait_ready [] {
@@ -22,67 +19,22 @@ def wait_ready [] {
 }
 
 def ensure_admin [] {
-  let r = ^gitea $config_flag admin user list --admin | complete
+  let r = gitea $config_flag admin user list --admin | complete
   if $r.exit_code != 0 or ($r.stdout | str trim | lines | length) <= 1 {
-    ^gitea $config_flag admin user create --admin --username admin --password $admin_password --email "admin@localhost" --must-change-password=false
+    gitea $config_flag admin user create --admin --username admin --password $admin_password --email "admin@localhost" --must-change-password=false
     print "Admin user created"
   } else {
     # Reconcile so the runtime secret stays the source of truth (a regenerated file self-heals).
-    ^gitea $config_flag admin user change-password --username admin --password $admin_password --must-change-password=false
+    gitea $config_flag admin user change-password --username admin --password $admin_password --must-change-password=false
     print "Admin password reconciled"
   }
-}
-
-def find_auth_source_id [name: string] {
-  let r = ^gitea $config_flag admin auth list --vertical-bars | complete
-  if $r.exit_code != 0 { return null }
-  $r.stdout | str trim | lines | skip 1 | each { |line|
-    let cols = $line | split row "|" | each {|c| $c | str trim }
-    if ($cols | length) >= 4 and $cols.1 == $name { $cols.0 | into int }
-  } | flatten | get 0?
-}
-
-def ensure_oidc_source [] {
-  let oauth_args = [
-    --name
-    $source_name
-    --provider
-    openidConnect
-    --key
-    $client_id
-    --secret
-    $client_secret
-    --auto-discover-url
-    $env.OIDC_DISCOVERY_URL
-    --scopes
-    "openid,email,profile,groups"
-  ]
-  let existing_id = find_auth_source_id $source_name
-  if $existing_id != null {
-    ^gitea $config_flag admin auth update-oauth --id ($existing_id | into string) ...$oauth_args
-    print $"OIDC source '($source_name)' updated"
-    return
-  }
-  let r = ^gitea $config_flag admin auth add-oauth ...$oauth_args | complete
-  if $r.exit_code == 0 {
-    print $"OIDC source '($source_name)' created"
-    return
-  }
-  if ($r.stderr | str contains "already exists") {
-    let id = find_auth_source_id $source_name
-    if $id != null {
-      ^gitea $config_flag admin auth update-oauth --id ($id | into string) ...$oauth_args
-      return
-    }
-  }
-  error make {msg: $"Failed to configure OIDC source: ($r.stderr)"}
 }
 
 # Mint an admin API token (CLI can't add SSH keys; basic auth is disabled). Ephemeral: revoked at the end
 # of the run (see revoke_token), so nothing accumulates on the admin account. Unique name avoids collisions.
 def admin_token [] {
   let name = $"gitea-configure-(random chars --length 8)"
-  let r = ^gitea $config_flag admin user generate-access-token --username admin --scopes write:admin --token-name $name | complete
+  let r = gitea $config_flag admin user generate-access-token --username admin --scopes write:admin --token-name $name | complete
   if $r.exit_code != 0 { error make {msg: $"Failed to mint admin token: ($r.stderr)"} }
   {
     name: $name
@@ -96,7 +48,7 @@ def revoke_token [tok: record] {
 
 # Usernames currently flagged site-admin (the local `admin` superuser plus any promoted accounts).
 def current_admins [] {
-  let r = ^gitea $config_flag admin user list --admin | complete
+  let r = gitea $config_flag admin user list --admin | complete
   if $r.exit_code != 0 { return [] }
   $r.stdout | str trim | lines | skip 1 | each {|line|
     $line | split row " " | where ($it | str length) > 0 | get 1? | default ""
@@ -128,21 +80,22 @@ def register_keys [username: string, ssh_keys: list<any>, token: string] {
 
 # Creates the account if missing (admin status is reconciled separately; password/keys stay user-owned after).
 def ensure_user [user: record, token] {
-  let listing = (^gitea $config_flag admin user list | complete).stdout | str trim | lines | skip 1
+  let listing = (gitea $config_flag admin user list | complete).stdout | str trim | lines | skip 1
   let exists = $listing | any {|line| (($line | split row " " | where ($it | str length) > 0) | get 1? | default "") == $user.username }
   if $exists { return }
   let password = (random chars --length 32)
-  ^gitea $config_flag admin user create --username $user.username --password $password --email $user.email --must-change-password=false
+  gitea $config_flag admin user create --username $user.username --password $password --email $user.email --must-change-password=false
   print $"Created user '($user.username)'"
   let keys = $user.sshKeys? | default []
   if ($keys | is-not-empty) { register_keys $user.username $keys $token }
 }
 
+# The OIDC auth source is provisioned separately, before gitea starts (see oidc-source.nu); everything here
+# needs the running server (API for keys/admin-status) or is cheap to do post-start (admin, user accounts).
 def main [] {
   wait_ready
   print "Gitea is ready"
   ensure_admin
-  ensure_oidc_source
 
   # Snapshot admins before creating anyone (creation never grants admin, so the snapshot stays valid for the
   # delta below). Mint a token only if there's key registration or an admin promote/demote to do.

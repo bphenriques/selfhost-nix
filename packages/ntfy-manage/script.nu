@@ -18,8 +18,8 @@ def setup_admin [] {
   print "Setting up admin user..."
   let password = open $env.NTFY_ADMIN_PASSWORD_FILE | str trim
   with-env { NTFY_PASSWORD: $password } {
-    ^ntfy user add --role=admin --ignore-exists admin
-    ^ntfy user change-pass admin
+    ntfy user add --role=admin --ignore-exists admin
+    ntfy user change-pass admin
   }
 }
 
@@ -28,7 +28,7 @@ def setup_public_topics [] {
   if ($topics | is-empty) { return }
   print "Setting ACLs for public topics..."
   for topic in $topics {
-    ^ntfy access everyone $topic ro
+    ntfy access everyone $topic ro
     print $"  ($topic) → everyone ro"
   }
 }
@@ -42,14 +42,14 @@ def setup_publishers [] {
     let pub = $entry.pub
     let random_pass = (random chars --length 32)
     with-env { NTFY_PASSWORD: $random_pass } {
-      ^ntfy user add --ignore-exists $name
+      ntfy user add --ignore-exists $name
     }
-    ^ntfy access $name $pub.topic wo
+    ntfy access $name $pub.topic wo
     if ($pub.tokenFile | path exists) {
       print $"  ($name) → ($pub.topic) \(token exists\)"
     } else {
       let token = (
-        ^ntfy token add --label $name $name
+        ntfy token add --label $name $name
         | str trim
         | split row " "
         | get 1
@@ -58,9 +58,9 @@ def setup_publishers [] {
       # Own the token by the publisher's system user when it exists (so that user can read it).
       # Task publishers and DynamicUser services have no such user, so fall back to root — they read
       # the token as root or via systemd LoadCredential. (Chowning to a missing user aborts here.)
-      let owner = if (do { ^id -u $pub.owner } | complete).exit_code == 0 { $pub.owner } else { "root" }
-      ^chown $"($owner):root" $pub.tokenFile
-      ^chmod "400" $pub.tokenFile
+      let owner = if (id -u $pub.owner | complete).exit_code == 0 { $pub.owner } else { "root" }
+      chown $"($owner):root" $pub.tokenFile
+      chmod "400" $pub.tokenFile
       print $"  ($name) → ($pub.topic) \(token created\)"
     }
   }

@@ -3,7 +3,7 @@
 let config = open $env.FILEBROWSER_CONFIG_FILE
 
 def fb [...args] {
-  let r = ^filebrowser -d $env.FILEBROWSER_DB ...$args | complete
+  let r = filebrowser -d $env.FILEBROWSER_DB ...$args | complete
   if $r.exit_code != 0 {
     error make {msg: $"filebrowser failed: ($args | str join ' ')\n($r.stderr)"}
   }

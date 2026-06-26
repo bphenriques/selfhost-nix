@@ -179,18 +179,25 @@ def "main provision-client" [] {
     print $"  Created OIDC client: ($client.name)"
     $r.body.id
   }
-  # Always rotate: pocket-id has no secret-verification endpoint, so server-side rotation silently desyncs from this tmpfs file otherwise.
-  let secret_r = http post $"($base_url)/api/oidc/clients/($client_id)/secret" "" --headers $headers --content-type application/json --full --allow-errors
-  if $secret_r.status != 200 {
-    error make {msg: $"Failed to generate secret for OIDC client ($client.name): ($secret_r.status) - ($secret_r.body)"}
-  }
-  let client_secret = $secret_r.body.secret
-  print $"  Rotated secret for: ($client.name)"
   if not ($client_dir | path exists) { mkdir $client_dir }
   chmod 0750 $client_dir
   chown $"root:($client_group)" $client_dir
   write_credential $id_file ($client_id | into string) $client_group
-  write_credential $secret_file $client_secret $client_group
+
+  # Rotate only when we have no cached secret (new client, or tmpfs cleared on reboot). pocket-id can't
+  # return an existing secret, so rotating every run would change it server-side on each provisioning pass
+  # and silently desync every consumer that persists it (e.g. Gitea's OIDC source in its DB). Gating on the
+  # file's absence keeps the tmpfs copy, pocket-id, and the consumers in agreement across switches.
+  if $is_new or (not ($secret_file | path exists)) {
+    let secret_r = http post $"($base_url)/api/oidc/clients/($client_id)/secret" "" --headers $headers --content-type application/json --full --allow-errors
+    if $secret_r.status != 200 {
+      error make {msg: $"Failed to generate secret for OIDC client ($client.name): ($secret_r.status) - ($secret_r.body)"}
+    }
+    write_credential $secret_file $secret_r.body.secret $client_group
+    print $"  Rotated secret for: ($client.name)"
+  } else {
+    print $"  Secret already provisioned: ($client.name)"
+  }
   print $"  Credentials ready at ($client_dir)"
   # Update allowed user groups if restricted
   if $is_group_restricted {

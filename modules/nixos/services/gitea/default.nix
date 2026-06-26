@@ -43,6 +43,13 @@ let
     runtimeInputs = [ config.services.gitea.package ];
     script = ./configure.nu;
   };
+
+  # Provisions only the OIDC auth source; runs in gitea's preStart (see below).
+  gitea-oidc-source = (import ../../builders.nix { inherit pkgs lib; }).writeNushellApplication {
+    name = "gitea-oidc-source";
+    runtimeInputs = [ config.services.gitea.package ];
+    script = ./oidc-source.nu;
+  };
 in
 {
   options.selfhost = {
@@ -200,10 +207,22 @@ in
 
     networking.firewall.allowedTCPPorts = lib.mkIf (app.ssh.enable && app.ssh.openFirewall) [ app.ssh.port ];
 
-    systemd.services.gitea.serviceConfig.SupplementaryGroups = serviceCfg.oidc.systemd.supplementaryGroups;
+    # Provision the OIDC auth source into the DB before the server boots (mkAfter runs it once nixpkgs'
+    # preStart has set up app.ini/the DB). Gitea registers the provider with the current client secret at
+    # startup and won't re-read a CLI auth change while running, and that secret is re-rotated each boot.
+    systemd.services.gitea = {
+      serviceConfig.SupplementaryGroups = serviceCfg.oidc.systemd.supplementaryGroups;
+      environment = {
+        OIDC_PROVIDER_NAME = oidcCfg.provider.internalName;
+        OIDC_DISCOVERY_URL = "${oidcCfg.provider.issuerUrl}/.well-known/openid-configuration";
+        OIDC_CLIENT_ID_FILE = serviceCfg.oidc.id.file;
+        OIDC_CLIENT_SECRET_FILE = serviceCfg.oidc.secret.file;
+      };
+      preStart = lib.mkAfter (lib.getExe gitea-oidc-source);
+    };
 
     systemd.services.gitea-configure = {
-      description = "Gitea setup (admin, OIDC source, users, service-account keys)";
+      description = "Gitea setup (admin, users, service-account keys, admin reconcile)";
       wantedBy = [ "gitea.service" ];
       after = [ "gitea.service" ];
       requires = [ "gitea.service" ];
@@ -229,11 +248,6 @@ in
         GITEA_URL = serviceCfg.url;
         GITEA_ADMIN_PASSWORD_FILE = config.selfhost.runtimeSecrets.gitea-admin-password.path;
         GITEA_CONFIG = "${config.services.gitea.stateDir}/custom/conf/app.ini";
-        OIDC_PROVIDER_NAME = oidcCfg.provider.internalName;
-        OIDC_DISPLAY_NAME = oidcCfg.provider.displayName;
-        OIDC_DISCOVERY_URL = "${oidcCfg.provider.issuerUrl}/.well-known/openid-configuration";
-        OIDC_CLIENT_ID_FILE = serviceCfg.oidc.id.file;
-        OIDC_CLIENT_SECRET_FILE = serviceCfg.oidc.secret.file;
         GITEA_USERS_FILE = userListFile;
       };
       path = [ config.services.gitea.package ];
