@@ -5,14 +5,14 @@ let
   app = config.selfhost.apps.filebrowser;
   smb = config.selfhost.storage.smb.mounts;
   fbRoot = config.services.filebrowser.settings.root;
-  enabledUsers = lib.filterAttrs (_: u: u.services.filebrowser.enable) config.selfhost.users;
+  enabledUsers = lib.filterAttrs (_: u: u.apps.filebrowser.enable) config.selfhost.users;
   grants = lib.concatLists (
     lib.mapAttrsToList (
       user: u:
       lib.mapAttrsToList (mount: perm: {
         inherit user mount;
         readOnly = perm == "ro";
-      }) u.services.filebrowser.storage
+      }) u.apps.filebrowser.storage
     ) enabledUsers
   );
   bindSpec = g: "${smb.${g.mount}.localMount}:${fbRoot}/${g.user}/${g.mount}";
@@ -32,7 +32,7 @@ in
     users = lib.mkOption {
       type = lib.types.attrsOf (
         lib.types.submodule {
-          options.services.filebrowser = {
+          options.apps.filebrowser = {
             enable = lib.mkEnableOption "a FileBrowser entry for this user (access is gated by the service auth, not this flag)";
             storage = lib.mkOption {
               type = lib.types.attrsOf (
@@ -63,13 +63,13 @@ in
 
     (lib.mkIf (config.selfhost.enable && app.enable && app.enableSelfhostIntegration) {
       warnings = lib.mapAttrsToList (
-        name: _: "selfhost.users.${name}.services.filebrowser is enabled with no storage grants — empty FileBrowser."
-      ) (lib.filterAttrs (_: u: u.services.filebrowser.storage == { }) enabledUsers);
+        name: _: "selfhost.users.${name}.apps.filebrowser is enabled with no storage grants — empty FileBrowser."
+      ) (lib.filterAttrs (_: u: u.apps.filebrowser.storage == { }) enabledUsers);
 
       services.filebrowser-multiuser.users = lib.mapAttrs (user: u: {
         scope = "/${user}";
-        readOnly = !(lib.elem "rw" (lib.attrValues u.services.filebrowser.storage));
-        inherit (u.services.filebrowser) admin;
+        readOnly = !(lib.elem "rw" (lib.attrValues u.apps.filebrowser.storage));
+        inherit (u.apps.filebrowser) admin;
       }) enabledUsers;
 
       selfhost.services.filebrowser = {

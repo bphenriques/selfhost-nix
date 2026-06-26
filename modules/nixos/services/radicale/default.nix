@@ -11,7 +11,7 @@ let
   app = config.selfhost.apps.radicale;
   serviceCfg = config.selfhost.services.radicale;
 
-  enabledUsernames = builtins.attrNames (lib.filterAttrs (_: u: u.services.radicale.enable) config.selfhost.users);
+  enabledUsernames = builtins.attrNames (lib.filterAttrs (_: u: u.apps.radicale.enable) config.selfhost.users);
 
   dataDir = "/var/lib/radicale/collections";
   htpasswdFile = "/var/lib/radicale/users";
@@ -53,7 +53,7 @@ in
     users = lib.mkOption {
       type = lib.types.attrsOf (
         lib.types.submodule {
-          options.services.radicale.enable = lib.mkEnableOption "Radicale CalDAV/CardDAV access for this user";
+          options.apps.radicale.enable = lib.mkEnableOption "Radicale CalDAV/CardDAV access for this user";
         }
       );
     };
@@ -119,7 +119,7 @@ in
     (lib.mkIf (config.selfhost.enable && app.enable && app.enableSelfhostIntegration) {
       warnings =
         lib.optional (enabledUsernames == [ ])
-          "selfhost.apps.radicale: enableSelfhostIntegration is on but no selfhost.users have services.radicale.enable — Radicale will have no accounts.";
+          "selfhost.apps.radicale: enableSelfhostIntegration is on but no selfhost.users have apps.radicale.enable — Radicale will have no accounts.";
 
       selfhost.runtimeSecrets = lib.listToAttrs (
         map (uname: {

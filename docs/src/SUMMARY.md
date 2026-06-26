@@ -5,6 +5,7 @@
 - [Getting started](getting-started.md)
 - [Recipes](recipes.md)
 - [Service registry](services-registry.md)
+- [Users](users.md)
 - [Contracts & implementations](contracts.md)
 - [Ingress & TLS](ingress.md)
 - [Authentication & access control](access-control.md)

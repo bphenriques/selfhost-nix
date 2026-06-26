@@ -8,7 +8,7 @@ let
 
   derivedClients = lib.mapAttrs (_: svc: svc.oidc // { inherit (svc.access) allowedGroups; }) oidcServices;
 
-  enabledUsers = lib.filterAttrs (_: u: u.services.oidc.enable) selfhostCfg.users;
+  enabledUsers = lib.filterAttrs (_: u: u.auth.oidc.enable) selfhostCfg.users;
 
   allGroups = lib.unique (
     (lib.attrValues selfhostCfg.groups) ++ lib.concatLists (lib.mapAttrsToList (_: u: u.groups) enabledUsers)

@@ -18,7 +18,7 @@ let
           firstName = "Ada";
           lastName = "Admin";
           groups = [ config.selfhost.groups.admin ];
-          services.oidc.enable = false;
+          auth.oidc.enable = false;
         };
       };
     };
