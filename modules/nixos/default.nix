@@ -27,6 +27,7 @@
     ./services/bentopdf
     ./services/filebrowser
     ./services/filebrowser/selfhost.nix
+    ./services/gitea
     ./services/miniflux
     ./services/radicale
     ./services/transmission

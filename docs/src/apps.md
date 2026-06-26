@@ -18,6 +18,11 @@ selfhost.services.radicale.port = 5300;          # tune anything on the registry
 from `selfhost.users`, Radicale deriving its htpasswd from them. Turn it off to run the app but wire
 those bits yourself.
 
+Expose the flag only when the app has a meaningful *self-managed* user mode worth opting out of (an app
+that owns its own accounts/htpasswd). OIDC-native apps — Gitea, Miniflux — provision through their auth
+source unconditionally, so a `enableSelfhostIntegration` toggle there would gate nothing; omit it rather
+than add it for symmetry.
+
 ## Defaults compose with the concerns you enabled
 
 An app sets its registry entry with `mkDefault`, and the cross-cutting toggles **follow the matching
