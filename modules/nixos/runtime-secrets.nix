@@ -57,6 +57,24 @@ let
     echo "  Restore from backup or set regenerateIfMissing=true; consumers of ${name} will fail until then." >&2
   '';
 
+  # Missing-file policy: generate-once (mark, then never), always-regenerate, or never (warn).
+  genBranch =
+    name: s:
+    if s.generateOnce then
+      ''
+        if [ -e "$path.generated" ]; then
+          echo "WARNING: ${name} was generated once and is now missing at $path; leaving absent." >&2
+          echo "  It protects persistent data — restore it from backup, do not regenerate." >&2
+        else
+          ${generateBranch name s}
+          : > "$path.generated"
+        fi
+      ''
+    else if s.regenerateIfMissing then
+      generateBranch name s
+    else
+      warnMissingBranch name;
+
   mkSecretScript = name: s: ''
     path=${lib.escapeShellArg s.path}
     ${lib.optionalString (s.migrateFrom != null) ''
@@ -66,7 +84,7 @@ let
       fi
     ''}
     if [ ! -e "$path" ]; then
-      ${if s.regenerateIfMissing then generateBranch name s else warnMissingBranch name}
+      ${genBranch name s}
     fi
     if [ -e "$path" ]; then
       chown ${lib.escapeShellArg s.owner}:${lib.escapeShellArg (resolveGroup s)} "$path"
@@ -160,6 +178,15 @@ let
         type = lib.types.bool;
         default = true;
         description = "Generate a new random value if the file is missing. When false (externally-synced secrets), the file is left absent and logged rather than aborting secret generation; consumers fail until it is restored.";
+      };
+      generateOnce = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Generate once, then never regenerate (supersedes regenerateIfMissing): a later loss is left absent
+          and logged, not silently replaced — for data-bound secrets (e.g. an encryption key). To rotate
+          deliberately, remove the `.generated` marker alongside the file.
+        '';
       };
       migrateFrom = lib.mkOption {
         type = lib.types.nullOr lib.types.str;

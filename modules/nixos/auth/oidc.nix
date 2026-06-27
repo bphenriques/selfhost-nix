@@ -2,7 +2,9 @@
 let
   selfhostCfg = config.selfhost;
   cfg = selfhostCfg.auth.oidc;
-  credentialsBaseDir = "/run/homelab-oidc";
+  # Persistent (not tmpfs): these have no source to re-derive from, so a tmpfs would regenerate them every
+  # boot → drift. Persisting (rotate-when-missing keeps the file) makes them stable; rotation is deliberate.
+  credentialsBaseDir = "/var/lib/homelab-oidc";
 
   oidcServices = lib.filterAttrs (_: svc: svc.oidc.enable) selfhostCfg.services;
 
@@ -43,7 +45,7 @@ in
         type = lib.types.str;
         default = credentialsBaseDir;
         readOnly = true;
-        description = "Base directory for OIDC credentials (tmpfs)";
+        description = "Base directory for OIDC credentials (persistent; see credentialsBaseDir).";
       };
 
       usersFile = lib.mkOption {

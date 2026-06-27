@@ -149,9 +149,8 @@ in
         };
       };
 
-      # Break-glass local admin (routine admin is via OIDC). The password is reconciled on every configure
-      # run, so the default regenerateIfMissing (true) is safe: a lost file self-heals instead of locking us
-      # out — unlike a write-once secret, where a regenerated file would no longer match the DB.
+      # Break-glass local admin (routine login is OIDC); reconciled each configure run, so the default
+      # regenerateIfMissing is safe (a lost file self-heals rather than drifting from the DB).
       runtimeSecrets.gitea-admin-password = {
         owner = "gitea";
         restartUnits = [ "gitea-configure.service" ];
@@ -207,9 +206,9 @@ in
 
     networking.firewall.allowedTCPPorts = lib.mkIf (app.ssh.enable && app.ssh.openFirewall) [ app.ssh.port ];
 
-    # Provision the OIDC auth source into the DB before the server boots (mkAfter runs it once nixpkgs'
-    # preStart has set up app.ini/the DB). Gitea registers the provider with the current client secret at
-    # startup and won't re-read a CLI auth change while running, and that secret is re-rotated each boot.
+    # Provision the OIDC source into the DB before the server registers providers (after nixpkgs' preStart).
+    # Non-fatal: gitea's server fail-soft-skips an unreachable source (first boot before the cert), so we
+    # mustn't be stricter — let it start; the next start provisions.
     systemd.services.gitea = {
       serviceConfig.SupplementaryGroups = serviceCfg.oidc.systemd.supplementaryGroups;
       environment = {
@@ -218,7 +217,9 @@ in
         OIDC_CLIENT_ID_FILE = serviceCfg.oidc.id.file;
         OIDC_CLIENT_SECRET_FILE = serviceCfg.oidc.secret.file;
       };
-      preStart = lib.mkAfter (lib.getExe gitea-oidc-source);
+      preStart = lib.mkAfter ''
+        ${lib.getExe gitea-oidc-source} || echo "gitea-oidc-source: OIDC provider unreachable; starting without the source (will retry next start)"
+      '';
     };
 
     systemd.services.gitea-configure = {

@@ -1,7 +1,6 @@
 #!/usr/bin/env nu
-# Configures Gitea: admin user, OIDC auth source, and declared accounts. Human/bot accounts are created
-# via the stable `gitea admin` CLI; service-account SSH keys are registered through the admin API (the
-# CLI has no key command), authed with an ephemeral admin token this script mints.
+# Gitea post-start setup: admin, user accounts, and service-account SSH keys (admin API + an ephemeral
+# token). The OIDC auth source is provisioned separately, before the server starts (oidc-source.nu).
 let base_url = $env.GITEA_URL
 let config_flag = $"-c=($env.GITEA_CONFIG)"
 let admin_password = open $env.GITEA_ADMIN_PASSWORD_FILE | str trim
@@ -30,8 +29,7 @@ def ensure_admin [] {
   }
 }
 
-# Mint an admin API token (CLI can't add SSH keys; basic auth is disabled). Ephemeral: revoked at the end
-# of the run (see revoke_token), so nothing accumulates on the admin account. Unique name avoids collisions.
+# Mint an ephemeral admin API token (the CLI can't add SSH keys); revoked at end of run.
 def admin_token [] {
   let name = $"gitea-configure-(random chars --length 8)"
   let r = gitea $config_flag admin user generate-access-token --username admin --scopes write:admin --token-name $name | complete
@@ -46,22 +44,23 @@ def revoke_token [tok: record] {
   http delete $"($base_url)/api/v1/users/admin/tokens/($tok.name)" --headers { Authorization: $"token ($tok.token)" } --allow-errors | ignore
 }
 
-# Usernames currently flagged site-admin (the local `admin` superuser plus any promoted accounts).
-def current_admins [] {
-  let r = gitea $config_flag admin user list --admin | complete
-  if $r.exit_code != 0 { return [] }
-  $r.stdout | str trim | lines | skip 1 | each {|line|
-    $line | split row " " | where ($it | str length) > 0 | get 1? | default ""
-  } | where ($it | is-not-empty)
+# Full user records — the API exposes login_name/source_id (which the admin PATCH needs), the CLI doesn't.
+def get_users_api [token: string] {
+  let r = http get $"($base_url)/api/v1/admin/users?limit=50" --headers { Authorization: $"token ($token)" } --full --allow-errors
+  if $r.status != 200 { error make {msg: $"Failed to list users: ($r.status) - ($r.body)"} }
+  $r.body
 }
 
-# Promote/demote an existing account to match declared intent (the CLI has no admin toggle, so use the API).
-def set_admin [username: string, is_admin: bool, token: string] {
-  let r = http patch $"($base_url)/api/v1/admin/users/($username)" {admin: $is_admin} --content-type application/json --headers { Authorization: $"token ($token)" } --full --allow-errors
+# Promote/demote via the admin API (no CLI toggle). gitea requires a non-empty login_name + source_id even
+# for one field: echo the real source_id (keeps an OIDC-linked source); fall back to username when empty.
+def set_admin [user: record, is_admin: bool, token: string] {
+  let login_name = if ($user.login_name | is-empty) { $user.login } else { $user.login_name }
+  let body = { admin: $is_admin, login_name: $login_name, source_id: $user.source_id }
+  let r = http patch $"($base_url)/api/v1/admin/users/($user.login)" $body --content-type application/json --headers { Authorization: $"token ($token)" } --full --allow-errors
   if $r.status != 200 {
-    print $"  ($username): admin=($is_admin) failed ($r.status) - ($r.body)"
+    print $"  ($user.login): admin=($is_admin) failed ($r.status) - ($r.body)"
   } else {
-    print $"  ($username): admin=($is_admin)"
+    print $"  ($user.login): admin=($is_admin)"
   }
 }
 
@@ -97,22 +96,23 @@ def main [] {
   print "Gitea is ready"
   ensure_admin
 
-  # Snapshot admins before creating anyone (creation never grants admin, so the snapshot stays valid for the
-  # delta below). Mint a token only if there's key registration or an admin promote/demote to do.
-  let admins_now = current_admins
+  # Admin reconcile and key registration both need the API, so mint a token whenever there are accounts to
+  # reconcile or keys to add. (Token minting needs the admin, created above.)
   let needs_keys = $users | any {|u| (($u.sshKeys? | default []) | is-not-empty) }
-  let needs_admin = $users | any {|u| ($u.isAdmin? | default false) != ($u.username in $admins_now) }
-  let tok = if ($needs_keys or $needs_admin) { admin_token } else { null }
+  let tok = if ($needs_keys or ($users | is-not-empty)) { admin_token } else { null }
   let token = if $tok != null { $tok.token } else { "" }
 
   for u in $users { ensure_user $u $token }
 
-  for u in $users {
-    let want = $u.isAdmin? | default false
-    if $want != ($u.username in $admins_now) { set_admin $u.username $want $token }
-  }
-
   if $tok != null {
+    # Reconcile admin against the live records (now including just-created users); PATCH only on a delta,
+    # echoing the record's login_name/source_id so the auth source is left intact.
+    let records = get_users_api $token
+    for u in $users {
+      let want = $u.isAdmin? | default false
+      let rec = $records | where login == $u.username | get 0?
+      if $rec != null and $rec.is_admin != $want { set_admin $rec $want $token }
+    }
     revoke_token $tok
     print "Revoked ephemeral admin token"
   }

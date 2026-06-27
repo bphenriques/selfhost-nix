@@ -121,6 +121,10 @@ in
         lib.optional (enabledUsernames == [ ])
           "selfhost.apps.radicale: enableSelfhostIntegration is on but no selfhost.users have apps.radicale.enable — Radicale will have no accounts.";
 
+      # radicale.service's StateDirectory creates /var/lib/radicale only when it starts, but the htpasswd is
+      # written by radicale-configure (ordered before it). Create the dir up front so first boot works.
+      systemd.tmpfiles.rules = [ "d /var/lib/radicale 0750 radicale radicale -" ];
+
       selfhost.runtimeSecrets = lib.listToAttrs (
         map (uname: {
           name = "radicale-password-${uname}";

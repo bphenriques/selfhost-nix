@@ -1,5 +1,5 @@
 # VM integration tests (nixosTest), exposed as flake checks.
-{ pkgs, self }:
+{ pkgs, self, nixpkgs }:
 let
   # nixosTest runs nixpkgs read-only, so apply the overlay here and import the module dir directly:
   # nixosModules.default would set nixpkgs.overlays, which read-only mode rejects.
@@ -63,4 +63,11 @@ in
   vm-ingress = runTest ./ingress.nix;
   vm-monitoring = runTest ./monitoring.nix;
   vm-filebrowser = runTest ./filebrowser.nix;
+  vm-radicale = runTest ./radicale.nix;
+  vm-transmission = runTest ./transmission.nix;
+  vm-bentopdf = runTest ./bentopdf.nix;
+  vm-gitea = runTest ./gitea.nix;
+
+  # Eval-only: the consumer template still builds against the live framework.
+  template-default = import ./template.nix { inherit pkgs self nixpkgs; };
 }

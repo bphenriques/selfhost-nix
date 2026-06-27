@@ -103,8 +103,11 @@ in
       };
 
       runtimeSecrets = {
+        # Encrypts Pocket-ID's DB, so a new value would brick it: generateOnce (auto once, never replaced;
+        # a loss restores from backup). The API key, by contrast, regenerates harmlessly.
         pocket-id-encryption-key = {
           owner = config.services.pocket-id.user;
+          generateOnce = true;
           restartUnits = [ "pocket-id.service" ];
         };
         pocket-id-api-key = {
@@ -142,7 +145,7 @@ in
       };
     };
 
-    # Credentials base dir (tmpfs); 0755 so services can traverse to their own 0750 client subdirs.
+    # Credentials base dir (persistent); 0755 so services can traverse to their own 0750 client subdirs.
     systemd.tmpfiles.rules = [
       "d ${oidcCfg.credentials.dir} 0755 root root -"
     ];

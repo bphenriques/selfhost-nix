@@ -1,15 +1,49 @@
-# First-party Miniflux app: an RSS reader fronted by OIDC. Users auto-provision on first OIDC login; a
-# local CREATE_ADMIN account (random password, root-readable) covers admin tasks. No per-user reconciler
-# — reader preferences live in the UI, not declared here. Promote an OIDC user to admin manually (via the
-# local admin) if ever needed; the API mapping isn't worth maintaining.
-{ config, lib, ... }:
+# First-party Miniflux app: an OIDC-fronted RSS reader; per-user settings reconciled via configure.nu.
+{ config, lib, pkgs, ... }:
 let
   app = config.selfhost.apps.miniflux;
   serviceCfg = config.selfhost.services.miniflux;
   oidcCfg = config.selfhost.auth.oidc;
+
+  # OIDC users get a Miniflux account on first login; their settings (admin + freeform prefs) are reconciled.
+  enabledUsers = lib.filterAttrs (_: u: u.auth.oidc.enable) config.selfhost.users;
+  usersFile = pkgs.writeText "miniflux-users.json" (
+    builtins.toJSON (
+      lib.mapAttrsToList (_: u: {
+        inherit (u) username;
+        # is_admin is framework-controlled, so it wins over any value placed in the freeform settings.
+        settings = u.apps.miniflux.settings // { is_admin = u.isAdmin; };
+      }) enabledUsers
+    )
+  );
+
+  miniflux-configure = (import ../../builders.nix { inherit pkgs lib; }).writeNushellApplication {
+    name = "miniflux-configure";
+    script = ./configure.nu;
+  };
 in
 {
-  options.selfhost.apps.miniflux.enable = lib.mkEnableOption "the first-party Miniflux app (RSS reader with OIDC login)";
+  options.selfhost = {
+    apps.miniflux.enable = lib.mkEnableOption "the first-party Miniflux app (RSS reader with OIDC login)";
+
+    users = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          # Freeform passthrough to Miniflux's stable, idempotent partial-update PUT; don't copy to apps
+          # without those properties.
+          options.apps.miniflux.settings = lib.mkOption {
+            type = lib.types.attrsOf lib.types.anything;
+            default = { };
+            example = {
+              theme = "dark_serif";
+              display_mode = "fullscreen";
+            };
+            description = "Per-user Miniflux preferences, applied verbatim via the user-update API (is_admin is framework-managed and ignored here).";
+          };
+        }
+      );
+    };
+  };
 
   config = lib.mkIf (config.selfhost.enable && app.enable) {
     selfhost = {
@@ -20,13 +54,16 @@ in
         access.allowedGroups = lib.mkDefault [ config.selfhost.groups.admin ];
         healthcheck.path = "/healthcheck";
         oidc = {
-          enable = true; # Miniflux's auth model here is OIDC; the local admin is bootstrap-only.
+          enable = true;
           systemd.dependentServices = [ "miniflux" ];
         };
       };
 
       # Bootstrap admin: auto-generated random password (root-readable), rarely used since login is OIDC.
-      runtimeSecrets.miniflux-admin-password.restartUnits = [ "miniflux.service" ];
+      runtimeSecrets.miniflux-admin-password.restartUnits = [
+        "miniflux.service"
+        "miniflux-configure.service"
+      ];
       runtimeTemplates."miniflux-admin-credentials.env" = {
         content = ''
           ADMIN_USERNAME=admin
@@ -59,5 +96,33 @@ in
 
     systemd.services.miniflux.serviceConfig.SupplementaryGroups = serviceCfg.oidc.systemd.supplementaryGroups;
     systemd.services.miniflux-dbsetup.serviceConfig.RemainAfterExit = true; # oneshot must stay active to satisfy start-limit
+
+    systemd.services.miniflux-configure = {
+      description = "Reconcile per-user Miniflux settings (admin + freeform preferences)";
+      wantedBy = [ "miniflux.service" ];
+      after = [ "miniflux.service" ];
+      requires = [ "miniflux.service" ];
+      partOf = [ "miniflux.service" ];
+      restartTriggers = [
+        usersFile
+        miniflux-configure
+      ];
+      startLimitIntervalSec = 300;
+      startLimitBurst = 3;
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        TimeoutStartSec = 600;
+        Restart = "on-failure";
+        RestartSec = 10;
+      };
+      environment = {
+        MINIFLUX_URL = serviceCfg.url;
+        MINIFLUX_ADMIN_USERNAME = "admin";
+        MINIFLUX_ADMIN_PASSWORD_FILE = config.selfhost.runtimeSecrets.miniflux-admin-password.path;
+        MINIFLUX_USERS_FILE = usersFile;
+      };
+      script = lib.getExe miniflux-configure;
+    };
   };
 }

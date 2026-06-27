@@ -1,0 +1,9 @@
+# Replace the recipient with your age key (`age-keygen`, or `ssh-to-age` from your host key), then
+# encrypt each host's secrets.yaml. See https://github.com/getsops/sops and the sops-nix README.
+keys:
+  - &admin age1REPLACEMExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+creation_rules:
+  - path_regex: hosts/.*/secrets\.yaml$
+    key_groups:
+      - age:
+          - *admin

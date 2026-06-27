@@ -67,9 +67,15 @@
           formatting = treefmtEval.${system}.config.build.check self;
         }
         // selfhostPackages pkgs
-        # VM integration tests (nixosTest); Linux-only.
-        // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux (import ./tests { inherit pkgs self; })
+        # VM integration tests (nixosTest) + the template eval check; Linux-only.
+        // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux (import ./tests { inherit pkgs self nixpkgs; })
       );
+
+      # Consumer starting point: `nix flake init -t github:bphenriques/selfhost-nix`.
+      templates.default = {
+        path = ./templates/default;
+        description = "A selfhost-nix consumer flake (one host + a nested private flake)";
+      };
 
       devShells = forAllSystems (system: {
         default = import ./shell.nix { pkgs = nixpkgs.legacyPackages.${system}; };

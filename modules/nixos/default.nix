@@ -13,6 +13,7 @@
     ./auth/oidc.nix
     ./auth/forwardauth.nix
     ./auth/pocket-id.nix
+    ./auth/oidc-rotation.nix
     ./auth/tinyauth.nix
     ./vpn/wireguard.nix
     ./ddns/desec.nix

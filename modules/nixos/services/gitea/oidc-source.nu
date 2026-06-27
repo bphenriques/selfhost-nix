@@ -1,8 +1,5 @@
 #!/usr/bin/env nu
-# Writes Gitea's OIDC auth source into the DB. Runs in gitea's preStart (before the server starts) because
-# Gitea registers the provider with the current client secret at startup and won't re-read a CLI auth change
-# while running — and that secret is re-rotated on each boot. Uses the ambient GITEA_WORK_DIR that nixpkgs'
-# gitea.service already sets, so no -c is needed.
+# Writes Gitea's OIDC auth source into the DB; runs in gitea's preStart, before the server registers providers.
 let source_name = $env.OIDC_PROVIDER_NAME
 let client_id = open $env.OIDC_CLIENT_ID_FILE | str trim
 let client_secret = open $env.OIDC_CLIENT_SECRET_FILE | str trim

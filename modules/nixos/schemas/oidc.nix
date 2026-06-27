@@ -6,7 +6,7 @@
 }:
 let
   serviceConfig = config;
-  credentialsBaseDir = "/run/homelab-oidc";
+  credentialsBaseDir = "/var/lib/homelab-oidc"; # persistent; see auth/oidc.nix for the rationale
   mkPlaceholder = field: "@HOMELAB_OIDC_${name}_${field}@";
 in
 {

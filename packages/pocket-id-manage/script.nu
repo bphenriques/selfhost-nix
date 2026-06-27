@@ -184,10 +184,8 @@ def "main provision-client" [] {
   chown $"root:($client_group)" $client_dir
   write_credential $id_file ($client_id | into string) $client_group
 
-  # Rotate only when we have no cached secret (new client, or tmpfs cleared on reboot). pocket-id can't
-  # return an existing secret, so rotating every run would change it server-side on each provisioning pass
-  # and silently desync every consumer that persists it (e.g. Gitea's OIDC source in its DB). Gating on the
-  # file's absence keeps the tmpfs copy, pocket-id, and the consumers in agreement across switches.
+  # Rotate only when there's no cached secret (new client, first deploy, or a deliberate rotate). pocket-id
+  # can't return an existing one, so rotating every run would desync consumers that persist it (e.g. Gitea).
   if $is_new or (not ($secret_file | path exists)) {
     let secret_r = http post $"($base_url)/api/oidc/clients/($client_id)/secret" "" --headers $headers --content-type application/json --full --allow-errors
     if $secret_r.status != 200 {
