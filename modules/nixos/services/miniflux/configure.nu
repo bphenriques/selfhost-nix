@@ -35,7 +35,7 @@ def main [] {
   for u in $users {
     let mu = $miniflux_users | where username == $u.username | get 0?
     if $mu == null {
-      print $"  ($u.username): not provisioned yet (logs in via OIDC first), skipping"
+      print $"  ($u.username): not provisioned yet. Hasn't log in via OIDC first. Skipping"
     } else {
       # PUT only when a desired field drifts from the current record (the endpoint is a partial update).
       let drift = $u.settings | items {|k, v| ($mu | get -o $k) != $v } | any {|d| $d }
