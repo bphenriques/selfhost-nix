@@ -6,7 +6,7 @@
     ./users.nix
     ./resource-control.nix
     ./runtime-secrets.nix
-    ./dashboards/homepage.nix
+    ./dashboards/tiles.nix
 
     ./ingress/ingress.nix
     ./ingress/traefik.nix
@@ -29,6 +29,7 @@
     ./services/filebrowser
     ./services/filebrowser/selfhost.nix
     ./services/gitea
+    ./services/homepage
     ./services/miniflux
     ./services/radicale
     ./services/transmission

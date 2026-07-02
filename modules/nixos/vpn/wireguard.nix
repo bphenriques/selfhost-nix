@@ -49,6 +49,8 @@ let
   };
 in
 {
+  imports = [ ./wireguard-user.nix ];
+
   options.selfhost.vpn.wireguard = {
     enable = lib.mkEnableOption "WireGuard VPN server (interface, keys, user/device registry, client provisioning)";
 
@@ -109,39 +111,6 @@ in
       defaultText = lib.literalMD "derived from `users.*.vpn.wireguard`";
       description = "Derived per-device peers `{ name, device, ip, fullAccess }` for consumer firewall/routing rules.";
     };
-  };
-
-  options.selfhost.users = lib.mkOption {
-    type = lib.types.attrsOf (
-      lib.types.submodule {
-        options.vpn.wireguard = {
-          enable = lib.mkEnableOption "WireGuard configuration for this user";
-          devices = lib.mkOption {
-            type = lib.types.listOf (
-              lib.types.submodule {
-                options = {
-                  name = lib.mkOption {
-                    type = lib.types.strMatching "[a-z0-9][a-z0-9-]*";
-                    description = "Device name (e.g. phone, laptop). Lowercase alphanumeric and dashes only.";
-                  };
-                  ip = lib.mkOption {
-                    type = lib.types.str;
-                    description = "Static WireGuard client IP (e.g. 10.100.0.42).";
-                  };
-                  fullAccess = lib.mkOption {
-                    type = lib.types.bool;
-                    default = false;
-                    description = "If true, device can reach the whole LAN; if false, only the home server.";
-                  };
-                };
-              }
-            );
-            default = [ ];
-            description = "WireGuard devices for this user.";
-          };
-        };
-      }
-    );
   };
 
   config = lib.mkIf wg.enable (

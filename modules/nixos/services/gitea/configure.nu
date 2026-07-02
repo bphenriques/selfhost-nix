@@ -77,11 +77,17 @@ def register_keys [username: string, ssh_keys: list<any>, token: string] {
   }
 }
 
+# Usernames from the CLI listing (no token needed). Column 1 is the username; the header row is skipped.
+def list_usernames [--admin] {
+  let r = if $admin { gitea $config_flag admin user list --admin | complete } else { gitea $config_flag admin user list | complete }
+  $r.stdout | str trim | lines | skip 1
+    | each {|line| ($line | split row " " | where ($it | str length) > 0) | get 1? | default "" }
+    | where ($it | is-not-empty)
+}
+
 # Creates the account if missing (admin status is reconciled separately; password/keys stay user-owned after).
-def ensure_user [user: record, token] {
-  let listing = (gitea $config_flag admin user list | complete).stdout | str trim | lines | skip 1
-  let exists = $listing | any {|line| (($line | split row " " | where ($it | str length) > 0) | get 1? | default "") == $user.username }
-  if $exists { return }
+def ensure_user [user: record, existing: list<string>, token: string] {
+  if $user.username in $existing { return }
   let password = (random chars --length 32)
   gitea $config_flag admin user create --username $user.username --password $password --email $user.email --must-change-password=false
   print $"Created user '($user.username)'"
@@ -96,13 +102,17 @@ def main [] {
   print "Gitea is ready"
   ensure_admin
 
-  # Admin reconcile and key registration both need the API, so mint a token whenever there are accounts to
-  # reconcile or keys to add. (Token minting needs the admin, created above.)
-  let needs_keys = $users | any {|u| (($u.sshKeys? | default []) | is-not-empty) }
-  let tok = if ($needs_keys or ($users | is-not-empty)) { admin_token } else { null }
+  # Admin reconcile and key registration both need the API. Detect the work via the CLI first (no token) and
+  # mint only on a real delta — a new user with keys, or an admin status that differs — so a steady-state run
+  # touches nothing. (Token minting needs the admin, created above.)
+  let existing = list_usernames
+  let current_admins = list_usernames --admin
+  let needs_keys = $users | any {|u| (($u.sshKeys? | default []) | is-not-empty) and ($u.username not-in $existing) }
+  let needs_admin = $users | any {|u| ($u.isAdmin? | default false) != ($u.username in $current_admins) }
+  let tok = if ($needs_keys or $needs_admin) { admin_token } else { null }
   let token = if $tok != null { $tok.token } else { "" }
 
-  for u in $users { ensure_user $u $token }
+  for u in $users { ensure_user $u $existing $token }
 
   if $tok != null {
     # Reconcile admin against the live records (now including just-created users); PATCH only on a delta,

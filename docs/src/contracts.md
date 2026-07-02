@@ -11,7 +11,7 @@ concern yourself.
 | OIDC / SSO            | Pocket-ID                 | `auth.oidc.pocket-id.enable`       | yes       |
 | Forward-auth          | tinyauth                  | `auth.forwardAuth.tinyauth.enable` | yes       |
 | Notifications         | ntfy                      | `notify.ntfy.enable`               | yes       |
-| Dashboard             | Homepage                  | `dashboards.homepage.enable`       | yes       |
+| Dashboard             | Homepage                  | `apps.homepage.enable`             | yes       |
 | Monitoring + alerting | Prometheus + Alertmanager | `monitoring.enable`                | no        |
 | Backups               | rustic                    | `backup.targets`                   | no        |
 | VPN                   | WireGuard                 | `vpn.wireguard.enable`             | no        |

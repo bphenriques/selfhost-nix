@@ -23,27 +23,9 @@ let
   };
 in
 {
-  options.selfhost = {
-    apps.miniflux.enable = lib.mkEnableOption "the first-party Miniflux app (RSS reader with OIDC login)";
+  imports = [ ./user.nix ];
 
-    users = lib.mkOption {
-      type = lib.types.attrsOf (
-        lib.types.submodule {
-          # Freeform passthrough to Miniflux's stable, idempotent partial-update PUT; don't copy to apps
-          # without those properties.
-          options.apps.miniflux.settings = lib.mkOption {
-            type = lib.types.attrsOf lib.types.anything;
-            default = { };
-            example = {
-              theme = "dark_serif";
-              display_mode = "fullscreen";
-            };
-            description = "Per-user Miniflux preferences, applied verbatim via the user-update API (is_admin is framework-managed and ignored here).";
-          };
-        }
-      );
-    };
-  };
+  options.selfhost.apps.miniflux.enable = lib.mkEnableOption "the first-party Miniflux app (RSS reader with OIDC login)";
 
   config = lib.mkIf (config.selfhost.enable && app.enable) {
     selfhost = {

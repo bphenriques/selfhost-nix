@@ -79,5 +79,13 @@ pkgs.testers.runNixOSTest {
       machine.wait_for_unit("gitea-configure.service")
       row = machine.succeed("sqlite3 " + db + " \"SELECT is_admin || '|' || login_source || '|' || login_type FROM user WHERE name='alice'\"").strip()
       assert row == "1|" + src + "|3", f"alice should be re-promoted with her source preserved, got: {row} (src={src})"
+
+      # Over-minting guard: a steady-state reconcile (alice already admin, no new users or keys) detects no
+      # delta via the CLI and mints no token — the "Revoked" count stays put across the no-op restart.
+      before = machine.succeed("journalctl -u gitea-configure.service | grep -c 'Revoked ephemeral admin token' || true").strip()
+      machine.systemctl("restart gitea-configure.service")
+      machine.wait_for_unit("gitea-configure.service")
+      after = machine.succeed("journalctl -u gitea-configure.service | grep -c 'Revoked ephemeral admin token' || true").strip()
+      assert after == before, f"steady-state reconcile minted a token (before={before}, after={after})"
     '';
 }

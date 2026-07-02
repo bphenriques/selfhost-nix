@@ -40,22 +40,14 @@ let
   };
 in
 {
-  options.selfhost = {
-    apps.radicale = {
-      enable = lib.mkEnableOption "the first-party Radicale app (CalDAV/CardDAV server)";
-      enableSelfhostIntegration = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        description = "Derive Radicale's htpasswd users from selfhost.users grants. Turn off to run Radicale but manage its htpasswd file yourself.";
-      };
-    };
+  imports = [ ./user.nix ];
 
-    users = lib.mkOption {
-      type = lib.types.attrsOf (
-        lib.types.submodule {
-          options.apps.radicale.enable = lib.mkEnableOption "Radicale CalDAV/CardDAV access for this user";
-        }
-      );
+  options.selfhost.apps.radicale = {
+    enable = lib.mkEnableOption "the first-party Radicale app (CalDAV/CardDAV server)";
+    enableSelfhostIntegration = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Derive Radicale's htpasswd users from selfhost.users grants. Turn off to run Radicale but manage its htpasswd file yourself.";
     };
   };
 

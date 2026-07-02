@@ -1,8 +1,8 @@
+# Data tier: derive dashboard tiles from services/externals that opt into integrations.homepage. Read-only;
+# the bundled renderer (selfhost.apps.homepage) consumes it, or read it into a dashboard you own.
 { lib, config, ... }:
 let
   cfg = config.selfhost;
-  hp = cfg.dashboards.homepage;
-  serviceCfg = cfg.services.homepage;
 
   homepageServices = lib.filter (s: s.integrations.homepage.enable) (lib.attrValues cfg.services);
   homepageExternals = lib.filter (e: e.integrations.homepage.enable) (lib.attrValues cfg.external);
@@ -41,37 +41,10 @@ let
   );
 in
 {
-  options.selfhost.dashboards = {
-    generatedTiles = lib.mkOption {
-      type = lib.types.attrsOf (lib.types.listOf lib.types.anything);
-      default = tilesByGroup;
-      readOnly = true;
-      description = "Service/external tiles keyed by `integrations.homepage.group` (read-only). The bundled provider renders these; on the data tier you read them into your own dashboard and decide tabs/layout.";
-    };
-
-    homepage = {
-      enable = lib.mkEnableOption "bundled homepage dashboard (gethomepage); disable to read generatedTiles into your own";
-
-      port = lib.mkOption {
-        type = lib.types.port;
-        default = 3001;
-        description = "homepage listen port (localhost, behind ingress).";
-      };
-    };
-  };
-
-  config = lib.mkIf hp.enable {
-    selfhost.services.homepage = {
-      description = "Dashboard";
-      inherit (hp) port;
-      integrations.homepage.enable = false; # The dashboard doesn't list itself.
-    };
-
-    services.homepage-dashboard = {
-      enable = true;
-      listenPort = hp.port;
-      allowedHosts = serviceCfg.publicHost;
-      services = lib.mapAttrsToList (group: tiles: { ${group} = tiles; }) cfg.dashboards.generatedTiles;
-    };
+  options.selfhost.dashboards.generatedTiles = lib.mkOption {
+    type = lib.types.attrsOf (lib.types.listOf lib.types.anything);
+    default = tilesByGroup;
+    readOnly = true;
+    description = "Service/external tiles keyed by `integrations.homepage.group` (read-only). The bundled `apps.homepage` renders these; otherwise read them into a dashboard you own and decide tabs/layout.";
   };
 }

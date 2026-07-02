@@ -1,6 +1,7 @@
 # Core smoke test: registry + runtime-secrets + the ntfy provider provision cleanly — including a
 # publisher whose owner is not a system user (regression guard for review finding C1: the token
-# chown must fall back to root rather than abort provisioning).
+# chown must fall back to root rather than abort provisioning) and a generate-once secret whose
+# regeneration is gated on the presence of the data it protects (generateOnceGuard).
 { pkgs, common, ... }:
 pkgs.testers.runNixOSTest {
   name = "selfhost-core";
@@ -11,6 +12,12 @@ pkgs.testers.runNixOSTest {
     selfhost = {
       notify.ntfy.enable = true;
       notify.topics.probes.public = false;
+
+      # Generate-once secret guarded on a data dir the test controls (nothing else writes there).
+      runtimeSecrets.test-guarded = {
+        generateOnce = true;
+        generateOnceGuard = "/var/lib/guard-data";
+      };
 
       # owner = "probe" is not a system user — the case C1 mishandles.
       tasks.probe = {
@@ -42,5 +49,22 @@ pkgs.testers.runNixOSTest {
 
     # The publisher token landed with the intended mode.
     machine.succeed("stat -c %a /var/lib/homelab-secrets/notify-publishers/probe | grep -qx 400")
+
+    # generateOnceGuard — first boot has no guarded data, so the secret is generated.
+    machine.succeed("test -e /var/lib/homelab-secrets/test-guarded")
+
+    # Data present + secret lost: leave it absent (a new value would orphan the data) and log why.
+    machine.succeed("mkdir -p /var/lib/guard-data && touch /var/lib/guard-data/db")
+    machine.succeed("rm /var/lib/homelab-secrets/test-guarded")
+    machine.systemctl("restart homelab-runtime-secrets.service")
+    machine.wait_for_unit("homelab-runtime-secrets.service")
+    machine.fail("test -e /var/lib/homelab-secrets/test-guarded")
+    machine.succeed("journalctl -u homelab-runtime-secrets.service | grep -q 'still holds data it protects'")
+
+    # Data gone (empty guard): safe to regenerate.
+    machine.succeed("rm -rf /var/lib/guard-data")
+    machine.systemctl("restart homelab-runtime-secrets.service")
+    machine.wait_for_unit("homelab-runtime-secrets.service")
+    machine.succeed("test -e /var/lib/homelab-secrets/test-guarded")
   '';
 }

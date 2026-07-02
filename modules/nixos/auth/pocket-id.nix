@@ -103,11 +103,13 @@ in
       };
 
       runtimeSecrets = {
-        # Encrypts Pocket-ID's DB, so a new value would brick it: generateOnce (auto once, never replaced;
-        # a loss restores from backup). The API key, by contrast, regenerates harmlessly.
+        # Encrypts Pocket-ID's DB: a replacement value would orphan it. generateOnce never silently
+        # regenerates; guarding on the DB dir means a secrets-dir wipe (no data) regenerates cleanly while a
+        # lost key over a surviving DB stays absent (restore, don't brick). The API key regenerates harmlessly.
         pocket-id-encryption-key = {
           owner = config.services.pocket-id.user;
           generateOnce = true;
+          generateOnceGuard = config.services.pocket-id.dataDir;
           restartUnits = [ "pocket-id.service" ];
         };
         pocket-id-api-key = {

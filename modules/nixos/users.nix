@@ -28,6 +28,11 @@ let
         default = lib.elem cfg.groups.admin config.groups;
         defaultText = lib.literalMD "true if the user's `groups` include the admin group";
       };
+      extraConfig = lib.mkOption {
+        type = lib.types.submodule { freeformType = lib.types.attrsOf lib.types.anything; };
+        default = { };
+        description = "Consumer-owned per-user config; selfhost-nix never reads it. Freeform by default (ad-hoc passthrough), but a consumer module may declare typed options under it — e.g. `extraConfig.services.<app>` — to strongly type its own per-user attrs. Read back at `config.selfhost.users.<name>.extraConfig`.";
+      };
     };
   };
 in

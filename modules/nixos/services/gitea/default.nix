@@ -52,6 +52,8 @@ let
   };
 in
 {
+  imports = [ ./user.nix ];
+
   options.selfhost = {
     apps.gitea.enable = lib.mkEnableOption "the first-party Gitea app (git server with OIDC login)";
 
@@ -63,24 +65,6 @@ in
         description = "Listen port for the built-in SSH server.";
       };
       openFirewall = lib.mkEnableOption "opening the SSH port in the firewall (all interfaces); leave off to scope it yourself";
-    };
-
-    users = lib.mkOption {
-      type = lib.types.attrsOf (
-        lib.types.submodule (
-          { config, ... }:
-          {
-            options.apps.gitea = {
-              enable = lib.mkEnableOption "a Gitea account for this user";
-              admin = lib.mkOption {
-                type = lib.types.bool;
-                default = config.isAdmin;
-                description = "Gitea site-admin (reconciled each run); defaults to the user's fleet isAdmin.";
-              };
-            };
-          }
-        )
-      );
     };
 
     apps.gitea.serviceAccounts = lib.mkOption {
