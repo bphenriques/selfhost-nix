@@ -6,13 +6,13 @@
 }:
 let
   cfg = config.selfhost;
-  wg = cfg.vpn.wireguard;
+  wg = cfg.apps.wireguard;
 
   dataDir = "/var/lib/wireguard";
   serverKeyFile = "${dataDir}/server/private.key";
   serverPubKeyFile = "${dataDir}/server/public.key";
 
-  enabledUsers = lib.filterAttrs (_: u: u.vpn.wireguard.enable) cfg.users;
+  enabledUsers = lib.filterAttrs (_: u: u.apps.wireguard.enable) cfg.users;
 
   clients = lib.concatLists (
     lib.mapAttrsToList (
@@ -21,7 +21,7 @@ let
         name = "${u.username}-${d.name}";
         device = d.name;
         inherit (d) ip fullAccess;
-      }) u.vpn.wireguard.devices
+      }) u.apps.wireguard.devices
     ) enabledUsers
   );
 
@@ -49,9 +49,9 @@ let
   };
 in
 {
-  imports = [ ./wireguard-user.nix ];
+  imports = [ ./user.nix ];
 
-  options.selfhost.vpn.wireguard = {
+  options.selfhost.apps.wireguard = {
     enable = lib.mkEnableOption "WireGuard VPN server (interface, keys, user/device registry, client provisioning)";
 
     interface = lib.mkOption {
@@ -108,7 +108,7 @@ in
       type = lib.types.listOf (lib.types.attrsOf lib.types.anything);
       readOnly = true;
       default = clients;
-      defaultText = lib.literalMD "derived from `users.*.vpn.wireguard`";
+      defaultText = lib.literalMD "derived from `users.*.apps.wireguard`";
       description = "Derived per-device peers `{ name, device, ip, fullAccess }` for consumer firewall/routing rules.";
     };
   };

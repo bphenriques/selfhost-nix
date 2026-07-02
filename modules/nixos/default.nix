@@ -15,8 +15,6 @@
     ./auth/pocket-id.nix
     ./auth/oidc-rotation.nix
     ./auth/tinyauth.nix
-    ./vpn/wireguard.nix
-    ./ddns/desec.nix
     ./storage/smb.nix
     ./mail/mail.nix
     ./monitoring/monitoring.nix
@@ -26,6 +24,7 @@
 
     # First-party apps (selfhost.apps.<name>): bundled apps on top of the framework, each default-off.
     ./services/bentopdf
+    ./services/desec
     ./services/filebrowser
     ./services/filebrowser/selfhost.nix
     ./services/gitea
@@ -33,5 +32,6 @@
     ./services/miniflux
     ./services/radicale
     ./services/transmission
+    ./services/wireguard
   ];
 }

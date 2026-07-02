@@ -12,10 +12,10 @@
   ...
 }:
 let
-  cfg = config.selfhost.ddns.desec;
+  cfg = config.selfhost.apps.desec;
 in
 {
-  options.selfhost.ddns.desec = {
+  options.selfhost.apps.desec = {
     enable = lib.mkEnableOption "deSEC dynamic DNS updates";
 
     tokenFile = lib.mkOption {
