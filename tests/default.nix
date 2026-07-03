@@ -1,5 +1,9 @@
 # VM integration tests (nixosTest), exposed as flake checks.
-{ pkgs, self, nixpkgs }:
+{
+  pkgs,
+  self,
+  nixpkgs,
+}:
 let
   # nixosTest runs nixpkgs read-only, so apply the overlay here and import the module dir directly:
   # nixosModules.default would set nixpkgs.overlays, which read-only mode rejects.
@@ -57,6 +61,35 @@ let
       pkgs = pkgs';
       inherit common hello;
     };
+
+  # Eval-only helper: instantiate the framework + one admin plus the test's module, and hand back `config`
+  # for pure-derivation checks (no VM boot). Mirrors `common` for the eval tests.
+  evalConfig =
+    module:
+    (nixpkgs.lib.nixosSystem {
+      system = pkgs.stdenv.hostPlatform.system;
+      modules = [
+        self.nixosModules.default
+        {
+          boot.isContainer = true;
+          system.stateVersion = "24.11";
+          selfhost = {
+            enable = true;
+            domain = "test.local";
+            users.admin = {
+              email = "admin@test.local";
+              firstName = "Ada";
+              lastName = "Admin";
+              groups = [ "admin" ];
+              auth.oidc.enable = false;
+            };
+          };
+        }
+        module
+      ];
+    }).config;
+
+  runEval = path: import path { inherit pkgs evalConfig; };
 in
 {
   vm-core = runTest ./core.nix;
@@ -67,7 +100,12 @@ in
   vm-transmission = runTest ./transmission.nix;
   vm-bentopdf = runTest ./bentopdf.nix;
   vm-gitea = runTest ./gitea.nix;
+  vm-forwardauth = runTest ./forwardauth.nix;
+  vm-backup = runTest ./backup.nix;
+  vm-miniflux = runTest ./miniflux.nix;
 
-  # Eval-only: the consumer template still builds against the live framework.
+  # Eval-only: pure framework derivations/assignments against the live framework (no VM boot).
   template-default = import ./template.nix { inherit pkgs self nixpkgs; };
+  wireguard-eval = runEval ./wireguard.nix;
+  homepage-eval = runEval ./homepage.nix;
 }

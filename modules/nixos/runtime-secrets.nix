@@ -340,7 +340,9 @@ in
       }
       {
         assertion = lib.all (s: s.generateOnceGuard == null || s.generateOnce) (lib.attrValues cfg.runtimeSecrets);
-        message = "selfhost.runtimeSecrets: generateOnceGuard is only consulted when generateOnce = true: ${toString (lib.attrNames (lib.filterAttrs (_: s: s.generateOnceGuard != null && !s.generateOnce) cfg.runtimeSecrets))}";
+        message = "selfhost.runtimeSecrets: generateOnceGuard is only consulted when generateOnce = true: ${
+          toString (lib.attrNames (lib.filterAttrs (_: s: s.generateOnceGuard != null && !s.generateOnce) cfg.runtimeSecrets))
+        }";
       }
     ];
 

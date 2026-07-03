@@ -13,7 +13,9 @@ let
 
   enabledUsernames = builtins.attrNames (lib.filterAttrs (_: u: u.apps.radicale.enable) config.selfhost.users);
 
-  dataDir = "/var/lib/radicale/collections";
+  # Storage location is the consumer's to relocate; read the effective value so backup and the reconciler
+  # follow it. The default below is set with mkDefault so overriding it doesn't conflict.
+  dataDir = config.services.radicale.settings.storage.filesystem_folder;
   htpasswdFile = "/var/lib/radicale/users";
 
   configFile = pkgs.writeText "radicale-configure.json" (
@@ -102,7 +104,7 @@ in
             htpasswd_encryption = "bcrypt";
           };
           server.hosts = [ "127.0.0.1:${toString serviceCfg.port}" ];
-          storage.filesystem_folder = dataDir;
+          storage.filesystem_folder = lib.mkDefault "/var/lib/radicale/collections";
         };
       };
     })

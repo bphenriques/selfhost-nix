@@ -55,11 +55,9 @@ def setup_publishers [] {
         | get 1
       )
       $token | save --raw $pub.tokenFile
-      # Own the token by the publisher's system user when it exists (so that user can read it).
-      # Task publishers and DynamicUser services have no such user, so fall back to root — they read
-      # the token as root or via systemd LoadCredential. (Chowning to a missing user aborts here.)
-      let owner = if (id -u $pub.owner | complete).exit_code == 0 { $pub.owner } else { "root" }
-      chown $"($owner):root" $pub.tokenFile
+      # Root-owned 0400. Root publishers read it directly; non-root ones (e.g. transmission, alertmanager)
+      # read it via systemd LoadCredential — so no per-publisher chown, and no name==user assumption.
+      chown "root:root" $pub.tokenFile
       chmod "400" $pub.tokenFile
       print $"  ($name) → ($pub.topic) \(token created\)"
     }

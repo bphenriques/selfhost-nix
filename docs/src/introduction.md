@@ -1,20 +1,16 @@
 # Introduction
 
-selfhost-nix is a set of opinionated NixOS modules for a single-admin selfhost: declare a service once
-and get ingress, authentication, secrets, monitoring, a dashboard tile, backups, and notifications
-wired from that one definition.
+selfhost-nix is a set of opinionated NixOS modules for a single-admin selfhost: declare a service once and
+get ingress, authentication, secrets, monitoring, a dashboard tile, backups, and notifications from that
+one definition. Each bundled default sits behind a neutral contract you can swap; everything is off until
+you enable it.
 
-> ⚠️ **Built for a private network (LAN or VPN).** Nothing here is hardened for the public internet.
-> Don't take the defaults as internet-safe: if you ever expose a service, that is yours to design and
-> secure, and it is [out of scope](ingress.md#exposure). Inform yourself first.
+> ⚠️ **Built for a private network (LAN or VPN)** — nothing here is hardened for the public internet.
+> Exposing a service is yours to design and secure, and it is [out of scope](concepts.md#exposure).
 
-> Built for one person's fleet and shared as a reference and starting point. Opinionated by design and
-> still unstable. Each bundled default is swappable behind a neutral contract, and you fork to vary
-> the rest.
+> One person's fleet, shared as a reference and starting point. Opinionated and still unstable; you fork to
+> vary the rest.
 
-Each concern is a **provider-neutral contract**: a bundled default you can swap for your own (see
-[Contracts & implementations](contracts.md)). Everything is off until you enable it. On top of the
-concerns sit a few curated [first-party apps](apps.md) you turn on with one toggle.
-
-New here? [Getting started](getting-started.md) installs and enables it; the chapters after explain each
-subsystem's *model*, and the [Options reference](options.md) lists every `selfhost.*` option.
+New here? [Getting started](getting-started.md) installs it, [Concepts](concepts.md) explains how it fits
+together, [Recipes](recipes.md) wire a service end to end, and the [Options reference](options.md) lists
+every `selfhost.*` option.

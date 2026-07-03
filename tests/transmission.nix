@@ -14,7 +14,7 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_open_port(9091)
 
     # RPC reachable on localhost, never on the wire.
-    machine.succeed("ss -tlnH 'sport = :9091' | grep -q '127.0.0.1:9091'")
-    machine.fail("ss -tlnH 'sport = :9091' | grep -q '0.0.0.0:9091'")
+    machine.succeed("ss -tlnH 'sport = :9091' | grep -q '127.0.0.1:9091'")     # listening on loopback
+    machine.fail("ss -tlnH 'sport = :9091' | grep -vqE '127\.0\.0\.1|::1'")    # …and nothing non-loopback
   '';
 }

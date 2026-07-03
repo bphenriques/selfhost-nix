@@ -55,7 +55,7 @@ def get_users_api [token: string] {
 # for one field: echo the real source_id (keeps an OIDC-linked source); fall back to username when empty.
 def set_admin [user: record, is_admin: bool, token: string] {
   let login_name = if ($user.login_name | is-empty) { $user.login } else { $user.login_name }
-  let body = { admin: $is_admin, login_name: $login_name, source_id: $user.source_id }
+  let body = {admin: $is_admin, login_name: $login_name, source_id: $user.source_id}
   let r = http patch $"($base_url)/api/v1/admin/users/($user.login)" $body --content-type application/json --headers { Authorization: $"token ($token)" } --full --allow-errors
   if $r.status != 200 {
     print $"  ($user.login): admin=($is_admin) failed ($r.status) - ($r.body)"
@@ -79,10 +79,17 @@ def register_keys [username: string, ssh_keys: list<any>, token: string] {
 
 # Usernames from the CLI listing (no token needed). Column 1 is the username; the header row is skipped.
 def list_usernames [--admin] {
-  let r = if $admin { gitea $config_flag admin user list --admin | complete } else { gitea $config_flag admin user list | complete }
-  $r.stdout | str trim | lines | skip 1
-    | each {|line| ($line | split row " " | where ($it | str length) > 0) | get 1? | default "" }
-    | where ($it | is-not-empty)
+  let r = if $admin {
+    gitea $config_flag admin user list --admin | complete
+  } else {
+    gitea $config_flag admin user list | complete
+  }
+  $r.stdout
+  | str trim
+  | lines
+  | skip 1
+  | each {|line| ($line | split row " " | where ($it | str length) > 0) | get 1? | default "" }
+  | where ($it | is-not-empty)
 }
 
 # Creates the account if missing (admin status is reconciled separately; password/keys stay user-owned after).
@@ -109,12 +116,13 @@ def main [] {
   let current_admins = list_usernames --admin
   let needs_keys = $users | any {|u| (($u.sshKeys? | default []) | is-not-empty) and ($u.username not-in $existing) }
   let needs_admin = $users | any {|u| ($u.isAdmin? | default false) != ($u.username in $current_admins) }
-  let tok = if ($needs_keys or $needs_admin) { admin_token } else { null }
+  let tok = if $needs_keys or $needs_admin { admin_token } else { null }
   let token = if $tok != null { $tok.token } else { "" }
 
   for u in $users { ensure_user $u $existing $token }
 
   if $tok != null {
+
     # Reconcile admin against the live records (now including just-created users); PATCH only on a delta,
     # echoing the record's login_name/source_id so the auth source is left intact.
     let records = get_users_api $token

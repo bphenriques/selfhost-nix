@@ -1,35 +1,47 @@
 # Users
 
-selfhost-nix models people and service identities as `selfhost.users.<name>`. Per-user attributes
+selfhost-nix models people and service identities as `selfhost.users.<name>`, across three access tiers
+via `groups` — `admin`, `users`, `guests`; exactly one admin user exists, asserted. Per-user attributes
 **mirror the framework's top-level namespace 1:1**, so where an option lives tells you what it touches
 and where to look for it:
 
 - A bundled app's per-user options sit at `selfhost.users.<name>.apps.<app>` — mirroring `selfhost.apps.<app>`.
 - A cross-cutting concern's per-user options sit at `selfhost.users.<name>.<concern>` — mirroring
-  `selfhost.<concern>`, e.g. `auth.oidc.enable`, `vpn.wireguard.devices`.
+  `selfhost.<concern>`, e.g. `auth.oidc.enable`.
 
 ```nix
 selfhost.users.alice = {
   groups = [ "admin" ];
   apps.filebrowser = { enable = true; storage = { … }; };  # mirrors selfhost.apps.filebrowser
+  apps.wireguard.devices = [ … ];                          # mirrors selfhost.apps.wireguard
   auth.oidc.enable = true;                                  # mirrors selfhost.auth.oidc
-  vpn.wireguard.devices = [ … ];                            # mirrors selfhost.vpn.wireguard
 };
 ```
 
 ## Extending per-user as a consumer
 
-selfhost-nix owns the `selfhost.users` schema and declares only what the framework itself needs. When
-you want per-user knobs it doesn't provide — enriching a bundled app (per-user theming, say) or wiring
-your **own** services — keep them in **your** namespace, not the framework's, so ownership stays obvious
-from the path and the framework schema stays pristine:
+For per-user knobs the framework doesn't provide — enriching a bundled app or wiring your **own** services
+— use `selfhost.users.<name>.extraConfig`, a passthrough it never reads. Your data rides on the same user
+object as its identity: no parallel user tree to join, and identity stays single-source.
 
-- **Enriching a framework concern** → mirror its path under your root: `<root>.users.<name>.selfhost.<concern>`
-  (the `selfhost.` segment signals "extends a selfhost-nix concern"; the rest is 1:1, e.g.
-  `selfhost.apps.miniflux` for per-user Miniflux preferences).
-- **A service not in selfhost-nix** → `<root>.users.<name>.services.<app>` (e.g. `services.jellyfin`); `services`
-  marks it as yours, not the framework's.
+Freeform by default, but a consumer module can declare typed options under it:
 
-Join your namespace with `selfhost.users` in your own modules. Because the framework lives at
-`selfhost.users.<name>.<concern>` and your additions at `<root>.users.<name>.{selfhost,services}.<…>`,
-`selfhost` never doubles up and every attribute's owner is readable at a glance.
+```nix
+# your module — a typed per-user fragment under extraConfig
+options.selfhost.users = lib.mkOption {
+  type = lib.types.attrsOf (lib.types.submodule {
+    options.extraConfig = lib.mkOption {
+      type = lib.types.submodule {
+        options.services.jellyfin.enable = lib.mkEnableOption "Jellyfin account for this user";
+      };
+    };
+  });
+};
+```
+
+Read it back off `config.selfhost.users.<name>`, which carries both the framework's `username`/`isAdmin`/…
+and your `extraConfig.*`:
+
+```nix
+lib.filterAttrs (_: u: u.extraConfig.services.jellyfin.enable) config.selfhost.users
+```

@@ -136,7 +136,6 @@ in
             baseServiceModule
             ./schemas/ingress.nix
             ./schemas/oidc.nix
-            ./schemas/resource-control.nix
             ./schemas/storage.nix
             ./schemas/homepage.nix
             ./schemas/notify.nix

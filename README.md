@@ -26,7 +26,7 @@ This flake is the foundation of my own [self-hosting environment](https://github
 
 ## Getting Started
 
-Check the [docs](https://bphenriques.github.io/selfhost-nix) on how to start, the [providers](https://bphenriques.github.io/selfhost-nix/contracts.html), and [recipes](https://bphenriques.github.io/selfhost-nix/recipes.html). 
+Check the [docs](https://bphenriques.github.io/selfhost-nix) on how to start, the [concepts](https://bphenriques.github.io/selfhost-nix/concepts.html), and [recipes](https://bphenriques.github.io/selfhost-nix/recipes.html). 
 
 For the curious, after most Flake ceremonies, it will resemble something like this:
 ```nix

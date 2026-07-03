@@ -1,5 +1,10 @@
 # First-party Miniflux app: an OIDC-fronted RSS reader; per-user settings reconciled via configure.nu.
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   app = config.selfhost.apps.miniflux;
   serviceCfg = config.selfhost.services.miniflux;
@@ -12,7 +17,9 @@ let
       lib.mapAttrsToList (_: u: {
         inherit (u) username;
         # is_admin is framework-controlled, so it wins over any value placed in the freeform settings.
-        settings = u.apps.miniflux.settings // { is_admin = u.isAdmin; };
+        settings = u.apps.miniflux.settings // {
+          is_admin = u.isAdmin;
+        };
       }) enabledUsers
     )
   );
@@ -57,7 +64,8 @@ in
 
     services.miniflux = {
       enable = true;
-      createDatabaseLocally = true;
+      # Database is the consumer's deployment concern: nixpkgs already defaults to a local Postgres; leave
+      # it unset so `createDatabaseLocally = false` + a DATABASE_URL for external Postgres composes cleanly.
       adminCredentialsFile = config.selfhost.runtimeTemplates."miniflux-admin-credentials.env".path;
       config = {
         LISTEN_ADDR = "127.0.0.1:${toString serviceCfg.port}";

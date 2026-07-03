@@ -5,49 +5,57 @@
 pkgs.testers.runNixOSTest {
   name = "selfhost-filebrowser";
 
-  nodes.machine = {
-    imports = [ common ];
+  nodes.machine =
+    { config, ... }:
+    {
+      imports = [ common ];
 
-    systemd.tmpfiles.rules = [
-      "d /srv/files 0755 filebrowser filebrowser -"
-      "d /srv/files/alice 0700 filebrowser filebrowser -"
-      "d /srv/files/empty 0700 filebrowser filebrowser -"
-    ];
+      environment.systemPackages = [ config.services.filebrowser.package ]; # the CLI, for DB assertions
 
-    services.filebrowser = {
-      enable = true;
-      settings = {
-        address = "127.0.0.1";
-        port = 8095;
-        root = "/srv/files";
-        database = "/var/lib/filebrowser/filebrowser.db";
+      systemd.tmpfiles.rules = [
+        "d /srv/files 0755 filebrowser filebrowser -"
+        "d /srv/files/alice 0700 filebrowser filebrowser -"
+        "d /srv/files/empty 0700 filebrowser filebrowser -"
+      ];
+
+      services.filebrowser = {
+        enable = true;
+        settings = {
+          address = "127.0.0.1";
+          port = 8095;
+          root = "/srv/files";
+          database = "/var/lib/filebrowser/filebrowser.db";
+        };
+      };
+
+      services.filebrowser-multiuser = {
+        enable = true;
+        unlistedScope = "/empty";
+        users.alice = {
+          scope = "/alice";
+          readOnly = false;
+        };
       };
     };
-
-    services.filebrowser-multiuser = {
-      enable = true;
-      unlistedScope = "/empty";
-      users.alice = {
-        scope = "/alice";
-        readOnly = false;
-      };
-    };
-  };
 
   testScript = ''
+    import re
+
     db = "/var/lib/filebrowser/filebrowser.db"
 
     machine.wait_for_unit("filebrowser-configure.service")
     machine.wait_for_unit("filebrowser.service")
 
-    # alice seeded at her scope; proxy auth wired; no signup / command runner.
-    machine.succeed(f"filebrowser -d {db} users ls | grep -E 'alice .*/alice'")
+    # Inspect the seeded DB with the server stopped: the CLI can't share the sqlite lock with a running
+    # server, and the content under test is the reconciler's, not the server's.
+    machine.systemctl("stop filebrowser.service")
+    machine.succeed(f"filebrowser -d {db} users ls | grep -E 'alice .*/alice'")  # alice at her scope
     cfg = machine.succeed(f"filebrowser -d {db} config cat")
-    assert '"authMethod": "proxy"' in cfg, cfg
-    assert '"signup": false' in cfg, cfg
+    assert re.search(r"Auth Method:\s+proxy", cfg), cfg  # proxy auth wired
+    assert re.search(r"Sign up:\s+false", cfg), cfg      # signup off
 
     # Reconcile-on-change: restarting with the same config keeps the DB (skip path).
-    machine.succeed("systemctl restart filebrowser-configure.service")
+    machine.systemctl("restart filebrowser-configure.service")
     machine.succeed("journalctl -u filebrowser-configure.service | grep -q 'Config unchanged'")
 
     # The scope-check fails the service when a listed scope has no directory.

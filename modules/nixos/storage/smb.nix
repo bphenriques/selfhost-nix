@@ -102,7 +102,12 @@ in
     mounts = lib.mkOption {
       type = lib.types.attrsOf smbMountCfg;
       default = { };
-      description = "Attributes where the key is the remote root folder to configure";
+      description = ''
+        CIFS shares keyed by remote root folder, each behind a dedicated access group. Mount mode is
+        chosen per share: one with dependents boot-mounts with `nofail` (services retry), while an
+        independent share uses lazy `x-systemd.automount` on first access — dodging the boot-time network
+        race that ordering a service after the mount (`RequiresMountsFor`) would otherwise hit.
+      '';
       example = lib.literalExpression ''
         {
           bphenriques = { };

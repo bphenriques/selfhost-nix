@@ -4,7 +4,6 @@
     ./services-registry.nix
     ./tasks-registry.nix
     ./users.nix
-    ./resource-control.nix
     ./runtime-secrets.nix
     ./dashboards/tiles.nix
 

@@ -33,7 +33,8 @@ pkgs.testers.runNixOSTest {
     machine.succeed("grep -q '^admin:' /var/lib/radicale/users")
     machine.fail("grep -q '^guest:' /var/lib/radicale/users")
 
-    # Reconcile-on-change: same config → the configure stays put (RemainAfterExit oneshot, before radicale).
+    # The configure completed on the first try (RemainAfterExit oneshot, ordered before radicale) — no
+    # crash-restart loop while deriving the htpasswd.
     machine.succeed("test \"$(systemctl show radicale-configure.service -p NRestarts --value)\" = 0")
   '';
 }

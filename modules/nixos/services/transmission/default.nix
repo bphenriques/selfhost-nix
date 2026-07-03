@@ -13,12 +13,12 @@ let
   notifyCfg = config.selfhost.notify;
   notify = serviceCfg.integrations.notify;
 
-  # Transmission runs these as subprocesses where LoadCredential isn't visible, so the publisher token
-  # is bind-mounted in (below) for send-notification to read NOTIFY_TOKEN_FILE.
+  # Transmission spawns these as subprocesses that don't inherit $CREDENTIALS_DIRECTORY, so point at the
+  # credential's stable path directly — LoadCredential (below) makes it readable by the transmission user.
   torrentNotify =
     { title, tags }:
     pkgs.writeShellScript "transmission-notify" ''
-      NOTIFY_URL=${notifyCfg.url} NOTIFY_TOKEN_FILE=${notify.tokenFile} \
+      NOTIFY_URL=${notifyCfg.url} NOTIFY_TOKEN_FILE=/run/credentials/transmission.service/notify-token \
         ${notifyCfg.package}/bin/send-notification \
         --topic ${toString notify.topic} --title "${title}" --tags "${tags}" --message "$TR_TORRENT_NAME"
     '';
@@ -60,12 +60,17 @@ in
       };
     };
 
-    systemd.services.transmission.serviceConfig = {
-      Restart = "on-failure";
-      RestartSec = "10s";
-      RestartMaxDelaySec = "5min";
-      RestartSteps = 5;
-      BindReadOnlyPaths = lib.optionals notify.enable [ notify.tokenFile ];
+    systemd.services.transmission = {
+      # LoadCredential reads the token at unit start, so wait for the provider to provision it first.
+      after = lib.optionals notify.enable [ "ntfy-configure.service" ];
+      wants = lib.optionals notify.enable [ "ntfy-configure.service" ];
+      serviceConfig = {
+        Restart = "on-failure";
+        RestartSec = "10s";
+        RestartMaxDelaySec = "5min";
+        RestartSteps = 5;
+        LoadCredential = lib.optionals notify.enable [ "notify-token:${notify.tokenFile}" ];
+      };
     };
   };
 }

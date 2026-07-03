@@ -11,16 +11,10 @@ let
   inherit (cfg.notify) topics;
 
   notifyServices = lib.filterAttrs (_: s: s.integrations.notify.enable) cfg.services;
-  servicePublishers = lib.mapAttrs (name: s: {
-    inherit (s.integrations.notify) topic tokenFile;
-    owner = name;
-  }) notifyServices;
+  servicePublishers = lib.mapAttrs (_: s: { inherit (s.integrations.notify) topic tokenFile; }) notifyServices;
 
   notifyTasks = lib.filterAttrs (_: t: t.integrations.notify.enable) cfg.tasks;
-  taskPublishers = lib.mapAttrs (name: t: {
-    inherit (t.integrations.notify) topic tokenFile;
-    owner = name;
-  }) notifyTasks;
+  taskPublishers = lib.mapAttrs (_: t: { inherit (t.integrations.notify) topic tokenFile; }) notifyTasks;
 
   allPublishers = servicePublishers // taskPublishers;
 
@@ -80,7 +74,8 @@ in
     };
 
     systemd.tmpfiles.rules = [
-      "d /var/lib/homelab-secrets/notify-publishers 0711 root root -"
+      # 0700: tokens are root-owned and reach non-root consumers via LoadCredential, so nothing else traverses here.
+      "d /var/lib/homelab-secrets/notify-publishers 0700 root root -"
     ];
 
     systemd.services.ntfy-configure = {

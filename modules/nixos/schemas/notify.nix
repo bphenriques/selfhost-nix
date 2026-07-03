@@ -31,7 +31,17 @@ in
             type = lib.types.str;
             default = "${tokenDir}/${name}";
             readOnly = true;
-            description = "Path to the generated access token file for this publisher";
+            description = ''
+              Path to this publisher's access token, provisioned root-owned `0400`. How a publisher reads it
+              depends on its user:
+
+              - **runs as root** (e.g. backup, task failure-hooks): read this path directly, at send time.
+                Best-effort — no dependency on the provider being up, so notify never blocks the publisher.
+              - **runs as a non-root user** (e.g. transmission): receive it via systemd
+                `LoadCredential = [ "notify-token:''${...tokenFile}" ]` and read `%d/notify-token`
+                (`$CREDENTIALS_DIRECTORY/notify-token`). Because LoadCredential reads the source at unit
+                start, order the unit `after` the provider's provisioning unit (e.g. `ntfy-configure.service`).
+            '';
           };
         };
       }
