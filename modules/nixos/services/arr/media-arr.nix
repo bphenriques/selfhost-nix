@@ -1,7 +1,5 @@
-# Builder for a media *arr (Radarr/Sonarr): the framework wiring — ingress, forward-auth, API key out of
-# the store, notify, a library-list backup, and an idempotent reconcile for root folders / download clients
-# / delay profile. It ships no acquisition opinion: implementation, protocol, category, delays and quality
-# profiles are all caller-supplied (empty by default). Indexers live in the consumer/private config.
+# Builder for a media *arr (Radarr/Sonarr): framework wiring (ingress, auth, secrets, notify, backup) plus an
+# idempotent reconcile. Ships no acquisition config — all caller-supplied, empty by default (see media docs).
 {
   name,
   displayName,
@@ -51,7 +49,7 @@ let
         notification = {
           serverUrl = cfg.notify.url;
           topic = serviceCfg.integrations.notify.topic;
-          tags = app.notifyTags;
+          tags = notifyTags;
         };
       }
     )
@@ -162,12 +160,6 @@ in
           };
         }
       );
-    };
-
-    notifyTags = lib.mkOption {
-      type = lib.types.str;
-      default = notifyTags;
-      description = "ntfy tags for ${displayName}'s native notifications.";
     };
 
     configureAfter = lib.mkOption {

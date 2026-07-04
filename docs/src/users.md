@@ -1,7 +1,7 @@
 # Users
 
 selfhost-nix models people and service identities as `selfhost.users.<name>`, across three access tiers
-via `groups` — `admin`, `users`, `guests`; exactly one admin user exists, asserted. Per-user attributes
+via `groups` — `admin`, `users`, `guests`; at least one admin user is asserted (more is your call). Per-user attributes
 **mirror the framework's top-level namespace 1:1**, so where an option lives tells you what it touches
 and where to look for it:
 

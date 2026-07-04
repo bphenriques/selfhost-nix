@@ -74,7 +74,7 @@ The framework wires the security plumbing — secrets kept out of the Nix store,
 - **Public internet exposure**: default setup promotes WireGuard. Putting services on the public internet is a security decision that needs careful consideration and this flake will not lighten that decision for you.
 - **Containers**: bundled services are native NixOS/nixpkgs services to keep maintenance burden low. You can run containers yourself and wire through `selfhost.services`.
 - **All combinations**: only what NixOS/nixpkgs supports natively _might_ get bundled. I do not want to carry the maintenance.
-- **Multi-admin / multi-tenant**: Single admin by design. Keeps things simple and matches the nature of the hobby.
+- **Multi-tenant**: one operator/household, no tenant isolation. More than one admin user is fine (a consumer choice), but the framework doesn't partition data or access between tenants.
 - **Non-NixOS**: no `nix-darwin` or other targets (for now).
 
 ## Development

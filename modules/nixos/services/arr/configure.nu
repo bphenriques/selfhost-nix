@@ -1,8 +1,6 @@
 #!/usr/bin/env nu
-# Generic, idempotent *arr (Radarr/Sonarr, API v3) reconciler. Applies only what the framework config
-# declares — root folders, download clients, an optional delay profile, and the notify connection — and
-# ships no acquisition opinion of its own: implementation, protocol, category and delays all come from the
-# caller. Indexers and quality profiles are never touched here (consumer/private).
+# Idempotent *arr (Radarr/Sonarr, API v3) reconciler: applies the framework-declared config (root folders,
+# download clients, delay profile, notify) and nothing else — acquisition (indexers, quality) is not ours.
 let arr_name = $env.ARR_NAME
 let base_url = $env.ARR_URL
 let api_key = open $env.ARR_API_KEY_FILE | str trim
@@ -19,8 +17,7 @@ def wait_ready [] {
   error make {msg: $"($arr_name) failed to start after 30 attempts"}
 }
 
-# Quality profiles are consumer taste (recyclarr); we only *reference* one by name to seed a root folder.
-# Missing is not fatal: seed the folder path-only and move on.
+# Best-effort: an unresolved profile name (recyclarr hasn't created it yet) seeds the folder without one.
 def quality_profile_id [name: string] {
   let r = http get $"($base_url)/api/v3/qualityprofile" --headers $headers --full --allow-errors
   if $r.status != 200 { error make {msg: $"Failed to list quality profiles: ($r.status) - ($r.body)"} }
@@ -39,9 +36,8 @@ def ensure_root_folders [] {
   print "Reconciling root folders..."
   let existing = http get $"($base_url)/api/v3/rootfolder" --headers $headers --full --allow-errors
   if $existing.status != 200 { error make {msg: $"Failed to list root folders: ($existing.status) - ($existing.body)"} }
-  # Root folders are immutable in the *arr API (no update endpoint — PUT returns 405), so create-or-leave.
-  # The default quality profile can only be set at creation; if it isn't resolvable yet (recyclarr hasn't
-  # created it), the folder is created without one and is not backfilled later.
+  # Root folders are immutable in the *arr API (PUT → 405): create-or-leave. A default profile only applies at
+  # creation — an unresolved one (recyclarr not run yet) leaves the folder without one, not backfilled.
   for folder in $folders {
     let found = $existing.body | default [] | where path == $folder.path | get 0?
     if $found != null {
@@ -56,22 +52,21 @@ def ensure_root_folders [] {
   }
 }
 
-# Generic over the download-client implementation: fetch the client's own schema, fill exactly the fields
-# the caller supplied (host/port/category/…, whatever this implementation names them), and upsert by name.
-# Protocol and implementation are the caller's — the framework never assumes torrent/Transmission.
+# Generic over the implementation: fetch the client's own schema, fill the caller-supplied fields by name,
+# and upsert. Protocol and implementation are the caller's — no torrent/Transmission assumption.
 def ensure_download_clients [] {
   let clients = $config | get -o downloadClients | default []
   if ($clients | is-empty) { return }
   print "Reconciling download clients..."
-  let existing = (http get $"($base_url)/api/v3/downloadclient" --headers $headers --full --allow-errors)
+  let existing = http get $"($base_url)/api/v3/downloadclient" --headers $headers --full --allow-errors
   if $existing.status != 200 { error make {msg: $"Failed to list download clients: ($existing.status) - ($existing.body)"} }
-  let schemas = (http get $"($base_url)/api/v3/downloadclient/schema" --headers $headers --full --allow-errors)
+  let schemas = http get $"($base_url)/api/v3/downloadclient/schema" --headers $headers --full --allow-errors
   if $schemas.status != 200 { error make {msg: $"Failed to list download-client schemas: ($schemas.status)"} }
   let managed = $clients | get name
   for client in $clients {
     let schema = $schemas.body | where implementation == $client.implementation | get 0?
     if $schema == null { error make {msg: $"Download-client schema not found: ($client.implementation)"} }
-    let supplied = $client | get -o fields | default {} | transpose k v | reduce -f {} {|it, acc| $acc | insert $it.k $it.v }
+    let supplied = $client | get -o fields | default {}
     let fields = $schema.fields | each {|f| if ($f.name in ($supplied | columns)) { $f | upsert value ($supplied | get $f.name) } else { $f } }
     let base = {
       name: $client.name
@@ -108,8 +103,6 @@ def ensure_download_clients [] {
   }
 }
 
-# Delay profile carries the caller's protocol preference (torrent vs usenet) — acquisition taste, supplied
-# by the consumer, applied here only when present. No default.
 def ensure_delay_profile [] {
   let profile = $config | get -o delayProfile
   if $profile == null { return }

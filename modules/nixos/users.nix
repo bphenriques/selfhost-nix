@@ -69,13 +69,13 @@ in
     };
   };
 
-  # Single-admin is the framework's scope (see README/AGENTS): exactly one user in the admin group.
-  # The group *name* stays a consumer choice via selfhost.groups.admin.
+  # At least one admin (someone must reach admin-gated services); more is a consumer choice. The admin
+  # group's name stays configurable via selfhost.groups.admin.
   config = lib.mkIf cfg.enable {
     assertions = [
       {
-        assertion = lib.length (lib.attrNames adminUsers) == 1;
-        message = "Exactly one admin user must exist, but found ${toString (lib.length (lib.attrNames adminUsers))}: ${toString (lib.attrNames adminUsers)}";
+        assertion = adminUsers != { };
+        message = "At least one user must be in the admin group (selfhost.groups.admin); none found.";
       }
     ];
   };
