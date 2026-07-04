@@ -22,6 +22,7 @@
     ./notify/ntfy.nix
 
     # First-party apps (selfhost.apps.<name>): bundled apps on top of the framework, each default-off.
+    ./services/arr
     ./services/bentopdf
     ./services/desec
     ./services/filebrowser

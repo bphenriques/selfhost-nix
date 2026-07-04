@@ -44,7 +44,7 @@ in
     enabled = lib.mkOption {
       type = lib.types.bool;
       readOnly = true;
-      default = config.selfhost.notify.url != "";
+      default = config.selfhost.notify.url != null;
       defaultText = lib.literalMD "true once a provider sets `url`";
       description = "Whether a notify provider is active. Compose service defaults against this.";
     };
@@ -64,9 +64,9 @@ in
     };
 
     url = lib.mkOption {
-      type = lib.types.str;
-      default = "";
-      description = "Base URL of the notification endpoint; set by the active notify provider, consumed by send-notification (NOTIFY_URL).";
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = "Base URL of the notification endpoint, set by the active notify provider and consumed by send-notification (NOTIFY_URL); null = no provider active.";
     };
 
     # Notification seam used by backup, task-failure hooks, and simple service hooks. Swap to

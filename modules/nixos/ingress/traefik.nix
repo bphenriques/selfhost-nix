@@ -10,27 +10,16 @@ let
     middlewares = lib.optionals service.forwardAuth.enable [ "forwardAuth" ] ++ lib.attrNames service.traefik.middlewares;
   };
 
-  mkTraefikRoute =
-    service:
-    let
-      aliasRouters = lib.imap0 (i: alias: {
-        name = "${service.name}-alias-${toString i}";
-        value = mkRouterConfig service alias;
-      }) service.aliases;
-    in
-    {
-      http = {
-        routers = {
-          "${service.name}" = mkRouterConfig service service.publicHost;
-        }
-        // lib.listToAttrs aliasRouters;
-        services."${service.name}-svc".loadBalancer.servers = [ { inherit (service) url; } ];
-      }
-      # Traefik's file provider rejects an empty `middlewares: {}`, so only emit it when non-empty.
-      // lib.optionalAttrs (service.traefik.middlewares != { }) {
-        inherit (service.traefik) middlewares;
-      };
+  mkTraefikRoute = service: {
+    http = {
+      routers."${service.name}" = mkRouterConfig service service.publicHost;
+      services."${service.name}-svc".loadBalancer.servers = [ { inherit (service) url; } ];
+    }
+    # Traefik's file provider rejects an empty `middlewares: {}`, so only emit it when non-empty.
+    // lib.optionalAttrs (service.traefik.middlewares != { }) {
+      inherit (service.traefik) middlewares;
     };
+  };
 in
 {
   options.selfhost.ingress.traefik = {

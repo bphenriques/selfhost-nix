@@ -6,6 +6,8 @@
 - [Concepts](concepts.md)
 - [Users](users.md)
 - [Recipes](recipes.md)
+- [Media automation](media.md)
+- [Security](security.md)
 - [FileBrowser (standalone module)](filebrowser.md)
 
 [Options reference](options.md)

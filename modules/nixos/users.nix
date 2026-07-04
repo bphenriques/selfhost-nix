@@ -67,14 +67,10 @@ in
       );
       default = { };
     };
-
-    adminUser = lib.mkOption {
-      type = lib.types.unspecified;
-      readOnly = true;
-      description = "The single admin user (derived from users with the admin group).";
-    };
   };
 
+  # Single-admin is the framework's scope (see README/AGENTS): exactly one user in the admin group.
+  # The group *name* stays a consumer choice via selfhost.groups.admin.
   config = lib.mkIf cfg.enable {
     assertions = [
       {
@@ -82,7 +78,5 @@ in
         message = "Exactly one admin user must exist, but found ${toString (lib.length (lib.attrNames adminUsers))}: ${toString (lib.attrNames adminUsers)}";
       }
     ];
-
-    selfhost.adminUser = lib.head (lib.attrValues adminUsers);
   };
 }

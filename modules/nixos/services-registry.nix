@@ -3,6 +3,11 @@ let
   cfg = config.selfhost;
   selfhostLib = import ./lib.nix { inherit lib; };
 
+  # Every group a policy may name: the canonical set plus any group a user actually holds. Keeps
+  # allowedGroups symmetric with the free-form user.groups (a custom group becomes nameable in policy
+  # once some user is in it) while still catching typos.
+  knownGroups = lib.unique (lib.attrValues cfg.groups ++ lib.concatMap (u: u.groups) (lib.attrValues cfg.users));
+
   baseServiceModule = { name, config, ... }: {
     # No ingress route means no link to render, so default to no dashboard tile.
     config.integrations.homepage.enable = lib.mkDefault config.ingress.enable;
@@ -80,21 +85,15 @@ let
         description = "Full public URL (derived from publicHost)";
       };
 
-      aliases = lib.mkOption {
-        type = lib.types.listOf lib.types.str;
-        default = [ ];
-        description = "Alternative subdomains";
-      };
-
       ingress.enable = lib.mkEnableOption "HTTP ingress route for this service" // {
         default = true;
       };
 
       # Access control policy (consumed by whichever auth mechanism is active). Empty = any authenticated user.
       access.allowedGroups = lib.mkOption {
-        type = lib.types.listOf (lib.types.enum (lib.attrValues cfg.groups));
+        type = lib.types.listOf (lib.types.enum knownGroups);
         default = [ ];
-        description = "Groups authorized to access this service. Empty means unrestricted (any authenticated user).";
+        description = "Groups authorized to access this service (canonical groups or any a user is in). Empty means unrestricted (any authenticated user).";
       };
 
       # Pre-backup hook (consumed by backup.nix)
@@ -207,8 +206,8 @@ in
       let
         allServices = lib.attrValues cfg.services;
 
-        # Public hosts and aliases must be unique across ingress-enabled services.
-        ingressHosts = lib.concatMap (s: [ s.publicHost ] ++ s.aliases) (lib.filter (s: s.ingress.enable) allServices);
+        # Public hosts must be unique across ingress-enabled services.
+        ingressHosts = map (s: s.publicHost) (lib.filter (s: s.ingress.enable) allServices);
         dupHosts = lib.attrNames (selfhostLib.collisions (builtins.groupBy lib.id ingressHosts));
 
         # One check over the whole registry: services + monitoring exporters + anything else registered.
@@ -222,7 +221,7 @@ in
       [
         {
           assertion = dupHosts == [ ];
-          message = "Service public hosts and aliases must be unique. Conflicting: ${lib.concatStringsSep ", " dupHosts}";
+          message = "Service public hosts must be unique. Conflicting: ${lib.concatStringsSep ", " dupHosts}";
         }
         {
           assertion = portCollisions == { };

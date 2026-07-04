@@ -34,6 +34,14 @@ in
         description = "OIDC issuer URL (e.g. https://auth.example.com)";
       };
 
+      discoveryUrl = lib.mkOption {
+        type = lib.types.str;
+        default = "${cfg.provider.issuerUrl}/.well-known/openid-configuration";
+        defaultText = lib.literalMD "`<issuerUrl>/.well-known/openid-configuration`";
+        readOnly = true;
+        description = "OIDC discovery document URL (derived from issuerUrl); for consumers that need the full well-known URL rather than the bare issuer.";
+      };
+
       apiKeyFile = lib.mkOption {
         type = lib.types.str;
         description = "Path to file containing provider API key";

@@ -60,8 +60,9 @@ connect the two.
 Same shape — register, run, wire — with small deltas:
 
 - **Secrets in-settings** (e.g. Immich): a service that takes a file *path* in its own config skips the env
-  vars and the supplementary group — `services.immich.settings.oauth.clientSecret._secret =
-  svc.oidc.secret.file`.
+  vars — `settings.oauth = { inherit (oidc.provider) issuerUrl; clientId._secret = svc.oidc.id.file;
+  clientSecret._secret = svc.oidc.secret.file; }` — but still needs the supplementary group, since it reads
+  those files as its own user (`SupplementaryGroups = svc.oidc.systemd.supplementaryGroups`).
 - **Forward-auth instead of OIDC** (no SSO of its own): drop the `oidc` block, set `forwardAuth.enable =
   true`; the edge authenticates.
 - **Native auth** (the app logs users in itself, e.g. Jellyfin): register for the route and tile, enable no

@@ -102,6 +102,18 @@ in
         clientProvisionUnitPrefix = "pocket-id-provision-client-";
       };
 
+      # OIDC provisioning fails silently otherwise — a broken login is only found when someone tries to
+      # log in. Wire the root-run units to the notify seam so a failure alerts the admin (fires per failed
+      # attempt, bounded by each unit's startLimitBurst).
+      notify.topics."homelab-provision".public = lib.mkDefault false;
+      tasks.oidc-provision = {
+        systemdServices = [
+          baseServiceName
+        ]
+        ++ map (name: "pocket-id-provision-client-${name}") (lib.attrNames oidcCfg.clients);
+        integrations.notify.topic = lib.mkDefault "homelab-provision";
+      };
+
       runtimeSecrets = {
         # Encrypts Pocket-ID's DB: a replacement value would orphan it. generateOnce never silently
         # regenerates; guarding on the DB dir means a secrets-dir wipe (no data) regenerates cleanly while a

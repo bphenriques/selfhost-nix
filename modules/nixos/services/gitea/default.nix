@@ -197,7 +197,7 @@ in
       serviceConfig.SupplementaryGroups = serviceCfg.oidc.systemd.supplementaryGroups;
       environment = {
         OIDC_PROVIDER_NAME = oidcCfg.provider.internalName;
-        OIDC_DISCOVERY_URL = "${oidcCfg.provider.issuerUrl}/.well-known/openid-configuration";
+        OIDC_DISCOVERY_URL = oidcCfg.provider.discoveryUrl;
         OIDC_CLIENT_ID_FILE = serviceCfg.oidc.id.file;
         OIDC_CLIENT_SECRET_FILE = serviceCfg.oidc.secret.file;
       };

@@ -91,12 +91,6 @@ let
 
   mkSecretScript = name: s: ''
     path=${lib.escapeShellArg s.path}
-    ${lib.optionalString (s.migrateFrom != null) ''
-      if [ ! -e "$path" ] && [ -e ${lib.escapeShellArg s.migrateFrom} ]; then
-        echo "Migrating ${name} from ${s.migrateFrom}"
-        cp -p ${lib.escapeShellArg s.migrateFrom} "$path"
-      fi
-    ''}
     if [ ! -e "$path" ]; then
       ${genBranch name s}
     fi
@@ -210,11 +204,6 @@ let
           non-empty, a missing secret is left absent rather than regenerated. Defaults to null — presence is
           then tracked by a `.generated` marker beside the secret, which a secrets-dir wipe also removes.
         '';
-      };
-      migrateFrom = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "Source path to copy from on first boot if the target is missing (one-time migration; source left in place).";
       };
       owner = lib.mkOption {
         type = lib.types.str;

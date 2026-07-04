@@ -330,6 +330,12 @@ in
           assertion = mon.enable;
           message = "selfhost.monitoring.alertmanager.enable requires selfhost.monitoring.enable";
         }
+        {
+          # Alertmanager routes to notify: without an active provider the webhook URL is empty and its
+          # notify-token is never provisioned, so the unit fails at runtime.
+          assertion = cfg.notify.enabled;
+          message = "selfhost.monitoring.alertmanager.enable requires an active notify provider (e.g. selfhost.notify.ntfy.enable).";
+        }
       ];
 
       selfhost.services.alertmanager = {

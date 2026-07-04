@@ -103,9 +103,11 @@ in
   vm-forwardauth = runTest ./forwardauth.nix;
   vm-backup = runTest ./backup.nix;
   vm-miniflux = runTest ./miniflux.nix;
+  vm-arr = runTest ./arr-vm.nix;
 
   # Eval-only: pure framework derivations/assignments against the live framework (no VM boot).
   template-default = import ./template.nix { inherit pkgs self nixpkgs; };
   wireguard-eval = runEval ./wireguard.nix;
   homepage-eval = runEval ./homepage.nix;
+  arr-eval = runEval ./arr.nix;
 }

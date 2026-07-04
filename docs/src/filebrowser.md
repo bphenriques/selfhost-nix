@@ -5,6 +5,9 @@ lacks: proxy-auth users, each scoped to a directory with its own permissions, re
 database. It sits on `services.filebrowser` (NixOS) and reads root/branding/view from there. This base
 module is standalone — usable without the selfhost framework (a non-selfhost host drives it directly).
 
+**Two entry points:** the standalone base is the `nixosModules.filebrowser-multiuser` output; the selfhost
+adapter ([below](#selfhost-integration)) ships inside `nixosModules.default`.
+
 ## Access, not storage
 
 A user's access is one **scope** — a path under the FileBrowser root *the host arranged*. The module never

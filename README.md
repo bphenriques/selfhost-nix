@@ -9,12 +9,13 @@ The major hindrance when self-hosting is keeping a clean(er) design across rever
 
 - **Single declaration**: one definition sets reverse proxy, authentication, monitoring, backups and notifications.
 - **Open for extension**: interface-first design with at least one implementation provided for those who want to start with _something_.
-- **Automated OIDC clients**: automatically provision OIDC clients per service (scoped to specific groups).
-- **Automated runtime secrets**: following a familiar interface, each service may declare runtime secrets safely stored outside the Nix store.
-- **WireGuard Access**: provides a simple WireGuard (VPN) implementation for (safer) access to the local network.
-- **Opinionated**: on purpose. There are many options out there and plenty is out of scope to keep this project simple(r). Read below ([what is out of scope](#out-of-scope)).
+- **Auth, ready to go**: per-service SSO — OIDC with passwordless **passkeys** (via Pocket-ID) or a forward-auth gateway — scoped to groups, with automatic client provisioning and secret rotation.
+- **Automated runtime secrets**: declared on a familiar interface, generated outside the Nix store, rotatable.
+- **Monitoring & alerting**: per-service metrics, healthchecks, and alerts — opt in where you want them.
+- **WireGuard Access**: a simple WireGuard (VPN) implementation for (safer) access to the local network — the promoted way in.
+- **Opinionated & toggleable**: opinionated on purpose, but everything is opt-in — enable what you want and bring your own for the rest. Plenty is [out of scope](#out-of-scope) to keep it lean.
 
-This flake is the foundation of my own [self-hosting environment](https://github.com/bphenriques/dotfiles). I hope it is useful for you. I work on it in spare time, so support is slow, but issues and PRs are welcome.
+This flake is the foundation of my own [self-hosting environment](https://github.com/bphenriques/dotfiles). It's **lean on purpose**: a good-enough stack to bootstrap self-hosting quickly, not a bleeding-edge or fast-moving one. Bundled services are nixpkgs services — you get nixpkgs' versions on nixpkgs' cadence — and releases here are infrequent (spare-time work). I hope it's useful; issues and PRs are welcome, though support is slow.
 
 > [!WARNING]
 > **Work in progress**, expect some rough edges:
@@ -63,6 +64,10 @@ The `selfhost.services.miniflux` block **registers** a Traefik route at `miniflu
 ## What it wires vs what you set
 
 This flake **wires the cross-cutting concerns** (ingress, auth, monitoring, backups, notifications) and bundles each service's selfhost-specific glue. It does **not** replicate or proxy `services.<name>` options that nixpkgs already exposes — you still set the deployment specifics (paths, storage, tuning) on the upstream service yourself. The bundled apps default sanely and compose with whatever concerns you've enabled, but expect to be deliberate: this is a wiring layer, not a turnkey that sets every option for you.
+
+## Security
+
+The framework wires the security plumbing — secrets kept out of the Nix store, per-service OIDC/forward-auth, hardened service units, WireGuard-first access. It does **not** own your trust anchors: the keys behind any secrets *you* supply (sops/age), **backups of generate-once keys** (lose one while its data survives and that data is gone), and host hardening are yours. See the [Security chapter](https://bphenriques.github.io/selfhost-nix/security.html) for the full split and key-rotation guidance.
 
 ## Out of Scope
 
