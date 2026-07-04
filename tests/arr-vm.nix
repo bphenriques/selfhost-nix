@@ -36,7 +36,14 @@ pkgs.testers.runNixOSTest {
     selfhost.apps.radarr = {
       enable = true;
       configureAfter = [ "transmission.service" ];
-      rootFolders = [ { path = "/mnt/media/movies"; } ];
+      # "Any" is a built-in Radarr profile — exercises create-with-default-profile (root folders are
+      # immutable, so this only applies at creation).
+      rootFolders = [
+        {
+          path = "/mnt/media/movies";
+          defaultQualityProfile = "Any";
+        }
+      ];
       downloadClients = [
         {
           name = "Transmission";
@@ -69,7 +76,9 @@ pkgs.testers.runNixOSTest {
 
       key = machine.succeed("cat /var/lib/homelab-secrets/radarr-api-key").strip()
 
-      # Confirm the resources actually landed (count entries, not string occurrences).
+      # Confirm the resources actually landed (count entries, not string occurrences). The reconcile reaching
+      # active already proves root folders are create-or-leave (no 405 from the removed update path); the
+      # default profile is best-effort (it may still be seeding), so assert presence, not the profile id.
       machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/rootfolder | jq -e --arg p /mnt/media/movies '.[] | select(.path==$p)' >/dev/null")
       machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/downloadclient | jq -e --arg n Transmission '.[] | select(.name==$n)' >/dev/null")
 

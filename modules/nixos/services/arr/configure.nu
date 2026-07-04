@@ -39,21 +39,20 @@ def ensure_root_folders [] {
   print "Reconciling root folders..."
   let existing = http get $"($base_url)/api/v3/rootfolder" --headers $headers --full --allow-errors
   if $existing.status != 200 { error make {msg: $"Failed to list root folders: ($existing.status) - ($existing.body)"} }
+  # Root folders are immutable in the *arr API (no update endpoint — PUT returns 405), so create-or-leave.
+  # The default quality profile can only be set at creation; if it isn't resolvable yet (recyclarr hasn't
+  # created it), the folder is created without one and is not backfilled later.
   for folder in $folders {
-    let profile_id = if ($folder | get -o defaultQualityProfile) != null { quality_profile_id $folder.defaultQualityProfile } else { null }
     let found = $existing.body | default [] | where path == $folder.path | get 0?
-    let payload = if $profile_id != null { {path: $folder.path, defaultQualityProfileId: $profile_id} } else { {path: $folder.path} }
-    if $found == null {
-      let r = http post $"($base_url)/api/v3/rootfolder" $payload --headers $headers --content-type application/json --full --allow-errors
-      if $r.status not-in [200, 201] { error make {msg: $"Failed to create root folder ($folder.path): ($r.status) - ($r.body)"} }
-      print $"  Created root folder: ($folder.path)"
-    } else if $profile_id != null and (($found | get -o defaultQualityProfileId) != $profile_id) {
-      let r = http put $"($base_url)/api/v3/rootfolder/($found.id)" ($found | merge { defaultQualityProfileId: $profile_id }) --headers $headers --content-type application/json --full --allow-errors
-      if $r.status not-in [200, 202] { error make {msg: $"Failed to update root folder ($folder.path): ($r.status) - ($r.body)"} }
-      print $"  Updated root folder default profile: ($folder.path)"
-    } else {
-      print $"  Root folder up-to-date: ($folder.path)"
+    if $found != null {
+      print $"  Root folder exists: ($folder.path)"
+      continue
     }
+    let profile_id = if ($folder | get -o defaultQualityProfile) != null { quality_profile_id $folder.defaultQualityProfile } else { null }
+    let payload = if $profile_id != null { {path: $folder.path, defaultQualityProfileId: $profile_id} } else { {path: $folder.path} }
+    let r = http post $"($base_url)/api/v3/rootfolder" $payload --headers $headers --content-type application/json --full --allow-errors
+    if $r.status not-in [200, 201] { error make {msg: $"Failed to create root folder ($folder.path): ($r.status) - ($r.body)"} }
+    print $"  Created root folder: ($folder.path)"
   }
 }
 
