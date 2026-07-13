@@ -8,6 +8,11 @@ let
   cfg = config.selfhost;
   wg = cfg.apps.wireguard;
 
+  # The server key must exist before whichever backend creates wg0 (systemd-networkd under networkd,
+  # wireguard-<iface>.service otherwise); anchor keygen on it. Client peers are declarative (below).
+  ifaceBackend =
+    if config.networking.wireguard.useNetworkd then "systemd-networkd.service" else "wireguard-${wg.interface}.service";
+
   dataDir = "/var/lib/wireguard";
   serverKeyFile = "${dataDir}/server/private.key";
   serverPubKeyFile = "${dataDir}/server/public.key";
@@ -20,12 +25,10 @@ let
       map (d: {
         name = "${u.username}-${d.name}";
         device = d.name;
-        inherit (d) ip fullAccess;
+        inherit (d) ip fullAccess publicKey;
       }) u.apps.wireguard.devices
     ) enabledUsers
   );
-
-  clientsJson = pkgs.writeText "wireguard-clients.json" (builtins.toJSON clients);
 
   wgEnv = {
     WG_DATA_DIR = dataDir;
@@ -109,7 +112,7 @@ in
       readOnly = true;
       default = clients;
       defaultText = lib.literalMD "derived from `users.*.apps.wireguard`";
-      description = "Derived per-device peers `{ name, device, ip, fullAccess }` for consumer firewall/routing rules.";
+      description = "Derived per-device peers `{ name, device, ip, fullAccess, publicKey }` for consumer firewall/routing rules.";
     };
   };
 
@@ -150,8 +153,8 @@ in
 
         systemd.services.wireguard-keygen = {
           description = "WireGuard keygen";
-          wantedBy = [ "wireguard-${wg.interface}.service" ];
-          before = [ "wireguard-${wg.interface}.service" ];
+          wantedBy = [ ifaceBackend ];
+          before = [ ifaceBackend ];
           after = [ "systemd-tmpfiles-setup.service" ];
           serviceConfig.Type = "oneshot";
           path = [ pkgs.wireguard-tools ];
@@ -168,24 +171,17 @@ in
           '';
         };
 
-        systemd.services.wireguard-bootstrap = {
-          description = "WireGuard bootstrap";
-          wantedBy = [ "multi-user.target" ];
-          after = [ "wireguard-${wg.interface}.service" ];
-          requires = [ "wireguard-${wg.interface}.service" ];
-          restartTriggers = [ clientsJson ];
-          path = [ wgManage ];
-          serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
-          };
-          script = "wg-manage bootstrap ${clientsJson}";
-        };
-
+        # Peers are declarative: the registry's public key + tunnel IP become a [WireGuardPeer]
+        # (networkd) or a scripted peer. Reconcile-safe; no runtime `wg set`. Private keys never
+        # leave the server FS (see wg-manage) and pubkeys are non-secret, so config is the truth.
         networking.wireguard.interfaces.${wg.interface} = {
           ips = [ wg.address ];
           inherit (wg) listenPort;
           privateKeyFile = serverKeyFile;
+          peers = map (c: {
+            inherit (c) publicKey;
+            allowedIPs = [ "${c.ip}/32" ];
+          }) clients;
         };
 
         networking.firewall.allowedUDPPorts = lib.optionals wg.openFirewall [ wg.listenPort ];

@@ -1,6 +1,7 @@
 #!/usr/bin/env nu
-# WireGuard client management (IPv4 only). The server generates each client keypair and stores it
-# (0600, root); `show` renders the config QR to scan onto the device in person. No email delivery.
+# WireGuard client key custody (IPv4 only). The server generates each keypair and stores the private
+# key (0600, root); the public key is declared in the registry, so peers are declarative — no runtime
+# `wg set`. `show` renders the config QR to scan onto the device in person. No email delivery.
 def require_env [name: string] {
   let val = $env | get -o $name
   if $val == null or ($val | is-empty) {
@@ -22,10 +23,6 @@ if not ($server_pubkey_file | path exists) { error make {msg: "Server key not fo
 
 def get_server_pubkey [] {
   open --raw $server_pubkey_file | str trim
-}
-
-def get_live_peers [] {
-  wg show $interface dump | lines | skip 1 | each { $in | split row "\t" | get 0 }
 }
 
 def validate_iface_name [device: string] {
@@ -121,8 +118,9 @@ def create_client [name: string, --ip: string, --device: string] {
   let conf = conf_file $name $dev
   render_conf $priv_key $client_ip | save -f $conf
   chmod 0600 $conf
-  wg set $interface peer $pub_key allowed-ips $"($client_ip)/32"
-  print $"Client '($name)' added (($client_ip))"
+  print $"Client '($name)' provisioned (($client_ip))"
+  print $"  publicKey = \"($pub_key)\""
+  print "Add this device to the WireGuard registry (name/ip/fullAccess/publicKey) and rebuild to enable the peer."
 }
 
 def "main list" [] {
@@ -130,7 +128,7 @@ def "main list" [] {
   if ($clients | is-empty) {
     print "No clients"
   } else {
-    $clients | select name ip | print
+    $clients | select name ip pub_key | print
   }
 }
 
@@ -189,40 +187,17 @@ def "main remove" [...names: string] {
       print $"Client '($name)' not found"
       continue
     }
-    let meta = open $"($dir)/meta.json"
     rm -r $dir
-    wg set $interface peer $meta.pub_key remove
-    print $"Client '($name)' removed"
+    print $"Client '($name)' key removed. Delete it from the registry and rebuild to drop the peer."
   }
-}
-
-def "main bootstrap" [config_file: path] {
-  for entry in (open $config_file) {
-    let dir = $"($clients_dir)/($entry.name)"
-    if ($dir | path exists) {
-      print $"Skipping '($entry.name)'"
-      continue
-    }
-    let device = $entry.device? | if $in == null or ($in | is-empty) { null } else { $in }
-    create_client $entry.name --ip $entry.ip --device $device
-  }
-  let live_peers = get_live_peers
-  let clients = list_clients
-  let file_pubkeys = $clients | get -o pub_key | default []
-  for c in ($clients | where { $in.pub_key not-in $live_peers }) {
-    wg set $interface peer $c.pub_key allowed-ips $"($c.ip)/32"
-    print $"Synced: ($c.name)"
-  }
-  for p in ($live_peers | where { $in not-in $file_pubkeys }) { print $"Warning: unknown peer ($p | str substring 0..8)..." }
 }
 
 def main [] {
-  print "wg-manage - WireGuard client management
+  print "wg-manage - WireGuard client key custody (peers are declared in the registry)
 
-  list                       List clients
-  status                     Show connection status of all clients
-  add <name> [--device] [--ip]  Add client (server-generated key)
-  show <name>                Show the config QR for a client (scan onto the device)
-  remove <name>...           Remove one or more clients
-  bootstrap <file>           Create clients from JSON and sync peers"
+  list                          List clients
+  status                        Show connection status of all clients
+  add <name> [--device] [--ip]  Generate a keypair; prints the publicKey to add to the registry
+  show <name>                   Show the config QR for a client (scan onto the device)
+  remove <name>...              Delete a client's key (then remove it from the registry + rebuild)"
 }

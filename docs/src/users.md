@@ -18,6 +18,33 @@ selfhost.users.alice = {
 };
 ```
 
+## WireGuard devices
+
+Each entry in `apps.wireguard.devices` is a **declarative peer** — the server routes its `ip` to its
+`publicKey`. Keys are provisioned in two phases: the private key is minted on the server and never leaves it;
+the public key (not secret) is declared in config, so peers apply declaratively — no runtime `wg set`.
+
+1. **Mint on the server** (the WireGuard host). The client name is `<username>-<device>`; pass the short
+   `--device` so the generated interface name stays within 15 chars:
+   ```console
+   $ sudo wg-manage add alice-phone --device phone
+   Client 'alice-phone' provisioned (10.100.0.42)
+     publicKey = "kQ…="
+   # also prints the config QR
+   ```
+   The private key lands in `/var/lib/wireguard/clients/` (0600, root); the public key and IP are printed.
+
+2. **Declare it** with the printed IP + public key, then rebuild:
+   ```nix
+   selfhost.users.alice.apps.wireguard.devices = [
+     { name = "phone"; ip = "10.100.0.42"; fullAccess = true; publicKey = "kQ…="; }
+   ];
+   ```
+   `fullAccess = true` reaches the whole LAN; `false` reaches only the server.
+
+Re-show a QR with `sudo wg-manage show alice-phone`; `wg-manage status` lists handshakes. To remove a device,
+delete it from the registry and rebuild, then `sudo wg-manage remove alice-phone` to wipe its key.
+
 ## Extending per-user as a consumer
 
 For per-user knobs the framework doesn't provide — enriching a bundled app or wiring your **own** services

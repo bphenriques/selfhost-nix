@@ -18,6 +18,10 @@
                     type = lib.types.str;
                     description = "Static WireGuard client IP (e.g. 10.100.0.42).";
                   };
+                  publicKey = lib.mkOption {
+                    type = lib.types.str;
+                    description = "Device's WireGuard public key, from `wg-manage add` (the private key stays on the server).";
+                  };
                   fullAccess = lib.mkOption {
                     type = lib.types.bool;
                     default = false;

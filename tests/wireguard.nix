@@ -34,6 +34,7 @@ let
             {
               name = "phone";
               ip = "10.100.0.10";
+              publicKey = "AdminPhonePublicKeyAAAAAAAAAAAAAAAAAAAAAAAA=";
             }
           ];
       users.bob =
@@ -43,6 +44,7 @@ let
             {
               name = "laptop";
               ip = "10.100.0.20";
+              publicKey = "BobLaptopPublicKeyBBBBBBBBBBBBBBBBBBBBBBBBB=";
             }
           ];
     };
@@ -57,10 +59,12 @@ let
             {
               name = "phone";
               ip = "10.100.0.10";
+              publicKey = "CollidePhonePublicKeyCCCCCCCCCCCCCCCCCCCCCC=";
             }
             {
               name = "laptop";
               ip = "10.100.0.10";
+              publicKey = "CollideLaptopPublicKeyDDDDDDDDDDDDDDDDDDDDD=";
             }
           ];
     };
