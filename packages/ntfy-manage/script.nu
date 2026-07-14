@@ -40,7 +40,7 @@ def setup_publishers [] {
   for entry in ($publishers | transpose name pub) {
     let name = $entry.name
     let pub = $entry.pub
-    let random_pass = (random chars --length 32)
+    let random_pass = (random pass --chars 32)
     with-env { NTFY_PASSWORD: $random_pass } {
       ntfy user add --ignore-exists $name
     }
