@@ -10,6 +10,7 @@ Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.
   - "is X active" that's derivable → check the data (e.g. the registry is non-empty), don't store a flag.
   - No empty-string or null sentinels where a real signal already exists.
 - Lean and YAGNI: no speculative abstraction, no over-engineering. Read neighbouring files and match existing patterns before adding new ones.
+- Accepted duplication (do not DRY): the per-service configure/reconcile oneshot `serviceConfig` scaffolding, the nushell `wait_ready`/status-check helpers, and the restart-backoff/hardening `serviceConfig` blocks are intentionally repeated per file, not factored into a shared builder/lib. Keep them inline.
 - Single-responsibility modules: one concern per file in `modules/nixos/`; core per-user option fragments in `modules/nixos/schemas/` (a blessed service instead declares its own per-user surface — see below).
 - Gate everything behind an `enable`: importing a module must change nothing until it's turned on.
 

@@ -41,5 +41,5 @@ Nothing else changes — `flake.nix` already reads it as `private.hosts.myhost`.
   `apps.<name>` in their private user file.
 - **More users**: add `private/hosts/myhost/users/<name>.nix` and reference it in `settings.nix`.
 - **More hosts**: add `private/hosts/<host>/` and another `nixosConfigurations.<host>` block.
-- **Beyond the basics** — monitoring, backups, storage mounts, microvm guests, and the consumer
-  `custom.*` per-user service pattern — see the selfhost-nix docs.
+- **Beyond the basics** — monitoring, backups, storage mounts, and consumer-owned per-user config via
+  `selfhost.users.<name>.extraConfig` — see the selfhost-nix docs.
