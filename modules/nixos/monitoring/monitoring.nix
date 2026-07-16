@@ -307,12 +307,12 @@ in
         enable = true;
         listenAddress = prometheusCfg.host;
         inherit (prometheusCfg) port;
-        inherit (mon) retentionTime;
+        retentionTime = lib.mkDefault mon.retentionTime;
         extraFlags = [
           "--storage.tsdb.retention.size=${mon.retentionSize}"
           "--storage.tsdb.wal-compression"
         ];
-        globalConfig = {
+        globalConfig = lib.mkDefault {
           scrape_interval = mon.scrapeInterval;
           evaluation_interval = mon.scrapeInterval;
         };
