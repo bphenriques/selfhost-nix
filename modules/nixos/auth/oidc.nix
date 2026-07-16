@@ -97,18 +97,6 @@ in
               }
             );
           };
-          clients = lib.mkOption {
-            type = lib.types.listOf (
-              lib.types.submodule {
-                options = {
-                  name = lib.mkOption { type = lib.types.str; };
-                  callbackURLs = lib.mkOption { type = lib.types.listOf lib.types.str; };
-                  pkce = lib.mkOption { type = lib.types.bool; };
-                  allowedGroups = lib.mkOption { type = lib.types.listOf lib.types.str; };
-                };
-              }
-            );
-          };
         };
       };
       readOnly = true;
@@ -124,14 +112,6 @@ in
             ;
         }) enabledUsers;
         groups = map (name: { inherit name; }) allGroups;
-        clients = lib.mapAttrsToList (_: client: {
-          inherit (client)
-            name
-            callbackURLs
-            pkce
-            allowedGroups
-            ;
-        }) derivedClients;
       };
       description = "Provisioning config derived from OIDC-enabled users and services (read-only)";
     };
