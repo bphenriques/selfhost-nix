@@ -1,6 +1,6 @@
 # filebrowser-multiuser base: the reconciler seeds proxy-auth users at their host-arranged scopes,
-# rebuilds only on config change, and the scope-check gates startup. (The SMB selfhost adapter is
-# exercised separately — it needs a CIFS server.)
+# rebuilds only on config change, and the scope-check gates startup. (Covers the standalone base module;
+# the selfhost.apps.filebrowser adapter and SMB storage wiring are not yet tested.)
 { pkgs, common, ... }:
 pkgs.testers.runNixOSTest {
   name = "selfhost-filebrowser";

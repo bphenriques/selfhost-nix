@@ -58,10 +58,9 @@ def set_admin [user: record, is_admin: bool, token: string] {
   let body = {admin: $is_admin, login_name: $login_name, source_id: $user.source_id}
   let r = http patch $"($base_url)/api/v1/admin/users/($user.login)" $body --content-type application/json --headers { Authorization: $"token ($token)" } --full --allow-errors
   if $r.status != 200 {
-    print $"  ($user.login): admin=($is_admin) failed ($r.status) - ($r.body)"
-  } else {
-    print $"  ($user.login): admin=($is_admin)"
+    error make {msg: $"($user.login): failed to set admin=($is_admin): ($r.status) - ($r.body)"}
   }
+  print $"  ($user.login): admin=($is_admin)"
 }
 
 def register_keys [username: string, ssh_keys: list<any>, token: string] {
@@ -70,10 +69,9 @@ def register_keys [username: string, ssh_keys: list<any>, token: string] {
     let body = {key: $k.key, title: $title, read_only: $k.readOnly}
     let r = http post $"($base_url)/api/v1/admin/users/($username)/keys" $body --content-type application/json --headers { Authorization: $"token ($token)" } --full --allow-errors
     if $r.status != 201 {
-      print $"  ($username): key add failed ($r.status) - ($r.body)"
-    } else {
-      print $"  ($username): ssh key registered"
+      error make {msg: $"($username): failed to register ssh key: ($r.status) - ($r.body)"}
     }
+    print $"  ($username): ssh key registered"
   }
 }
 
