@@ -110,4 +110,6 @@ in
   wireguard-eval = runEval ./wireguard.nix;
   homepage-eval = runEval ./homepage.nix;
   arr-eval = runEval ./arr.nix;
+  smb-eval = runEval ./smb.nix;
+  oidc-rotation-eval = runEval ./oidc-rotation.nix;
 }
