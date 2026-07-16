@@ -218,6 +218,7 @@ let
       mode = lib.mkOption {
         type = lib.types.str;
         default = "0400";
+        description = "File mode (octal) of the secret file.";
       };
       path = lib.mkOption {
         type = lib.types.str;
@@ -246,14 +247,17 @@ let
       owner = lib.mkOption {
         type = lib.types.str;
         default = "root";
+        description = "Unix owner of the rendered file.";
       };
       group = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
+        description = "Unix group; defaults to owner's primary group.";
       };
       mode = lib.mkOption {
         type = lib.types.str;
         default = "0400";
+        description = "File mode (octal) of the rendered file.";
       };
       restartUnits = lib.mkOption {
         type = lib.types.listOf lib.types.str;

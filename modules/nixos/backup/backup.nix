@@ -167,6 +167,7 @@ let
       after = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         default = [ ];
+        description = "Systemd units this hook must run after (e.g. the service whose data it snapshots).";
       };
     };
   };
@@ -201,10 +202,10 @@ in
               description = "Snapshot retention policy (rustic forget keep-within-*).";
               type = lib.types.submodule {
                 options = {
-                  daily = lib.mkOption { type = lib.types.str; };
-                  weekly = lib.mkOption { type = lib.types.str; };
-                  monthly = lib.mkOption { type = lib.types.str; };
-                  yearly = lib.mkOption { type = lib.types.str; };
+                  daily = lib.mkOption { type = lib.types.str; description = "How long to keep daily snapshots (rustic keep-within-daily; e.g. 7 days)."; };
+                  weekly = lib.mkOption { type = lib.types.str; description = "How long to keep weekly snapshots (e.g. 1 month)."; };
+                  monthly = lib.mkOption { type = lib.types.str; description = "How long to keep monthly snapshots (e.g. 1 year)."; };
+                  yearly = lib.mkOption { type = lib.types.str; description = "How long to keep yearly snapshots (e.g. 2 years)."; };
                 };
               };
             };

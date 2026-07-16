@@ -77,7 +77,7 @@ in
         };
       };
 
-      # Alert on failure via the notify integration (OnFailure is wired by notify/notify.nix).
+      # Alert on failure via the notify integration (notify/notify.nix attaches the failure hook to this task's unit).
       selfhost.tasks.oidc-rotate = {
         systemdServices = [ "oidc-rotate" ];
         integrations.notify.topic = cfg.notifyTopic;
