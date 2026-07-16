@@ -17,6 +17,7 @@
     ./storage/smb.nix
     ./mail/mail.nix
     ./monitoring/monitoring.nix
+    ./monitoring/alertmanager.nix
     ./backup/backup.nix
     ./notify/notify.nix
     ./notify/ntfy.nix
