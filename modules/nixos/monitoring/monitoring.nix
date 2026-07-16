@@ -392,8 +392,8 @@ in
       };
 
       systemd.services.alertmanager = {
-        after = [ "ntfy-configure.service" ];
-        wants = [ "ntfy-configure.service" ];
+        after = lib.optional (cfg.notify.provisioningUnit != null) cfg.notify.provisioningUnit;
+        wants = lib.optional (cfg.notify.provisioningUnit != null) cfg.notify.provisioningUnit;
         serviceConfig.LoadCredential = [ "notify-token:${alertmanagerCfg.integrations.notify.tokenFile}" ];
       };
     })

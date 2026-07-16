@@ -105,13 +105,13 @@ let
       after = [
         "network-online.target"
         "remote-fs.target"
-        "ntfy-configure.service"
       ]
+      ++ lib.optional (notifyCfg.provisioningUnit != null) notifyCfg.provisioningUnit
       ++ hookDeps;
       wants = [
         "network-online.target"
-        "ntfy-configure.service"
-      ];
+      ]
+      ++ lib.optional (notifyCfg.provisioningUnit != null) notifyCfg.provisioningUnit;
       requires = hookDeps;
       unitConfig.RequiresMountsFor = lib.attrValues t.bindings ++ lib.optional (lib.hasPrefix "/" t.repository) t.repository;
       environment = rusticManageEnv;
@@ -133,12 +133,12 @@ let
       description = "Homelab backup verification: ${name}";
       after = [
         "network-online.target"
-        "ntfy-configure.service"
-      ];
+      ]
+      ++ lib.optional (notifyCfg.provisioningUnit != null) notifyCfg.provisioningUnit;
       wants = [
         "network-online.target"
-        "ntfy-configure.service"
-      ];
+      ]
+      ++ lib.optional (notifyCfg.provisioningUnit != null) notifyCfg.provisioningUnit;
       unitConfig.RequiresMountsFor = lib.optional (lib.hasPrefix "/" t.repository) t.repository;
       environment = rusticManageEnv;
       serviceConfig = hardenedServiceConfig // {

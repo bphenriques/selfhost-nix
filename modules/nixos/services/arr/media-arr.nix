@@ -237,9 +237,9 @@ in
     systemd.services."${name}-configure" = {
       description = "${displayName} reconcile (root folders, download clients, notify)";
       wantedBy = [ "${name}.service" ];
-      after = [ "${name}.service" ] ++ app.configureAfter ++ lib.optional notifyEnabled "ntfy-configure.service";
+      after = [ "${name}.service" ] ++ app.configureAfter ++ lib.optional (notifyEnabled && cfg.notify.provisioningUnit != null) cfg.notify.provisioningUnit;
       requires = [ "${name}.service" ];
-      wants = app.configureAfter ++ lib.optional notifyEnabled "ntfy-configure.service";
+      wants = app.configureAfter ++ lib.optional (notifyEnabled && cfg.notify.provisioningUnit != null) cfg.notify.provisioningUnit;
       partOf = [ "${name}.service" ];
       restartTriggers = [
         configJson

@@ -46,6 +46,7 @@ in
       };
 
       notify.url = serviceCfg.url;
+      notify.provisioningUnit = "ntfy-configure.service";
 
       runtimeSecrets.ntfy-admin-password = {
         restartUnits = [

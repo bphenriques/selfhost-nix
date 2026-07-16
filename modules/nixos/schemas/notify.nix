@@ -40,7 +40,7 @@ in
               - **runs as a non-root user** (e.g. transmission): receive it via systemd
                 `LoadCredential = [ "notify-token:''${...tokenFile}" ]` and read `%d/notify-token`
                 (`$CREDENTIALS_DIRECTORY/notify-token`). Because LoadCredential reads the source at unit
-                start, order the unit `after` the provider's provisioning unit (e.g. `ntfy-configure.service`).
+                start, order the unit `after` the provider's provisioning unit (`selfhost.notify.provisioningUnit`).
             '';
           };
         };

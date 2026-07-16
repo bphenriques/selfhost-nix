@@ -69,6 +69,12 @@ in
       description = "Base URL of the notification endpoint, set by the active notify provider and consumed by send-notification (NOTIFY_URL); null = no provider active.";
     };
 
+    provisioningUnit = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = "Systemd unit of the active provider that provisions publisher tokens; consumers that read a token via LoadCredential order `after` it. null = no provider, or a provider with no provisioning step.";
+    };
+
     # Notification seam used by backup, task-failure hooks, and simple service hooks. Swap to
     # retarget all of them at once (e.g. an Apprise/gotify gateway). Producers that abstract
     # notifications themselves (Alertmanager, *arr connectors) stay native, retargeted in their config.

@@ -62,8 +62,8 @@ in
 
     systemd.services.transmission = {
       # LoadCredential reads the token at unit start, so wait for the provider to provision it first.
-      after = lib.optionals notify.enable [ "ntfy-configure.service" ];
-      wants = lib.optionals notify.enable [ "ntfy-configure.service" ];
+      after = lib.optional (notify.enable && notifyCfg.provisioningUnit != null) notifyCfg.provisioningUnit;
+      wants = lib.optional (notify.enable && notifyCfg.provisioningUnit != null) notifyCfg.provisioningUnit;
       serviceConfig = {
         Restart = "on-failure";
         RestartSec = "10s";
