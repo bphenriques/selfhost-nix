@@ -56,12 +56,6 @@ let
           default = "/mnt/homelab-${name}";
           description = "Local mount point for the share";
         };
-        remote = lib.mkOption {
-          type = lib.types.str;
-          default = name;
-          readOnly = true;
-          description = "Remote folder name on the selfhost server";
-        };
         group = lib.mkOption {
           type = lib.types.str;
           default = "homelab-${name}";
@@ -156,7 +150,7 @@ in
     fileSystems = lib.mapAttrs' (
       name: mountCfg:
       lib.nameValuePair mountCfg.localMount {
-        device = "//${cfg.hostname}/${mountCfg.remote}";
+        device = "//${cfg.hostname}/${name}";
         fsType = "cifs";
         options = [
           # Permissions

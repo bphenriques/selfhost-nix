@@ -35,6 +35,14 @@ def validate_iface_name [device: string] {
   }
 }
 
+# The client name is a directory key interpolated into filesystem paths (incl. rm), so reject anything that
+# could escape the clients dir. Admin-run, so this is a foot-gun guard, not an exploit boundary.
+def validate_name [name: string] {
+  if ($name | is-empty) or ($name | str replace --all --regex '[a-z0-9-]' '' | is-not-empty) {
+    error make {msg: $"Client name '($name)' contains invalid characters [allowed: a-z, 0-9, -]"}
+  }
+}
+
 def conf_file [name: string, device: string] {
   validate_iface_name $device
   $"($clients_dir)/($name)/($selfhost_name)-($device).conf"
@@ -105,6 +113,7 @@ def create_client [name: string, --ip: string, --device: string] {
   let dev = if $device == null { $name } else { $device }
   validate_iface_name $dev
   mkdir $dir
+  chmod 0700 $dir
   let priv_key = wg genkey | str trim
   let pub_key = $priv_key | wg pubkey | str trim
   $priv_key | save -f $"($dir)/private.key"
@@ -168,9 +177,13 @@ def "main status" [] {
   }
 }
 
-def "main show" [name: string] { show_qr $name }
+def "main show" [name: string] {
+  validate_name $name
+  show_qr $name
+}
 
 def "main add" [name: string, --device: string, --ip: string] {
+  validate_name $name
   let dir = $"($clients_dir)/($name)"
   if ($dir | path exists) {
     print $"Client '($name)' exists"
@@ -182,6 +195,7 @@ def "main add" [name: string, --device: string, --ip: string] {
 
 def "main remove" [...names: string] {
   for name in $names {
+    validate_name $name
     let dir = $"($clients_dir)/($name)"
     if not ($dir | path exists) {
       print $"Client '($name)' not found"

@@ -160,7 +160,7 @@ def "main provision-client" [] {
   let is_new = $found == null
   let client_id = if $found != null {
     let dominated_fields = $desired | columns
-    let current = $found | select ...$dominated_fields | update callbackURLs { sort }
+    let current = $found | select --optional ...$dominated_fields | update callbackURLs { sort }
     if $current != $desired {
       let r = http put $"($base_url)/api/oidc/clients/($found.id)" $desired --headers $headers --content-type application/json --full --allow-errors
       if $r.status != 200 {
