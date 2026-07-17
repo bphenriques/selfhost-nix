@@ -124,7 +124,7 @@ in
           name = "radicale-password-${uname}";
           value = {
             bytes = 24;
-            regenerateIfMissing = false;
+            generateOnce = false;
             restartUnits = [ "radicale-configure.service" ];
           };
         }) enabledUsernames
