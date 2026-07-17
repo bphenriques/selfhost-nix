@@ -40,6 +40,10 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_unit("homelab-runtime-secrets.service")
     machine.succeed("stat -c %a /var/lib/homelab-secrets/ntfy-admin-password | grep -qx 400")
 
+    # The headline claim, checked directly: the generated value never lands in the world-readable store.
+    secret = machine.succeed("cat /var/lib/homelab-secrets/ntfy-admin-password").strip()
+    machine.fail(f"grep -rqF -- '{secret}' /nix/store")
+
     # ntfy provisions in one shot — no failed-then-restarted units.
     machine.wait_for_unit("ntfy-sh.service")
     machine.wait_for_unit("ntfy-configure.service")
