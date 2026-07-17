@@ -59,3 +59,4 @@ Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.
 
 - VM integration tests in `tests/` (`nixosTest`), one concern per file, listed in `tests/default.nix`.
 - Eval-checking (`nix eval .#checks.<system>.<name>.drvPath`) is cheap and catches option/type/assertion errors; booting (`nix build .#checks.<system>.vm-*`) catches the integration bugs eval can't. Add a regression test when fixing a real bug.
+- A service that needs external infrastructure to boot-test (an SMB server, a live OIDC provider) gets eval coverage only (`smb`, `oidc-rotation` are `*-eval`); standing up a stub server for a full mount/rotation VM isn't worth the upkeep. Deliberate boundary, not a coverage gap.
