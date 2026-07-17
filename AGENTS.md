@@ -52,7 +52,7 @@ Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.
 ## CLIs (`packages/`)
 
 - `packages/<tool>/` holds standalone selfhost CLIs, exposed via the overlay as `pkgs.selfhost.<tool>`.
-- Logic lives in a Nushell `script.nu`; `default.nix` wraps it with `writeShellApplication` + `runtimeInputs`.
+- Logic lives in a Nushell `script.nu`; `default.nix` wraps it with the `writeNushellApplication` builder (nu-checks the script at build) + `runtimeInputs`.
 - Config-parameterized package overrides (e.g. injecting assets into a third-party package) belong inline in the provider module, not here.
 
 ## Tests

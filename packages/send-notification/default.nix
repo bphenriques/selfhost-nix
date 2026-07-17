@@ -1,18 +1,6 @@
 { lib, pkgs, ... }:
-let
-  script = pkgs.writeTextFile {
-    name = "send-notification.nu";
-    text = lib.fileContents ./script.nu;
-  };
-in
-pkgs.writeShellApplication {
+(import ../../modules/nixos/builders.nix { inherit pkgs lib; }).writeNushellApplication {
   name = "send-notification";
-  runtimeInputs = with pkgs; [
-    nushell
-    coreutils
-  ];
-  text = ''
-    exec nu ${script} "$@"
-  '';
-  meta.platforms = lib.platforms.linux;
+  runtimeInputs = [ pkgs.coreutils ];
+  script = ./script.nu;
 }
