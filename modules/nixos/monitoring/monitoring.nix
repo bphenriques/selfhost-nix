@@ -249,69 +249,67 @@ in
     };
   };
 
-  config = lib.mkMerge [
-    (lib.mkIf mon.enable {
-      assertions = [
-        {
-          assertion = dupExporterNames == [ ];
-          message = "Duplicate Prometheus exporter names across scopes: ${toString dupExporterNames}";
-        }
-      ];
+  config = lib.mkIf mon.enable {
+    assertions = [
+      {
+        assertion = dupExporterNames == [ ];
+        message = "Duplicate Prometheus exporter names across scopes: ${toString dupExporterNames}";
+      }
+    ];
 
-      selfhost.internal.listeningPorts = exporterPorts;
+    selfhost.internal.listeningPorts = exporterPorts;
 
-      selfhost.services.prometheus = {
-        displayName = "Prometheus";
-        description = "Metrics";
-        port = mon.prometheusPort;
-        healthcheck.path = "/-/healthy";
-        forwardAuth.enable = true;
-        integrations.homepage.group = "Admin";
-        integrations.monitoring = {
-          scrapeConfigs = [
-            {
-              job_name = "prometheus";
-              scrape_interval = "300s";
-              static_configs = [ { targets = [ "127.0.0.1:${toString prometheusCfg.port}" ]; } ];
-            }
-          ];
-          rules = [
-            {
-              name = "prometheus";
-              rules = [
-                {
-                  alert = "PrometheusTargetDown";
-                  expr = "up == 0";
-                  "for" = "10m";
-                  labels.severity = "warning";
-                  annotations.summary = "{{ $labels.job }}/{{ $labels.instance }} down";
-                }
-              ];
-            }
-          ];
-        };
-      };
-
-      # Writes directly to NVMe; SSD wear is negligible at 60s with a small alert set.
-      services.prometheus = {
-        enable = true;
-        listenAddress = prometheusCfg.host;
-        inherit (prometheusCfg) port;
-        retentionTime = lib.mkDefault mon.retentionTime;
-        extraFlags = [
-          "--storage.tsdb.retention.size=${mon.retentionSize}"
-          "--storage.tsdb.wal-compression"
+    selfhost.services.prometheus = {
+      displayName = "Prometheus";
+      description = "Metrics";
+      port = mon.prometheusPort;
+      healthcheck.path = "/-/healthy";
+      forwardAuth.enable = true;
+      integrations.homepage.group = "Admin";
+      integrations.monitoring = {
+        scrapeConfigs = [
+          {
+            job_name = "prometheus";
+            scrape_interval = "300s";
+            static_configs = [ { targets = [ "127.0.0.1:${toString prometheusCfg.port}" ]; } ];
+          }
         ];
-        globalConfig = lib.mkDefault {
-          scrape_interval = mon.scrapeInterval;
-          evaluation_interval = mon.scrapeInterval;
-        };
-        exporters = allExporters;
-        scrapeConfigs = allScrapeConfigs;
-        ruleFiles = lib.optional (allRules != [ ]) (yaml.generate "alerts.yml" { groups = allRules; });
+        rules = [
+          {
+            name = "prometheus";
+            rules = [
+              {
+                alert = "PrometheusTargetDown";
+                expr = "up == 0";
+                "for" = "10m";
+                labels.severity = "warning";
+                annotations.summary = "{{ $labels.job }}/{{ $labels.instance }} down";
+              }
+            ];
+          }
+        ];
       };
+    };
 
-      systemd.services = lib.foldl' lib.recursiveUpdate { } allSystemdOverrides;
-    })
-  ];
+    # Writes directly to NVMe; SSD wear is negligible at 60s with a small alert set.
+    services.prometheus = {
+      enable = true;
+      listenAddress = prometheusCfg.host;
+      inherit (prometheusCfg) port;
+      retentionTime = lib.mkDefault mon.retentionTime;
+      extraFlags = [
+        "--storage.tsdb.retention.size=${mon.retentionSize}"
+        "--storage.tsdb.wal-compression"
+      ];
+      globalConfig = lib.mkDefault {
+        scrape_interval = mon.scrapeInterval;
+        evaluation_interval = mon.scrapeInterval;
+      };
+      exporters = allExporters;
+      scrapeConfigs = allScrapeConfigs;
+      ruleFiles = lib.optional (allRules != [ ]) (yaml.generate "alerts.yml" { groups = allRules; });
+    };
+
+    systemd.services = lib.foldl' lib.recursiveUpdate { } allSystemdOverrides;
+  };
 }
