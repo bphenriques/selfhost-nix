@@ -74,11 +74,6 @@ in
             enable = lib.mkEnableOption "this non-UI Gitea account" // {
               default = true;
             };
-            description = lib.mkOption {
-              type = lib.types.str;
-              default = "";
-              description = "What this identity is for.";
-            };
             sshKeys = lib.mkOption {
               type = lib.types.listOf (
                 lib.types.submodule {

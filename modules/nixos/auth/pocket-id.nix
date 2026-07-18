@@ -72,12 +72,6 @@ in
       default = 8094;
       description = "Pocket-ID listen port (localhost, behind ingress).";
     };
-    smtpPasswordFile = lib.mkOption {
-      type = lib.types.str;
-      default = cfg.mail.passwordFile;
-      defaultText = lib.literalExpression "config.selfhost.mail.passwordFile";
-      description = "SMTP password file readable by the Pocket-ID user (defaults to selfhost.mail.passwordFile; override with a service-owned copy).";
-    };
   };
 
   config = lib.mkIf cfg.auth.oidc.pocket-id.enable {
@@ -148,7 +142,7 @@ in
         SMTP_FROM = smtpCfg.from;
         SMTP_USER = smtpCfg.user;
         SMTP_TLS = smtpCfg.tls;
-        SMTP_PASSWORD_FILE = cfg.auth.oidc.pocket-id.smtpPasswordFile;
+        SMTP_PASSWORD_FILE = cfg.mail.passwordFile;
 
         # Invite only
         ALLOW_USER_SIGNUPS = "withToken";

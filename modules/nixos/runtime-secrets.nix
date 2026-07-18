@@ -59,31 +59,20 @@ let
 
   # Missing-file policy: generate-once, always-regenerate, or never (warn). Generate-once protects a
   # data-bound secret (e.g. an encryption key) — once created it is never silently replaced. Whether the
-  # data still exists is read (read-only) from generateOnceGuard when set, else tracked by a `.generated`
-  # marker beside the secret: wiping only the secrets dir regenerates cleanly, while a lost secret over
-  # surviving data is left absent (restore, don't brick).
+  # data still exists is read (read-only) from generateOnceGuard (required when generateOnce): a lost
+  # secret over surviving data is left absent (restore, don't brick), else it regenerates.
   genBranch =
     name: s:
     if s.generateOnce then
-      if s.generateOnceGuard != null then
-        ''
-          if [ -n "$(ls -A ${lib.escapeShellArg s.generateOnceGuard} 2>/dev/null)" ]; then
-            echo "WARNING: ${name} is missing but ${s.generateOnceGuard} still holds data it protects; leaving absent." >&2
-            echo "  Restore ${name} from backup; a new value would not decrypt the existing data." >&2
-          else
-            ${generateBranch name s}
-          fi
-        ''
-      else
-        ''
-          if [ -e "$path.generated" ]; then
-            echo "WARNING: ${name} was generated once and is now missing at $path; leaving absent." >&2
-            echo "  It protects persistent data — restore it from backup, do not regenerate." >&2
-          else
-            ${generateBranch name s}
-            : > "$path.generated"
-          fi
-        ''
+      # generateOnceGuard is required when generateOnce (asserted below).
+      ''
+        if [ -n "$(ls -A ${lib.escapeShellArg s.generateOnceGuard} 2>/dev/null)" ]; then
+          echo "WARNING: ${name} is missing but ${s.generateOnceGuard} still holds data it protects; leaving absent." >&2
+          echo "  Restore ${name} from backup; a new value would not decrypt the existing data." >&2
+        else
+          ${generateBranch name s}
+        fi
+      ''
     else if s.regenerateIfMissing then
       generateBranch name s
     else
@@ -150,9 +139,6 @@ let
 
   renderUnitName = name: "homelab-runtime-template-${lib.replaceStrings [ "." "/" ] [ "-" "-" ] name}";
 
-  secretRestartUnits = lib.unique (lib.concatLists (lib.mapAttrsToList (_: s: s.restartUnits) cfg.runtimeSecrets));
-  plainTemplateRestartUnits = lib.unique (lib.concatLists (lib.mapAttrsToList (_: t: t.restartUnits) plainTemplates));
-
   parentDirsOf = templates: lib.unique (map (t: builtins.dirOf t.path) (lib.attrValues templates));
 
   # pocket-id (and other secret consumers) depend on this; it must not depend on any OIDC creds.
@@ -193,7 +179,7 @@ let
         description = ''
           Generate once, then never regenerate (supersedes regenerateIfMissing): a later loss is left absent
           and logged, not silently replaced — for data-bound secrets (e.g. an encryption key). To rotate
-          deliberately, remove the secret together with the protected data (or its `.generated` marker).
+          deliberately, remove the secret together with the protected data.
         '';
       };
       generateOnceGuard = lib.mkOption {
@@ -201,8 +187,7 @@ let
         default = null;
         description = ''
           Path to the data a generate-once secret protects (e.g. a service's data dir). While it exists and is
-          non-empty, a missing secret is left absent rather than regenerated. Defaults to null — presence is
-          then tracked by a `.generated` marker beside the secret, which a secrets-dir wipe also removes.
+          non-empty, a missing secret is left absent rather than regenerated. Required when generateOnce = true.
         '';
       };
       owner = lib.mkOption {
@@ -337,6 +322,12 @@ in
           toString (lib.attrNames (lib.filterAttrs (_: s: s.generateOnceGuard != null && !s.generateOnce) cfg.runtimeSecrets))
         }";
       }
+      {
+        assertion = lib.all (s: !s.generateOnce || s.generateOnceGuard != null) (lib.attrValues cfg.runtimeSecrets);
+        message = "selfhost.runtimeSecrets: generateOnce requires generateOnceGuard (the data path it protects): ${
+          toString (lib.attrNames (lib.filterAttrs (_: s: s.generateOnce && s.generateOnceGuard == null) cfg.runtimeSecrets))
+        }";
+      }
     ];
 
     systemd.tmpfiles.rules = [
@@ -350,7 +341,6 @@ in
           homelab-runtime-secrets = {
             description = "Generate runtime secrets and render templates";
             wantedBy = [ "multi-user.target" ];
-            before = secretRestartUnits ++ plainTemplateRestartUnits;
             path = renderPath;
             serviceConfig = hardening // {
               ReadWritePaths = [ secretsDir ] ++ parentDirsOf plainTemplates;

@@ -80,13 +80,6 @@ in
             description = "Group name for this client's credentials";
           };
 
-          credentialsDir = lib.mkOption {
-            type = lib.types.str;
-            default = "${credentialsBaseDir}/${name}";
-            readOnly = true;
-            description = "Directory containing this client's id and secret files";
-          };
-
           systemd = {
             dependentServices = lib.mkOption {
               type = lib.types.listOf lib.types.str;

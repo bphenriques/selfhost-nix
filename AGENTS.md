@@ -31,7 +31,7 @@ Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.
 
 - A one-line `description` on every option: descriptions are the published options site.
 - Add `defaultText` when a `default` references other config (e.g. a derived URL), so the site renders without a host config.
-- Don't mirror upstream: never wrap an existing nixpkgs setting (`services.*`, a `staticConfigOptions.*` key, ...) in a `selfhost.*` option just to re-expose it; that doubles the docs and the maintenance. Set a sensible default with `lib.mkDefault` (or a freeform `settings`/`extraConfig` passthrough) and let the consumer override the upstream knob directly. Add a dedicated option only for the framework's own surface (contracts, generated config) or where a type/validation genuinely earns its keep.
+- Don't mirror upstream: never wrap an existing nixpkgs setting (`services.*`, a `staticConfigOptions.*` key, ...) in a `selfhost.*` option just to re-expose it; that doubles the docs and the maintenance. Set a sensible default with `lib.mkDefault` (or a freeform `settings`/`extraConfig` passthrough) and let the consumer override the upstream knob directly. Add a dedicated option only for the framework's own surface (contracts, generated config), where a type/validation genuinely earns its keep, or to keep a coherent group of sibling knobs the consumer tunes together discoverable under one namespace (e.g. `monitoring.{retentionTime,retentionSize,scrapeInterval}`) — even if one member maps 1:1 to a nixpkgs option.
 
 ## Secrets
 

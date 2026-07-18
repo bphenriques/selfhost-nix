@@ -74,31 +74,8 @@ in
     };
 
     provisionConfig = lib.mkOption {
-      type = lib.types.submodule {
-        options = {
-          users = lib.mkOption {
-            type = lib.types.listOf (
-              lib.types.submodule {
-                options = {
-                  username = lib.mkOption { type = lib.types.str; };
-                  email = lib.mkOption { type = lib.types.str; };
-                  firstName = lib.mkOption { type = lib.types.str; };
-                  lastName = lib.mkOption { type = lib.types.str; };
-                  isAdmin = lib.mkOption { type = lib.types.bool; };
-                  groups = lib.mkOption { type = lib.types.listOf lib.types.str; };
-                };
-              }
-            );
-          };
-          groups = lib.mkOption {
-            type = lib.types.listOf (
-              lib.types.submodule {
-                options.name = lib.mkOption { type = lib.types.str; };
-              }
-            );
-          };
-        };
-      };
+      # Raw passthrough: consumers read attrs directly; typing it here only risked drift (mirrors clients above).
+      type = lib.types.raw;
       readOnly = true;
       default = {
         users = lib.mapAttrsToList (_: u: {

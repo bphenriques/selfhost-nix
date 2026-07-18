@@ -36,7 +36,7 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
+  config = lib.mkIf (config.selfhost.enable && cfg.enable) {
     systemd.services.desec-ddns = {
       description = "deSEC dynamic DNS update";
       after = [ "network-online.target" ];

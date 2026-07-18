@@ -49,7 +49,7 @@ let
 
   # Scopes must resolve to real directories the host arranged; fail loudly rather than serve empty.
   scopeCheck = pkgs.writeShellScript "filebrowser-scope-check" ''
-    for s in ${lib.escapeShellArgs (lib.unique (map (u: u.scope) userList))}; do
+    for s in ${lib.escapeShellArgs (lib.unique ([ cfg.unlistedScope ] ++ map (u: u.scope) userList))}; do
       [ -d "${fb.root}$s" ] || { echo "filebrowser-multiuser: scope '$s' has no directory under ${fb.root}" >&2; exit 1; }
     done
   '';
