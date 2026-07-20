@@ -1,3 +1,7 @@
+Unstale and in progress.
+
+---
+
 # selfhost-nix
 
 [![Nix Flakes](https://img.shields.io/badge/Nix-flakes-5277C3?logo=nixos&logoColor=white)](https://nixos.org/)
