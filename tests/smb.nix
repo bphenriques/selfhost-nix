@@ -15,8 +15,12 @@ let
     selfhost = {
       storage.smb = base // {
         mounts = {
-          media = { gid = 5001; }; # a dependent service (below) → boot-mount with nofail
-          photos = { gid = 5002; }; # no dependents → lazy automount
+          media = {
+            gid = 5001;
+          }; # a dependent service (below) → boot-mount with nofail
+          photos = {
+            gid = 5002;
+          }; # no dependents → lazy automount
         };
       };
       # A registered service that needs the media mount makes it a "dependent" share.
@@ -35,8 +39,12 @@ let
   collide = evalConfig {
     selfhost.storage.smb = base // {
       mounts = {
-        media = { gid = 5001; };
-        photos = { gid = 5001; }; # duplicate gid
+        media = {
+          gid = 5001;
+        };
+        photos = {
+          gid = 5001;
+        }; # duplicate gid
       };
     };
   };
