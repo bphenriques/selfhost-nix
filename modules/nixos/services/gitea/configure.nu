@@ -101,7 +101,7 @@ def list_usernames [--admin] {
 # Creates the account if missing (admin status and SSH keys are reconciled separately, in main).
 def ensure_user [user: record, existing: list<string>] {
   if $user.username in $existing { return }
-  let password = (random pass --chars 32)
+  let password = (random chars --length 32)
   gitea $config_flag admin user create --username $user.username --password $password --email $user.email --must-change-password=false
   print $"Created user '($user.username)'"
 }

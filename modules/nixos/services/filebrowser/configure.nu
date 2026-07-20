@@ -69,7 +69,7 @@ def add_user [user: record] {
     $"--perm.share=($p.share)"
     $"--perm.download=($p.download)"
   ] ++ (view_flags)
-  fb users add $user.username (random pass --chars 32) ...$user_args
+  fb users add $user.username (random chars --length 32) ...$user_args
   print $"  ($user.username): added"
 }
 # Rebuild from scratch so the DB is exactly the declared config (runs before FileBrowser; no live state).
