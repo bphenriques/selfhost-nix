@@ -1,7 +1,3 @@
-Unstale and in progress.
-
----
-
 # selfhost-nix
 
 [![Nix Flakes](https://img.shields.io/badge/Nix-flakes-5277C3?logo=nixos&logoColor=white)](https://nixos.org/)
@@ -9,25 +5,19 @@ Unstale and in progress.
 [![Status](https://img.shields.io/badge/status-unstable-orange)](#out-of-scope)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
-The major hindrance when self-hosting is keeping a clean(er) design across reverse proxy, OIDC, metrics, backups, and notifications without repeating the same wiring for every service. My goal is to help those who pursue self-hosting as a hobby and face similar issues:
+Self-hosting means wiring the same concerns into every service by hand: reverse proxy, auth, metrics, backups, notifications. This flake declares them once.
 
-- **Single declaration**: one definition sets reverse proxy, authentication, monitoring, backups and notifications.
-- **Open for extension**: interface-first design with at least one implementation provided for those who want to start with _something_.
-- **Auth, ready to go**: per-service SSO — OIDC with passwordless **passkeys** (via Pocket-ID) or a forward-auth gateway — scoped to groups, with automatic client provisioning and secret rotation.
-- **Automated runtime secrets**: declared on a familiar interface, generated outside the Nix store, rotatable.
-- **Monitoring & alerting**: per-service metrics, healthchecks, and alerts — opt in where you want them.
-- **WireGuard Access**: a simple WireGuard (VPN) implementation for (safer) access to the local network — the promoted way in.
-- **Opinionated & toggleable**: opinionated on purpose, but everything is opt-in — enable what you want and bring your own for the rest. Plenty is [out of scope](#out-of-scope) to keep it lean.
+- **One declaration** sets reverse proxy, auth, monitoring, backups, and notifications.
+- **SSO built in**: per-service OIDC with passwordless **passkeys** (Pocket-ID) or a forward-auth gateway, scoped to groups, with automatic client provisioning and secret rotation.
+- **Runtime secrets**: generated outside the Nix store, rotatable, declared like any other option.
+- **Monitoring**: per-service metrics, healthchecks, and alerts, opt-in.
+- **WireGuard access**: the default way in.
+- **Opt-in throughout**: opinionated defaults, enable what you want, bring your own for the rest. Plenty is [out of scope](#out-of-scope).
 
-This flake is the foundation of my own [self-hosting environment](https://github.com/bphenriques/dotfiles). It's **lean on purpose**: a good-enough stack to bootstrap self-hosting quickly, not a bleeding-edge or fast-moving one. Bundled services are nixpkgs services — you get nixpkgs' versions on nixpkgs' cadence — and releases here are infrequent (spare-time work). I hope it's useful; issues and PRs are welcome, though support is slow.
+This flake runs my own [homelab](https://github.com/bphenriques/dotfiles). Bundled services are nixpkgs services on nixpkgs' cadence, so releases are infrequent (spare-time work). Issues and PRs are welcome, though support is slow.
 
 > [!WARNING]
-> **Work in progress**, expect some rough edges:
->
-> 1. You might not find what you need. The framework grows as I hit the need, though it is open to simple, idiomatic extensions.
-> 2. Docs are young and still filling in.
-> 3. Partial automated test coverage.
-> 4. Options may change without migration notes until at least the next NixOS release.
+> **Work in progress.** The framework grows as I hit the need. Docs are young, test coverage is partial, and options may change without migration notes until the next NixOS release.
 
 ## Getting Started
 
@@ -67,11 +57,11 @@ The `selfhost.services.miniflux` block **registers** a Traefik route at `miniflu
 
 ## What it wires vs what you set
 
-This flake **wires the cross-cutting concerns** (ingress, auth, monitoring, backups, notifications) and bundles each service's selfhost-specific glue. It does **not** replicate or proxy `services.<name>` options that nixpkgs already exposes — you still set the deployment specifics (paths, storage, tuning) on the upstream service yourself. The bundled apps default sanely and compose with whatever concerns you've enabled, but expect to be deliberate: this is a wiring layer, not a turnkey that sets every option for you.
+This flake wires the cross-cutting concerns (ingress, auth, monitoring, backups, notifications) and each service's selfhost-specific glue. It does **not** wrap the `services.<name>` options nixpkgs already exposes. You still set paths, storage, and tuning on the upstream service yourself.
 
 ## Security
 
-The framework wires the security plumbing — secrets kept out of the Nix store, per-service OIDC/forward-auth, hardened service units, WireGuard-first access. It does **not** own your trust anchors: the keys behind any secrets *you* supply (sops/age), **backups of generate-once keys** (lose one while its data survives and that data is gone), and host hardening are yours. See the [Security chapter](https://bphenriques.github.io/selfhost-nix/security.html) for the full split and key-rotation guidance.
+Secrets stay out of the Nix store. Each service gets OIDC or forward-auth and hardened units, and access is WireGuard-first. What stays yours: the keys behind secrets *you* supply (sops/age), **backups of generate-once keys** (lose one while its data survives and that data is gone), and host hardening. See the [Security chapter](https://bphenriques.github.io/selfhost-nix/security.html) for the full split and key-rotation guidance.
 
 ## Out of Scope
 
@@ -90,7 +80,7 @@ nix build -L .#checks.x86_64-linux.vm-ingress  # run a single VM test
 nix build .#docs                               # docs site → result/index.html
 ```
 
-VM tests ([`nixosTest`](https://nixos.org/manual/nixos/stable/#sec-nixos-tests), one concern per file under [`tests/`](tests/); Linux + KVM) are exposed as flake checks, so `nix flake check` runs them all in one go. Conventions and how to extend live in [`AGENTS.md`](AGENTS.md).
+VM tests ([`nixosTest`](https://nixos.org/manual/nixos/stable/#sec-nixos-tests), one concern per file under [`tests/`](tests/), Linux + KVM) are exposed as flake checks, so `nix flake check` runs them all in one go. Conventions and how to extend live in [`AGENTS.md`](AGENTS.md).
 
 ## Support
 

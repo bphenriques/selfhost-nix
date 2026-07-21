@@ -10,10 +10,10 @@ data.
 flake.nix                 # one nixosConfiguration, wired inline
 hosts/myhost/
   default.nix             # imports the three below + stateVersion
-  hardware-configuration.nix   # placeholder — generate this
+  hardware-configuration.nix   # placeholder, generate this
   selfhost.nix            # what to run (pure selfhost.* config)
   secrets.nix             # where secrets come from (the only sops-specific file)
-private/                  # confidential, build-time data — split into its own repo
+private/                  # confidential build-time data (split into its own repo)
   hosts/myhost/{settings.nix, users/, secrets.yaml}
 ```
 
@@ -33,13 +33,13 @@ private/                  # confidential, build-time data — split into its own
 2. In `flake.nix`, change the input to `private.url = "git+ssh://git@github.com/<you>/<repo>";`.
 3. `nix flake update private`.
 
-Nothing else changes — `flake.nix` already reads it as `private.hosts.myhost`.
+Nothing else changes. `flake.nix` already reads it as `private.hosts.myhost`.
 
 ## Extend from here
 
-- **More apps**: `selfhost.apps.<name>.enable = true;` in `selfhost.nix`; opt users in via
+- **More apps**: `selfhost.apps.<name>.enable = true;` in `selfhost.nix`, then opt users in via
   `apps.<name>` in their private user file.
 - **More users**: add `private/hosts/myhost/users/<name>.nix` and reference it in `settings.nix`.
 - **More hosts**: add `private/hosts/<host>/` and another `nixosConfigurations.<host>` block.
-- **Beyond the basics** — monitoring, backups, storage mounts, and consumer-owned per-user config via
-  `selfhost.users.<name>.extraConfig` — see the selfhost-nix docs.
+- **Beyond the basics**: monitoring, backups, storage mounts, and consumer-owned per-user config via
+  `selfhost.users.<name>.extraConfig` all live in the selfhost-nix docs.
