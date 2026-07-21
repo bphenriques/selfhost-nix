@@ -17,7 +17,7 @@ let
   serverKeyFile = "${dataDir}/server/private.key";
   serverPubKeyFile = "${dataDir}/server/public.key";
 
-  enabledUsers = lib.filterAttrs (_: u: u.apps.wireguard.enable) cfg.users;
+  enabledUsers = lib.filterAttrs (_: u: u.services.wireguard.enable) cfg.users;
 
   clients = lib.concatLists (
     lib.mapAttrsToList (
@@ -26,7 +26,7 @@ let
         name = "${u.username}-${d.name}";
         device = d.name;
         inherit (d) ip fullAccess publicKey;
-      }) u.apps.wireguard.devices
+      }) u.services.wireguard.devices
     ) enabledUsers
   );
 
@@ -111,7 +111,7 @@ in
       type = lib.types.listOf (lib.types.attrsOf lib.types.anything);
       readOnly = true;
       default = clients;
-      defaultText = lib.literalMD "derived from `users.*.apps.wireguard`";
+      defaultText = lib.literalMD "derived from `users.*.services.wireguard`";
       description = "Derived per-device peers `{ name, device, ip, fullAccess, publicKey }` for consumer firewall/routing rules.";
     };
   };

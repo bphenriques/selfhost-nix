@@ -4,7 +4,7 @@
   options.selfhost.users = lib.mkOption {
     type = lib.types.attrsOf (
       lib.types.submodule {
-        options.apps.wireguard = {
+        options.services.wireguard = {
           enable = lib.mkEnableOption "WireGuard configuration for this user";
           devices = lib.mkOption {
             type = lib.types.listOf (

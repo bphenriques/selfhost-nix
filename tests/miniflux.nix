@@ -23,7 +23,7 @@ pkgs.testers.runNixOSTest {
 
         # Make the bootstrap admin ("admin") a reconcile target with a distinctive preference.
         users.admin.auth.oidc.enable = lib.mkForce true;
-        users.admin.apps.miniflux.settings.theme = "dark_serif";
+        users.admin.services.miniflux.settings.theme = "dark_serif";
       };
     };
 

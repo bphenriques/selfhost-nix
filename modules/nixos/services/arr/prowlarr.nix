@@ -37,7 +37,7 @@ in
         description = "Indexer Manager";
         inherit (app) port;
         healthcheck.path = "/ping";
-        forwardAuth.enable = lib.mkDefault cfg.auth.forwardAuth.enabled;
+        forwardAuth.enable = lib.mkDefault cfg.auth.forwardAuth.active;
         access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
         integrations.homepage.group = lib.mkDefault "Admin";
       };

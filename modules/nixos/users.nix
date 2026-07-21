@@ -31,7 +31,7 @@ let
       extraConfig = lib.mkOption {
         type = lib.types.submodule { freeformType = lib.types.attrsOf lib.types.anything; };
         default = { };
-        description = "Consumer-owned per-user config; selfhost-nix never reads it. Freeform by default (ad-hoc passthrough), but a consumer module may declare typed options under it — e.g. `extraConfig.services.<app>` — to strongly type its own per-user attrs. Read back at `config.selfhost.users.<name>.extraConfig`.";
+        description = "Consumer-owned per-user data with no first-class option; selfhost-nix never reads it. Per-service config mirrors the registry at `users.<name>.services.<name>`, not here. Read back at `config.selfhost.users.<name>.extraConfig`.";
       };
     };
   };

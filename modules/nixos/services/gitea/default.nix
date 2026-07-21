@@ -12,7 +12,7 @@ let
   serviceCfg = config.selfhost.services.gitea;
   oidcCfg = config.selfhost.auth.oidc;
 
-  enabledUsers = lib.filterAttrs (_: u: u.apps.gitea.enable) config.selfhost.users;
+  enabledUsers = lib.filterAttrs (_: u: u.services.gitea.enable) config.selfhost.users;
   serviceAccounts = lib.filterAttrs (_: a: a.enable) app.serviceAccounts;
 
   userListFile = pkgs.writeText "gitea-users.json" (
@@ -24,7 +24,7 @@ let
           firstName
           lastName
           ;
-        isAdmin = u.apps.gitea.admin;
+        isAdmin = u.services.gitea.admin;
         sshKeys = [ ];
       }) enabledUsers)
       ++ (lib.mapAttrsToList (name: a: {

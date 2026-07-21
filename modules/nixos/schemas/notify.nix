@@ -16,7 +16,7 @@ in
           # Composes with the concern: on once a notify provider is active and a topic is named.
           enable = lib.mkOption {
             type = lib.types.bool;
-            default = selfhostCfg.notify.enabled && config.topic != null;
+            default = selfhostCfg.notify.active && config.topic != null;
             defaultText = lib.literalMD "on when a notify provider is active and `topic` is set";
             description = "Publish notifications for this service/task.";
           };

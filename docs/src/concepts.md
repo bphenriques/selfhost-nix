@@ -17,6 +17,11 @@ attach to:
   every service opts in (a tile follows having a route).
 - `backup.package`: a pre-backup hook a target picks up.
 
+Data the framework doesn't model goes in `extraConfig`, a freeform slot on the entry that selfhost-nix
+never reads. Attach your own per-service metadata there (a landing-page category, say) rather than a
+separate tree keyed by service name, so it rides the same entry as the service. Read it back at
+`config.selfhost.services.<name>.extraConfig`, and a consumer module can give it a type.
+
 `selfhost.external.<name>` puts things this host doesn't run (a NAS) on the dashboard, without a route or
 backend. Public hosts and listening ports are checked across the whole registry by one assertion, so two
 services can't silently collide.

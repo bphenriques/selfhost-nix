@@ -1,7 +1,7 @@
 { config, lib, ... }:
 {
   options.selfhost.auth.forwardAuth = {
-    enabled = lib.mkOption {
+    active = lib.mkOption {
       type = lib.types.bool;
       readOnly = true;
       default = config.selfhost.auth.forwardAuth.url != null;

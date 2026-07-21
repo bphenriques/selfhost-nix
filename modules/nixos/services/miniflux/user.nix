@@ -6,7 +6,7 @@
       lib.types.submodule {
         # Freeform passthrough to Miniflux's stable, idempotent partial-update PUT; don't copy to apps
         # without those properties.
-        options.apps.miniflux.settings = lib.mkOption {
+        options.services.miniflux.settings = lib.mkOption {
           type = lib.types.attrsOf lib.types.anything;
           default = { };
           example = {

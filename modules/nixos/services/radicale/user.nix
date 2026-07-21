@@ -4,7 +4,7 @@
   options.selfhost.users = lib.mkOption {
     type = lib.types.attrsOf (
       lib.types.submodule {
-        options.apps.radicale.enable = lib.mkEnableOption "Radicale CalDAV/CardDAV access for this user";
+        options.services.radicale.enable = lib.mkEnableOption "Radicale CalDAV/CardDAV access for this user";
       }
     );
   };

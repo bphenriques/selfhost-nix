@@ -11,7 +11,7 @@ pkgs.testers.runNixOSTest {
       selfhost = {
         apps.radicale.enable = true;
 
-        users.admin.apps.radicale.enable = true; # the base admin opts in
+        users.admin.services.radicale.enable = true; # the base admin opts in
         users.guest = {
           email = "guest@test.local";
           firstName = "Gus";

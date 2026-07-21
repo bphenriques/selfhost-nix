@@ -17,10 +17,10 @@
           description = "Icon name from dashboard-icons (e.g. 'miniflux.svg')";
         };
 
-        extraConfig = lib.mkOption {
+        settings = lib.mkOption {
           type = lib.types.attrs;
           default = { };
-          description = "Extra homepage configuration (widgets, etc.)";
+          description = "Extra homepage tile settings merged into the generated entry (e.g. a `widget`).";
         };
       };
     };

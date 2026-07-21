@@ -6,7 +6,7 @@
       lib.types.submodule (
         { config, ... }:
         {
-          options.apps.gitea = {
+          options.services.gitea = {
             enable = lib.mkEnableOption "a Gitea account for this user";
             admin = lib.mkOption {
               type = lib.types.bool;

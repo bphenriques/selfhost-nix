@@ -33,7 +33,7 @@ in
       port = lib.mkDefault 9091;
       healthcheck.path = "/transmission/web/";
       access.allowedGroups = lib.mkDefault [ config.selfhost.groups.admin ];
-      forwardAuth.enable = lib.mkDefault config.selfhost.auth.forwardAuth.enabled; # follows the gateway being active
+      forwardAuth.enable = lib.mkDefault config.selfhost.auth.forwardAuth.active; # follows the gateway being active
       # Sane default topic when one exists; consumers with a different taxonomy override it.
       integrations.notify.topic = lib.mkDefault (if notifyCfg.topics ? "downloads" then "downloads" else null);
     };

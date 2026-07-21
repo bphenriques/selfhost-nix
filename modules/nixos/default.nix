@@ -5,6 +5,7 @@
     ./tasks-registry.nix
     ./users.nix
     ./runtime-secrets.nix
+    ./inventory.nix
     ./dashboards/tiles.nix
 
     ./ingress/ingress.nix

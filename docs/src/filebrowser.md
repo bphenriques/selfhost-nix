@@ -31,6 +31,6 @@ runner. Don't pair it with stateful FileBrowser features.
 ## Selfhost integration
 
 On a selfhost host, `selfhost.apps.filebrowser.enable` runs the app (and the base above). Its
-`enableSelfhostIntegration` (default on) exposes a per-user opt-in at `selfhost.users.<name>.apps.filebrowser`:
+`enableSelfhostIntegration` (default on) exposes a per-user opt-in at `selfhost.users.<name>.services.filebrowser`:
 SMB `storage` grants (`ro`/`rw`) assembled into the user's scope, with the service registered behind the
 active forwardAuth. Turn it off to wire users, storage, and auth yourself.

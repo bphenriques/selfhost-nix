@@ -18,7 +18,7 @@ let
     // lib.optionalAttrs (service.integrations.homepage.icon != null) {
       inherit (service.integrations.homepage) icon;
     }
-    // service.integrations.homepage.extraConfig;
+    // service.integrations.homepage.settings;
   };
 
   mkExternalEntry = entry: {

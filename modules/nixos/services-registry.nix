@@ -139,6 +139,7 @@ in
             ./schemas/homepage.nix
             ./schemas/notify.nix
             ./schemas/monitoring.nix
+            ./schemas/extra.nix
           ];
         }
       );

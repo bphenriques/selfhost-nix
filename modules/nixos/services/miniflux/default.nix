@@ -17,7 +17,7 @@ let
       lib.mapAttrsToList (_: u: {
         inherit (u) username;
         # is_admin is framework-controlled, so it wins over any value placed in the freeform settings.
-        settings = u.apps.miniflux.settings // {
+        settings = u.services.miniflux.settings // {
           is_admin = u.isAdmin;
         };
       }) enabledUsers

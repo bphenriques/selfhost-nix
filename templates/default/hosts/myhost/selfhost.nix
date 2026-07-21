@@ -22,7 +22,7 @@
     };
 
     # One example app. Add more under selfhost.apps.<name>; grant per-user access on
-    # selfhost.users.<name>.apps.<name> (see the private user file).
+    # selfhost.users.<name>.services.<name> (see the private user file).
     apps.radicale.enable = true;
 
     # Framework users (identity, groups, OIDC opt-in) come from the private flake.

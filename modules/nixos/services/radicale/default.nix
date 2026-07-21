@@ -11,7 +11,7 @@ let
   app = config.selfhost.apps.radicale;
   serviceCfg = config.selfhost.services.radicale;
 
-  enabledUsernames = builtins.attrNames (lib.filterAttrs (_: u: u.apps.radicale.enable) config.selfhost.users);
+  enabledUsernames = builtins.attrNames (lib.filterAttrs (_: u: u.services.radicale.enable) config.selfhost.users);
 
   # Storage location is the consumer's to relocate; read the effective value so backup and the reconciler
   # follow it. The default below is set with mkDefault so overriding it doesn't conflict.
@@ -61,7 +61,7 @@ in
         port = lib.mkDefault 5232;
         subdomain = lib.mkDefault "radicale";
         access.allowedGroups = lib.mkDefault [ config.selfhost.groups.admin ];
-        forwardAuth.enable = lib.mkDefault config.selfhost.auth.forwardAuth.enabled; # follows the gateway being active
+        forwardAuth.enable = lib.mkDefault config.selfhost.auth.forwardAuth.active; # follows the gateway being active
         integrations.homepage.group = lib.mkDefault "Admin";
         healthcheck.path = "/.web/";
         healthcheck.probeModule = "http_any"; # Radicale requires htpasswd auth on all endpoints; 401 confirms it is up
@@ -113,7 +113,7 @@ in
     (lib.mkIf (config.selfhost.enable && app.enable && app.enableSelfhostIntegration) {
       warnings =
         lib.optional (enabledUsernames == [ ])
-          "selfhost.apps.radicale: enableSelfhostIntegration is on but no selfhost.users have apps.radicale.enable — Radicale will have no accounts.";
+          "selfhost.apps.radicale: enableSelfhostIntegration is on but no selfhost.users have services.radicale.enable — Radicale will have no accounts.";
 
       # radicale.service's StateDirectory creates /var/lib/radicale only when it starts, but the htpasswd is
       # written by radicale-configure (ordered before it). Create the dir up front so first boot works.
