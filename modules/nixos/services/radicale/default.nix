@@ -57,7 +57,9 @@ in
     (lib.mkIf (config.selfhost.enable && app.enable) {
       selfhost.services.radicale = {
         displayName = lib.mkDefault "Radicale";
-        description = lib.mkDefault "CalDAV & CardDAV";
+        meta.homepage = lib.mkDefault "https://radicale.org";
+        meta.description = lib.mkDefault "CalDAV & CardDAV";
+        meta.category = lib.mkDefault "productivity";
         port = lib.mkDefault 5232;
         subdomain = lib.mkDefault "radicale";
         access.allowedGroups = lib.mkDefault [ config.selfhost.groups.admin ];

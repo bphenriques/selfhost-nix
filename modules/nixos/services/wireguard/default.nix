@@ -120,7 +120,7 @@ in
     lib.mkMerge [
       {
         selfhost.services.wireguard = {
-          description = "VPN";
+          meta.description = "VPN";
           port = wg.listenPort;
           ingress.enable = false;
           integrations.monitoring = {

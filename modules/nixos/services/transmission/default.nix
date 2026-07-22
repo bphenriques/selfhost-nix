@@ -29,7 +29,9 @@ in
   config = lib.mkIf (config.selfhost.enable && app.enable) {
     selfhost.services.transmission = {
       displayName = lib.mkDefault "Transmission";
-      description = lib.mkDefault "Torrent Client";
+      meta.homepage = lib.mkDefault "https://transmissionbt.com";
+      meta.description = lib.mkDefault "Torrent Client";
+      meta.category = lib.mkDefault "downloads";
       port = lib.mkDefault 9091;
       healthcheck.path = "/transmission/web/";
       access.allowedGroups = lib.mkDefault [ config.selfhost.groups.admin ];

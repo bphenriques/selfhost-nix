@@ -56,7 +56,9 @@ in
       services.filebrowser-multiuser.enable = true;
       selfhost.services.filebrowser = {
         displayName = lib.mkDefault "File Browser";
-        description = lib.mkDefault "File Browser";
+        meta.homepage = lib.mkDefault "https://filebrowser.org";
+        meta.description = lib.mkDefault "File Browser";
+        meta.category = lib.mkDefault "files";
         port = lib.mkDefault 8085;
       };
     })

@@ -9,7 +9,7 @@ let
 
   mkServiceEntry = service: {
     "${service.displayName}" = {
-      inherit (service) description;
+      inherit (service.meta) description;
     }
     // lib.optionalAttrs service.ingress.enable {
       href = service.publicUrl;
@@ -23,7 +23,7 @@ let
 
   mkExternalEntry = entry: {
     "${entry.displayName}" = {
-      inherit (entry) description;
+      inherit (entry.meta) description;
       href = entry.url;
     }
     // lib.optionalAttrs (entry.integrations.homepage.icon != null) {

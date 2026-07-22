@@ -34,7 +34,9 @@ in
     selfhost = {
       services.prowlarr = {
         displayName = "Prowlarr";
-        description = "Indexer Manager";
+        meta.homepage = "https://prowlarr.com";
+        meta.description = "Indexer Manager";
+        meta.category = lib.mkDefault "downloads";
         inherit (app) port;
         healthcheck.path = "/ping";
         forwardAuth.enable = lib.mkDefault cfg.auth.forwardAuth.active;

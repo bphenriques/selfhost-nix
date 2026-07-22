@@ -78,7 +78,9 @@ in
     selfhost = {
       services.pocket-id = {
         displayName = "Pocket ID";
-        description = "OIDC Provider";
+        meta.homepage = "https://pocket-id.org";
+        meta.description = "OIDC Provider";
+        meta.category = lib.mkDefault "identity";
         subdomain = "auth";
         inherit port;
         healthcheck.path = "/health";

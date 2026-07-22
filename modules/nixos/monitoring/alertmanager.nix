@@ -36,7 +36,9 @@ in
 
     selfhost.services.alertmanager = {
       displayName = "Alertmanager";
-      description = "Alert Routing";
+      meta.homepage = "https://github.com/prometheus/alertmanager";
+      meta.description = "Alert Routing";
+      meta.category = lib.mkDefault "monitoring";
       port = mon.alertmanager.port;
       healthcheck.path = "/-/healthy";
       forwardAuth.enable = true;

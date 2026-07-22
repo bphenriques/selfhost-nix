@@ -18,7 +18,9 @@ in
   config = lib.mkIf cfg.auth.forwardAuth.tinyauth.enable {
     selfhost = {
       services.tinyauth = {
-        description = "ForwardAuth Gateway";
+        meta.homepage = "https://tinyauth.app";
+        meta.description = "ForwardAuth Gateway";
+        meta.category = lib.mkDefault "identity";
         port = cfg.auth.forwardAuth.tinyauth.port;
         integrations.homepage.enable = false; # Transparent auth gateway, not a destination.
         access.allowedGroups = with cfg.groups; [

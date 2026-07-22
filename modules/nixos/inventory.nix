@@ -18,10 +18,11 @@ in
     readOnly = true;
     description = ''
       Registered services as use-case-agnostic facts (name, displayName, description, normalized
-      access model, ingress, publicUrl). Read-only; consumers decide visibility/order/presentation.
+      access model, ingress, publicUrl, meta.homepage). Read-only; consumers decide presentation.
     '';
     default = lib.mapAttrsToList (_: s: {
-      inherit (s) name displayName description;
+      inherit (s) name displayName;
+      inherit (s.meta) description homepage category;
       access = accessOf s;
       ingress = s.ingress.enable;
       inherit (s) publicUrl;

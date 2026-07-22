@@ -105,7 +105,9 @@ in
     selfhost = {
       services.gitea = {
         displayName = lib.mkDefault "Gitea";
-        description = lib.mkDefault "Git Server";
+        meta.homepage = lib.mkDefault "https://about.gitea.com";
+        meta.description = lib.mkDefault "Git Server";
+        meta.category = lib.mkDefault "productivity";
         port = lib.mkDefault 3100;
         subdomain = lib.mkDefault "git";
         access.allowedGroups = lib.mkDefault [ config.selfhost.groups.admin ];

@@ -8,6 +8,7 @@
       name = "radarr";
       displayName = "Radarr";
       description = "Movie Library";
+      homepage = "https://radarr.video";
       defaultPort = 7878;
       icon = "radarr.svg";
       notifyTags = "movie_camera";
@@ -20,6 +21,7 @@
       name = "sonarr";
       displayName = "Sonarr";
       description = "TV Library";
+      homepage = "https://sonarr.tv";
       defaultPort = 8989;
       icon = "sonarr.svg";
       notifyTags = "tv";

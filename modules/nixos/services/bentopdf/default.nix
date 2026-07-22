@@ -16,7 +16,9 @@ in
   config = lib.mkIf (config.selfhost.enable && config.selfhost.apps.bentopdf.enable) {
     selfhost.services.bentopdf = {
       displayName = lib.mkDefault "BentoPDF";
-      description = lib.mkDefault "PDF Toolkit";
+      meta.homepage = lib.mkDefault "https://www.bentopdf.com";
+      meta.description = lib.mkDefault "PDF Toolkit";
+      meta.category = lib.mkDefault "productivity";
       port = lib.mkDefault 8092;
     };
 

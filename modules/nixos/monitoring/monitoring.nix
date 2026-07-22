@@ -261,7 +261,9 @@ in
 
     selfhost.services.prometheus = {
       displayName = "Prometheus";
-      description = "Metrics";
+      meta.homepage = "https://prometheus.io";
+      meta.description = "Metrics";
+      meta.category = lib.mkDefault "monitoring";
       port = mon.prometheusPort;
       healthcheck.path = "/-/healthy";
       forwardAuth.enable = true;

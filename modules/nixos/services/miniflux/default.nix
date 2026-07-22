@@ -38,7 +38,9 @@ in
     selfhost = {
       services.miniflux = {
         displayName = lib.mkDefault "Miniflux";
-        description = lib.mkDefault "RSS Reader";
+        meta.homepage = lib.mkDefault "https://miniflux.app";
+        meta.description = lib.mkDefault "RSS Reader";
+        meta.category = lib.mkDefault "productivity";
         port = lib.mkDefault 8081;
         access.allowedGroups = lib.mkDefault [ config.selfhost.groups.admin ];
         healthcheck.path = "/healthcheck";

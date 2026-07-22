@@ -18,7 +18,7 @@ in
 
   config = lib.mkIf (config.selfhost.enable && app.enable) {
     selfhost.services.homepage = {
-      description = "Dashboard";
+      meta.description = "Dashboard";
       inherit (app) port;
       integrations.homepage.enable = false; # the dashboard doesn't list itself
     };

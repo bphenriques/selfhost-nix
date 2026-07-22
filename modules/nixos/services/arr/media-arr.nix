@@ -4,6 +4,7 @@
   name,
   displayName,
   description,
+  homepage,
   defaultPort,
   icon,
   notifyTags,
@@ -173,7 +174,10 @@ in
   config = lib.mkIf (cfg.enable && app.enable) {
     selfhost = {
       services.${name} = {
-        inherit displayName description;
+        inherit displayName;
+        meta.description = description;
+        meta.homepage = homepage;
+        meta.category = lib.mkDefault "downloads";
         inherit (app) port;
         healthcheck.path = "/ping";
         forwardAuth.enable = lib.mkDefault cfg.auth.forwardAuth.active;

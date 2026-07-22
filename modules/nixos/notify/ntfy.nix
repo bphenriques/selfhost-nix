@@ -39,7 +39,9 @@ in
     selfhost = {
       services.ntfy = {
         displayName = "Ntfy";
-        description = "Push Notifications";
+        meta.homepage = "https://ntfy.sh";
+        meta.description = "Push Notifications";
+        meta.category = lib.mkDefault "monitoring";
         port = cfg.notify.ntfy.port;
         healthcheck.path = "/v1/health";
         integrations.homepage.group = "Admin";
