@@ -36,7 +36,7 @@ pkgs.testers.runNixOSTest {
           lastName = "User";
           groups = [ config.selfhost.groups.users ];
           auth.oidc.enable = false;
-          apps.gitea = {
+          services.gitea = {
             enable = true;
             admin = true; # override: gitea site-admin without being a fleet admin
           };
@@ -62,8 +62,8 @@ pkgs.testers.runNixOSTest {
       # alice reconciled to site-admin from the fleet isAdmin — proves the admin-API PATCH works here.
       machine.succeed("runuser -u gitea -- ${gitea} admin user list --admin | grep -qw alice")
 
-      # the ephemeral admin token was minted and revoked.
-      machine.succeed("journalctl -u gitea-configure.service | grep -q 'Revoked ephemeral admin token'")
+      # the ephemeral admin token was minted (it can't be revoked here: gitea basic auth is disabled).
+      machine.succeed("journalctl -u gitea-configure.service | grep -q 'Ephemeral admin token left in place'")
 
       # the built-in SSH server is off by default — nothing listening on 2222.
       machine.fail("ss -tlnH 'sport = :2222' | grep -q ':2222'")
@@ -81,11 +81,11 @@ pkgs.testers.runNixOSTest {
       assert row == "1|" + src + "|3", f"alice should be re-promoted with her source preserved, got: {row} (src={src})"
 
       # Over-minting guard: a steady-state reconcile (alice already admin, no new users or keys) detects no
-      # delta via the CLI and mints no token — the "Revoked" count stays put across the no-op restart.
-      before = machine.succeed("journalctl -u gitea-configure.service | grep -c 'Revoked ephemeral admin token' || true").strip()
+      # delta via the CLI and mints no token — the minted-token count stays put across the no-op restart.
+      before = machine.succeed("journalctl -u gitea-configure.service | grep -c 'Ephemeral admin token left in place' || true").strip()
       machine.systemctl("restart gitea-configure.service")
       machine.wait_for_unit("gitea-configure.service")
-      after = machine.succeed("journalctl -u gitea-configure.service | grep -c 'Revoked ephemeral admin token' || true").strip()
+      after = machine.succeed("journalctl -u gitea-configure.service | grep -c 'Ephemeral admin token left in place' || true").strip()
       assert after == before, f"steady-state reconcile minted a token (before={before}, after={after})"
     '';
 }

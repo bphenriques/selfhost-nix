@@ -29,7 +29,8 @@ def ensure_admin [] {
   }
 }
 
-# Mint an ephemeral admin API token (the CLI can't add SSH keys); revoked at end of run.
+# Mint an ephemeral admin API token (the CLI can't add SSH keys). Not revocable here: token-management
+# endpoints require basic auth, which is disabled (gitea is OIDC-only); see main for the leftover note.
 def admin_token [] {
   let name = $"gitea-configure-(random chars --length 8)"
   let r = gitea $config_flag admin user generate-access-token --username admin --scopes write:admin --token-name $name | complete
@@ -38,10 +39,6 @@ def admin_token [] {
     name: $name
     token: ($r.stdout | parse --regex '(?<t>[0-9a-f]{40})' | get t.0)
   }
-}
-
-def revoke_token [tok: record] {
-  http delete $"($base_url)/api/v1/users/admin/tokens/($tok.name)" --headers { Authorization: $"token ($tok.token)" } --allow-errors | ignore
 }
 
 # Full user records — the API exposes login_name/source_id (which the admin PATCH needs), the CLI doesn't.
@@ -144,8 +141,11 @@ def main [] {
       let rec = $records | where login == $u.username | get 0?
       if $rec != null and $rec.is_admin != $want { set_admin $rec $want $token }
     }
-    revoke_token $tok
-    print "Revoked ephemeral admin token"
+
+    # The token can't be revoked: token-management endpoints require basic auth, which is disabled (gitea
+    # is OIDC-only), and there's no CLI delete or token expiry. gitea stores only a hash, so the leftover
+    # row is inert (unusable) and just lingers in admin's token list until pruned by hand.
+    print "Ephemeral admin token left in place (not revocable: gitea basic auth is disabled)"
   }
   print "Gitea configuration complete"
 }

@@ -26,7 +26,7 @@ let
         lastName = "Admin";
         groups = [ "admin" ];
         auth.oidc.enable = true;
-        apps.radicale.enable = true;
+        services.radicale.enable = true;
       };
     };
   };

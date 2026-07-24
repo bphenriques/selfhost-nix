@@ -18,7 +18,7 @@ let
     firstName = "U";
     lastName = "Ser";
     auth.oidc.enable = false;
-    apps.wireguard = {
+    services.wireguard = {
       enable = true;
       inherit devices;
     };

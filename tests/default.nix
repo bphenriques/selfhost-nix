@@ -42,7 +42,7 @@ let
     in
     {
       selfhost.services.hello = {
-        description = "Hello world";
+        displayName = "Hello world";
         port = 8080;
       };
       systemd.services.hello-backend = {
