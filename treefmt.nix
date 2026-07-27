@@ -21,10 +21,7 @@
     in
     {
       command = lib.getExe pkgs.nufmt;
-      options = [
-        "--config"
-        (toString config)
-      ];
+      options = [ "--config" (toString config) ];
       includes = [ "*.nu" ];
     };
 }
