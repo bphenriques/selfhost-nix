@@ -1,6 +1,5 @@
-# storage.smb (eval-only): CIFS mounts derive fileSystems entries + per-share access groups; a share with
-# dependent units boot-mounts with nofail while an independent share lazy-automounts, and duplicate gids
-# trip the assertion. No VM — a real mount needs a live SMB server; this covers the pure config generation.
+# storage.smb (eval-only): CIFS mounts derive automounts, access groups, dependent-service guards, and
+# mount retry drop-ins. No VM: a real mount needs a live SMB server; this covers pure config generation.
 { pkgs, evalConfig }:
 let
   inherit (pkgs) lib;
@@ -17,10 +16,10 @@ let
         mounts = {
           media = {
             gid = 5001;
-          }; # a dependent service (below) → boot-mount with nofail
+          };
           photos = {
             gid = 5002;
-          }; # no dependents → lazy automount
+          };
         };
       };
       # A registered service that needs the media mount makes it a "dependent" share.
@@ -35,6 +34,8 @@ let
   fs = cfg.fileSystems;
   mediaOpts = fs."/mnt/homelab-media".options;
   photosOpts = fs."/mnt/homelab-photos".options;
+  gallery = cfg.systemd.services.gallery;
+  mediaMountUnit = cfg.systemd.units."mnt-homelab\\x2dmedia.mount";
 
   collide = evalConfig {
     selfhost.storage.smb = base // {
@@ -54,9 +55,17 @@ assert lib.assertMsg (cfg.users.groups.homelab-media.gid == 5001) "media mount g
 assert lib.assertMsg (fs."/mnt/homelab-media".device == "//192.168.1.10/media") "wrong CIFS device for media";
 assert lib.assertMsg (fs."/mnt/homelab-media".fsType == "cifs") "media mount is not cifs";
 assert lib.assertMsg (lib.elem "credentials=/run/secrets/smb" mediaOpts) "credentials mount option missing";
-assert lib.assertMsg (lib.elem "nofail" mediaOpts) "dependent share should boot-mount with nofail";
-assert lib.assertMsg (!lib.elem "x-systemd.automount" mediaOpts) "dependent share must not lazy-automount";
-assert lib.assertMsg (lib.elem "x-systemd.automount" photosOpts) "independent share should lazy-automount";
-assert lib.assertMsg (lib.elem "noauto" photosOpts) "independent share should be noauto";
+assert lib.assertMsg (lib.elem "nofail" mediaOpts) "dependent share should not block boot";
+assert lib.assertMsg (lib.elem "x-systemd.automount" mediaOpts) "dependent share should automount";
+assert lib.assertMsg (lib.elem "x-systemd.automount" photosOpts) "independent share should automount";
+assert lib.assertMsg (!lib.elem "noauto" photosOpts) "noauto is redundant with automount";
+assert lib.assertMsg (lib.elem "mnt-homelab\\x2dmedia.automount" gallery.requires)
+  "service should require the automount guard";
+assert lib.assertMsg (lib.elem "mnt-homelab\\x2dmedia.automount" gallery.after)
+  "service should start after the automount guard";
+assert lib.assertMsg ((gallery.serviceConfig.Restart or null) == null) "storage must not set service restart policy";
+assert lib.assertMsg (mediaMountUnit.overrideStrategy == "asDropin") "mount retry policy should be a drop-in";
+assert lib.assertMsg (lib.hasInfix "StartLimitIntervalSec=0" mediaMountUnit.text)
+  "mount attempts should not be rate limited";
 assert lib.assertMsg collisionFires "duplicate-gid assertion did not fire";
 pkgs.runCommand "selfhost-smb-eval" { } "touch $out"

@@ -60,11 +60,12 @@ its generator (`oidc-rotate` wraps this for OIDC clients).
 
 ## Storage & dashboard tiles
 
-`storage.smb.mounts` are CIFS shares behind per-share access groups. A service requests `storage.smb =
-[ … ]` and the mount dependency is wired onto its unit (boot-race-safe mode chosen per share). Dashboard
-tiles come from services and externals that opt into `integrations.homepage`, grouped by `group`. The
-bundled `apps.homepage` renders them, or read the read-only `dashboards.generatedTiles` into your own. The
-framework supplies the data, you own the visuals.
+`storage.smb.mounts` are on-demand CIFS shares behind per-share access groups. Boot does not wait for the
+SMB server. First access may wait up to 30 seconds; after a failed mount, a later access retries. A service
+requests `storage.smb = [ … ]` to start its automount guards before the service can touch their paths. The
+service still owns its failure and restart policy. Dashboard tiles come from services and externals that
+opt into `integrations.homepage`, grouped by `group`. The bundled `apps.homepage` renders them, or read the
+read-only `dashboards.generatedTiles` into your own. The framework supplies the data, you own the visuals.
 
 ## Exposure
 

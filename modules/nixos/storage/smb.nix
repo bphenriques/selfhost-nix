@@ -2,11 +2,15 @@
   lib,
   config,
   pkgs,
+  utils,
   ...
 }:
 let
   cfg = config.selfhost.storage.smb;
   selfhostCfg = config.selfhost;
+
+  mountUnit = mountCfg: "${utils.escapeSystemdPath mountCfg.localMount}.mount";
+  automountUnit = mountCfg: "${utils.escapeSystemdPath mountCfg.localMount}.automount";
 
   # Resolve which systemd units a service needs for its storage mounts.
   # Priority: explicit storage.systemdServices > OCI container auto-detect > service name.
@@ -46,8 +50,6 @@ let
       mountCfg.systemd.dependentServices ++ (serviceMountDeps.${mountName} or [ ]) ++ (taskMountDeps.${mountName} or [ ])
     );
 
-  hasDepServices = mountName: mountCfg: allDependentUnits mountName mountCfg != [ ];
-
   smbMountCfg = lib.types.submodule (
     { name, config, ... }: {
       options = {
@@ -73,7 +75,7 @@ let
         systemd.dependentServices = lib.mkOption {
           type = lib.types.listOf lib.types.str;
           default = [ ];
-          description = "Extra units needing this mount, for non-registry/dynamic cases (registry services should use storage.smb).";
+          description = "Extra systemd service names to order after this share's automount guard.";
         };
       };
     }
@@ -97,10 +99,9 @@ in
       type = lib.types.attrsOf smbMountCfg;
       default = { };
       description = ''
-        CIFS shares keyed by remote root folder, each behind a dedicated access group. Mount mode is
-        chosen per share: one with dependents boot-mounts with `nofail` (services retry), while an
-        independent share uses lazy `x-systemd.automount` on first access — dodging the boot-time network
-        race that ordering a service after the mount (`RequiresMountsFor`) would otherwise hit.
+        CIFS shares keyed by remote root folder, each behind a dedicated access group and mounted on
+        demand. Boot does not wait for the SMB server. First access may wait up to 30 seconds; after a
+        failed mount, a later access retries.
       '';
       example = lib.literalExpression ''
         {
@@ -117,6 +118,8 @@ in
       let
         allGids = lib.mapAttrsToList (_: m: m.gid) cfg.mounts;
         dupGids = lib.filter (gid: lib.count (g: g == gid) allGids > 1) (lib.unique allGids);
+        allLocalMounts = lib.mapAttrsToList (_: m: m.localMount) cfg.mounts;
+        dupLocalMounts = lib.filter (path: lib.count (p: p == path) allLocalMounts > 1) (lib.unique allLocalMounts);
 
         allResolvedUnits =
           lib.concatMap resolveServiceUnits servicesWithStorage ++ lib.concatMap (task: task.systemdServices) tasksWithStorage;
@@ -130,6 +133,14 @@ in
         {
           assertion = dupGids == [ ];
           message = "Homelab mounts have duplicate gids: ${toString dupGids}";
+        }
+        {
+          assertion = dupLocalMounts == [ ];
+          message = "Homelab mounts have duplicate local paths: ${lib.concatStringsSep ", " dupLocalMounts}";
+        }
+        {
+          assertion = !lib.elem "/" allLocalMounts;
+          message = "Homelab mounts cannot use / as a local path";
         }
         {
           assertion = missingUnits == [ ];
@@ -168,41 +179,36 @@ in
           "credentials=${cfg.credentialsPath}"
 
           "_netdev"
-        ]
-        # Dependent mounts boot-mount with nofail (RequiresMountsFor can't coexist with lazy automount);
-        # independent mounts automount on first access, dodging the boot network race.
-        ++ (
-          if hasDepServices name mountCfg then
-            [
-              "nofail"
-              "x-systemd.mount-timeout=30s"
-            ]
-          else
-            [
-              "noauto"
-              "x-systemd.automount"
-              "x-systemd.mount-timeout=30s"
-            ]
-        );
+          "nofail"
+          "x-systemd.automount"
+          "x-systemd.mount-timeout=30s"
+        ];
+      }
+    ) cfg.mounts;
+
+    systemd.units = lib.mapAttrs' (
+      _name: mountCfg:
+      lib.nameValuePair (mountUnit mountCfg) {
+        overrideStrategy = "asDropin";
+        text = ''
+          [Unit]
+          StartLimitIntervalSec=0
+        '';
       }
     ) cfg.mounts;
 
     systemd.services = lib.mkMerge (
       lib.mapAttrsToList (
         name: mountCfg:
+        let
+          automount = automountUnit mountCfg;
+        in
         lib.listToAttrs (
           map (svcName: {
             name = svcName;
             value = {
-              unitConfig.RequiresMountsFor = [ mountCfg.localMount ];
-
-              # Retry with delays if mount isn't ready yet (network filesystem race at boot)
-              serviceConfig = {
-                Restart = lib.mkDefault "on-failure";
-                RestartSec = lib.mkDefault "10s";
-              };
-              startLimitIntervalSec = lib.mkDefault 180; # 3 minutes
-              startLimitBurst = lib.mkDefault 10;
+              requires = [ automount ];
+              after = [ automount ];
             };
           }) (allDependentUnits name mountCfg)
         )

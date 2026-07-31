@@ -159,7 +159,10 @@ in
           ENABLE_NOTIFY_MAIL = false;
           ENABLE_BASIC_AUTHENTICATION = false;
         };
-        session.PROVIDER = "file";
+        session = {
+          PROVIDER = "file";
+          COOKIE_SECURE = true;
+        };
         oauth2.ENABLED = false; # Gitea is an OIDC client, not a provider.
         oauth2_client = {
           ENABLE_AUTO_REGISTRATION = true;
