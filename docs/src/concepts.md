@@ -63,7 +63,9 @@ its generator (`oidc-rotate` wraps this for OIDC clients).
 `storage.smb.mounts` are on-demand CIFS shares behind per-share access groups. Boot does not wait for the
 SMB server. First access may wait up to 30 seconds; after a failed mount, a later access retries. A service
 requests `storage.smb = [ … ]` to start its automount guards before the service can touch their paths. The
-service still owns its failure and restart policy. Dashboard tiles come from services and externals that
+service still owns its failure and restart policy. Converting a share that a previous generation
+boot-mounted takes one reboot: systemd cannot install autofs over an already-mounted path. Dashboard tiles
+come from services and externals that
 opt into `integrations.homepage`, grouped by `group`. The bundled `apps.homepage` renders them, or read the
 read-only `dashboards.generatedTiles` into your own. The framework supplies the data, you own the visuals.
 

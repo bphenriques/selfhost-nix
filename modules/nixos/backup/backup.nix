@@ -113,6 +113,9 @@ let
       ]
       ++ lib.optional (notifyCfg.provisioningUnit != null) notifyCfg.provisioningUnit;
       requires = hookDeps;
+      # Hard mount dependency rather than the automount guard used elsewhere: BindReadOnlyPaths
+      # captures each source when the namespace is built, so an untriggered autofs path would
+      # silently back up an empty directory.
       unitConfig.RequiresMountsFor = lib.attrValues t.bindings ++ lib.optional (lib.hasPrefix "/" t.repository) t.repository;
       environment = rusticManageEnv;
       serviceConfig = hardenedServiceConfig // {
