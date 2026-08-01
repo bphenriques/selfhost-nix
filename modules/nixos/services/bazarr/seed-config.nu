@@ -1,8 +1,6 @@
 #!/usr/bin/env nu
-# Bootstrap only. Bazarr rewrites config.yaml at runtime, so it can never be a store symlink — and the two
-# keys below have to exist *before* the process starts: the listen address (there is no CLI flag for it) and
-# the API key the reconcile authenticates with (Bazarr would otherwise invent a random one we cannot know).
-# Everything else is reconciled through the API afterwards; this script must not grow.
+# Bootstrap only: Bazarr rewrites config.yaml at runtime, so it can never be a store symlink. Only the keys
+# needed before startup belong here (no --ip flag exists; the API key must be known to the reconcile).
 let config_file = $env.BAZARR_CONFIG_FILE
 let api_key = open $env.BAZARR_API_KEY_FILE | str trim
 

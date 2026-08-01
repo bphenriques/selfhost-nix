@@ -43,6 +43,8 @@ pkgs.testers.runNixOSTest {
     selfhost.apps.radarr = {
       enable = true;
       configureAfter = [ "transmission.service" ];
+      # Opting out of arrival notifications must not touch the failure ones.
+      notifyOnImport = false;
       # "Any" is a built-in Radarr profile — exercises create-with-default-profile (root folders are
       # immutable, so this only applies at creation).
       rootFolders = [
@@ -93,12 +95,13 @@ pkgs.testers.runNixOSTest {
       machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/rootfolder | jq -e --arg p /mnt/media/movies '.[] | select(.path==$p)' >/dev/null")
       machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/downloadclient | jq -e --arg n Transmission '.[] | select(.name==$n)' >/dev/null")
 
-      # The failure-visibility flags: a dead root folder or unreachable client raises an *arr health check,
-      # and without these it is never delivered anywhere.
+      # Without these, a dead root folder raises an *arr health check that is delivered nowhere.
       machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/notification | jq -e '.[] | select(.name==\"ntfy\") | select(.onHealthIssue and .onHealthRestored and .includeHealthWarnings and .onManualInteractionRequired)' >/dev/null")
 
-      # Drift correction: the connection used to be created once and never revisited, so flag changes never
-      # reached a host that already had it. Turn a flag off behind the reconcile's back and re-run.
+      # Opting out of duplicate arrival messages must not opt out of the alerting.
+      machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/notification | jq -e '.[] | select(.name==\"ntfy\") | select(.onDownload == false and .onUpgrade == false)' >/dev/null")
+
+      # Drift correction: turn a flag off behind the reconcile's back and re-run.
       notification = json.loads(machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/notification | jq -c '.[] | select(.name==\"ntfy\")'"))
       notification["onHealthIssue"] = False
       machine.succeed(
@@ -124,9 +127,7 @@ pkgs.testers.runNixOSTest {
       machine.wait_for_open_port(${exporterPort})
       machine.wait_until_succeeds("curl -sf http://127.0.0.1:${exporterPort}/metrics | grep -q '^radarr_system_health_issues'", timeout=60)
 
-      # Every collector must have completed. exportarr degrades rather than failing the scrape, so a broken
-      # one shows up only here — the alert rules would otherwise sit on metrics that are silently absent.
-      # (queue_total has no series with an empty queue, which is why presence is the wrong assertion.)
+      # exportarr degrades rather than failing the scrape, so a broken collector shows up only here.
       metrics = machine.succeed("curl -sf http://127.0.0.1:${exporterPort}/metrics")
       errored = [
           line

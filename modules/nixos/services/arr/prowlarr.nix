@@ -55,7 +55,7 @@ in
             enable = true;
             listenAddress = "127.0.0.1";
             port = app.exporterPort;
-            url = "http://127.0.0.1:${toString app.port}";
+            url = cfg.services.prowlarr.url;
             apiKeyFile = cfg.runtimeSecrets.${apiKeySecret}.path;
           };
           scrapeConfigs = [
@@ -98,8 +98,7 @@ in
       };
 
       runtimeSecrets.${apiKeySecret} = {
-        # 32 hex chars — the length Prowlarr generates for itself, and exportarr hard-rejects anything
-        # outside `^[a-zA-Z0-9]{20,32}$`. The framework's 64-char default would never start the exporter.
+        # exportarr rejects anything outside `^[a-zA-Z0-9]{20,32}`; the 64-char default never starts it.
         bytes = 16;
         restartUnits = [
           "prowlarr.service"

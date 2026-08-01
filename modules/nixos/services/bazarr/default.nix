@@ -1,6 +1,5 @@
 # First-party Bazarr app: subtitle automation for Radarr/Sonarr. Framework wiring (ingress, auth, secrets,
-# metrics, backup) plus an idempotent reconcile. Ships no acquisition config — which subtitle providers to
-# search, and with whose credentials, is the operator's and stays in their own config (see media docs).
+# metrics, backup) plus an idempotent reconcile. Ships no acquisition config (see media docs).
 {
   config,
   lib,
@@ -212,7 +211,7 @@ in
             enable = true;
             listenAddress = "127.0.0.1";
             port = app.exporterPort;
-            url = "http://127.0.0.1:${toString app.port}";
+            inherit (serviceCfg) url;
             apiKeyFile = cfg.runtimeSecrets.${apiKeySecret}.path;
           };
           scrapeConfigs = [
@@ -257,8 +256,7 @@ in
           package = pkgs.writeShellApplication {
             name = "backup-bazarr";
             runtimeInputs = [ pkgs.coreutils ];
-            # The subtitle files themselves live beside the media; what is not reproducible is the
-            # profile/assignment state, which is the database.
+            # Subtitles live beside the media; only the profile/assignment state needs a snapshot.
             text = ''
               cp "${app.dataDir}/db/bazarr.db" "$OUTPUT_DIR/bazarr.db"
             '';
@@ -295,8 +293,7 @@ in
       wants = [ "network-online.target" ];
       serviceConfig = {
         ExecStartPre = lib.getExe seedConfig;
-        # Bazarr runs unprivileged and the generated secret is root-only; LoadCredential bridges the two
-        # (systemd reads it as root before the user drop) and covers ExecStartPre as well as ExecStart.
+        # Bazarr runs unprivileged and the secret is root-only; LoadCredential also covers ExecStartPre.
         LoadCredential = [ "api-key:${cfg.runtimeSecrets.${apiKeySecret}.path}" ];
         Restart = "on-failure";
         RestartSec = "10s";
@@ -311,7 +308,8 @@ in
 
     systemd.services.bazarr-configure = {
       description = "Bazarr reconcile (*arr links, language profiles, providers)";
-      wantedBy = [ "bazarr.service" ];
+      # Activation only restarts running units, so a reconcile left stopped would never pick up its fix.
+      wantedBy = [ "multi-user.target" ];
       after = [ "bazarr.service" ] ++ app.configureAfter;
       requires = [ "bazarr.service" ];
       wants = app.configureAfter;

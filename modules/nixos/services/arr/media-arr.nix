@@ -53,6 +53,7 @@ let
           serverUrl = cfg.notify.url;
           topic = serviceCfg.integrations.notify.topic;
           tags = notifyTags;
+          onImport = app.notifyOnImport;
         };
       }
     )
@@ -171,6 +172,17 @@ in
       );
     };
 
+    notifyOnImport = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Publish a notification when an item is imported or upgraded. Turn this off when something
+        downstream already tells people content arrived (a request manager, for example) — otherwise one
+        arrival produces two messages describing the same thing. The failure events (health checks, manual
+        interaction required) are always published and are not affected by this.
+      '';
+    };
+
     configureAfter = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
@@ -191,14 +203,13 @@ in
         forwardAuth.enable = lib.mkDefault cfg.auth.forwardAuth.active;
         access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
         integrations.homepage.icon = lib.mkDefault icon;
-        # A blackbox probe only proves the app answers HTTP. exportarr surfaces what it is actually saying:
-        # health checks it raised, and queue items it cannot import — the failures that are otherwise silent.
+        # A blackbox probe only proves it answers HTTP; these are the failures it stays up through.
         integrations.monitoring = {
           exporters."exportarr-${name}" = {
             enable = true;
             listenAddress = "127.0.0.1";
             port = app.exporterPort;
-            url = "http://127.0.0.1:${toString app.port}";
+            inherit (serviceCfg) url;
             apiKeyFile = cfg.runtimeSecrets.${apiKeySecret}.path;
           };
           scrapeConfigs = [
@@ -224,8 +235,7 @@ in
                   annotations.summary = "${displayName}: {{ $labels.message }}";
                 }
                 {
-                  # An item the app has given up importing sits here indefinitely; the download is never
-                  # completed, so the client is never told to remove it.
+                  # Never completes, so the client is never told to remove it.
                   alert = "${displayName}QueueStuck";
                   expr = "${name}_queue_total{download_status=~\"warning|error\"} > 0";
                   "for" = "2h";
@@ -264,15 +274,13 @@ in
       };
 
       runtimeSecrets.${apiKeySecret} = {
-        # 32 hex chars — the length ${displayName} generates for itself, and exportarr hard-rejects anything
-        # outside `^[a-zA-Z0-9]{20,32}$`. The framework's 64-char default would never start the exporter.
+        # exportarr rejects anything outside `^[a-zA-Z0-9]{20,32}`; the 64-char default never starts it.
         bytes = 16;
         restartUnits = [
           "${name}.service"
           "${name}-configure.service"
         ]
-        # Must track the exporter's own condition, not the global one: restartUnits declares the unit's
-        # ordering, so naming an exporter that was never instantiated leaves an ExecStart-less stub behind.
+        # restartUnits declares unit ordering, so naming an uninstantiated exporter leaves a stub unit.
         ++ lib.optional serviceCfg.integrations.monitoring.enable "${exporterUnit}.service";
       };
       runtimeTemplates."${name}.env" = {
@@ -312,7 +320,8 @@ in
 
     systemd.services."${name}-configure" = {
       description = "${displayName} reconcile (root folders, download clients, notify)";
-      wantedBy = [ "${name}.service" ];
+      # Activation only restarts running units, so a reconcile left stopped would never pick up its fix.
+      wantedBy = [ "multi-user.target" ];
       after = [
         "${name}.service"
       ]

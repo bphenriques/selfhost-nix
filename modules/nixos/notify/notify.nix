@@ -55,7 +55,7 @@ in
           options.public = lib.mkOption {
             type = lib.types.bool;
             default = false;
-            description = "Whether the topic can be published without authentication";
+            description = "Whether the topic can be *read* without authentication (grants `everyone ro`). Publishing always needs a per-service token, so this decides who can see the messages, not who can send them.";
           };
         }
       );

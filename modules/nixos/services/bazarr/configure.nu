@@ -1,8 +1,6 @@
 #!/usr/bin/env nu
-# Idempotent Bazarr reconcile. Everything Bazarr owns lives behind one endpoint: POST /api/system/settings
-# writes both config.yaml and the language-profile table, so the whole reconcile is a single form post.
-# Subtitle providers are acquisition config — they arrive from the caller's `settings`, and no provider is
-# named anywhere in the framework.
+# Idempotent Bazarr reconcile. POST /api/system/settings writes both config.yaml and the language-profile
+# table, so the whole reconcile is one form post. Providers are acquisition config, supplied by the caller.
 let base_url = $env.BAZARR_URL
 let api_key = open $env.BAZARR_API_KEY_FILE | str trim
 let config = open $env.BAZARR_CONFIG_FILE
@@ -24,9 +22,8 @@ def get_json [path: string] {
   $r.body
 }
 
-# Reuse the existing profileId when a profile of the same name is already there, so re-running does not
-# orphan the series/movies already pointing at it. Any profile we no longer declare is dropped: the API
-# treats the posted list as the complete set.
+# Reuse an existing profileId by name so re-running does not orphan media pointing at it. The posted list
+# is authoritative: a profile we stop declaring is deleted.
 def build_profiles [existing: list<any>] {
   let declared = $config | get -o languageProfiles | default []
   $declared | enumerate | each { |it|
@@ -62,8 +59,7 @@ def build_profiles [existing: list<any>] {
   }
 }
 
-# settings-<section>-<key>, the shape save_settings() parses. Lists are repeated keys, which is what
-# `url build-query` emits and what request.form.getlist() expects.
+# settings-<section>-<key>, the shape save_settings() parses. Lists become repeated keys for getlist().
 def settings_form [section: string, values: record] {
   $values | transpose key value | reduce --fold {} { |it, acc|
     let v = if ($it.value | describe) == "bool" {
@@ -135,9 +131,7 @@ def main [] {
   | merge $secrets
 
   print $"Applying ($form | columns | length) settings, ($profiles | length) language profile\(s\)..."
-  # Encoded by hand and sent as a raw body: `--content-type application/x-www-form-urlencoded` rejects the
-  # list values, while Bazarr reads several of these keys with getlist() and so needs the repeated form
-  # `url build-query` produces.
+  # Hand-encoded: the --content-type flag rejects list values, which getlist() keys need.
   let body = $form | url build-query
   let post_headers = $headers ++ [Content-Type "application/x-www-form-urlencoded"]
   let r = http post $"($base_url)/api/system/settings" $body --headers $post_headers --full --allow-errors

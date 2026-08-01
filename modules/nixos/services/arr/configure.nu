@@ -120,7 +120,7 @@ def ensure_delay_profile [] {
   print "  Updated default delay profile"
 }
 
-# ntfy connection (framework notify seam). Created once; left alone if already present.
+# ntfy connection (framework notify seam). Upserted, so flag changes reach hosts that already have it.
 def ensure_notification [] {
   let n = $config | get -o notification
   if $n == null { return }
@@ -149,19 +149,18 @@ def ensure_notification [] {
     implementation: "Ntfy"
     implementationName: "Ntfy"
     configContract: "NtfySettings"
-    onDownload: true
-    onUpgrade: true
+    # Content events are opt-out: a downstream request manager may already announce the same arrival.
+    onDownload: ($n | get -o onImport | default true)
+    onUpgrade: ($n | get -o onImport | default true)
     onGrab: false
     onRename: false
     onApplicationUpdate: false
-    # A broken library config (dead root folder, unreachable client) is otherwise silent until you notice
-    # missing media — the *arr raises a health check nobody reads. These are the only automatic signal.
+    # The *arr raises a health check for these; nothing else surfaces them.
     onHealthIssue: true
     onHealthRestored: true
     includeHealthWarnings: true
     onManualInteractionRequired: true
   }
-  # Upsert, not create-once: the flags above must reach hosts that already have the connection.
   if $found == null {
     let r = http post $"($base_url)/api/v3/notification" $payload --headers $headers --content-type application/json --full --allow-errors
     if $r.status not-in [200, 201] { error make {msg: $"Failed to create notification: ($r.status) - ($r.body)"} }

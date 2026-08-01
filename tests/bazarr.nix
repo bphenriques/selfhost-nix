@@ -1,7 +1,6 @@
-# Bazarr end-to-end: the seed must hand Bazarr a known API key and a localhost bind before it starts, and
-# the reconcile must then apply the *arr link, the language profile and the caller's freeform settings
-# through Bazarr's own settings API. bazarr-configure errors on any failed call, so reaching `active`
-# proves the reconcile; the API queries confirm the state landed in both config.yaml and the database.
+# Bazarr end-to-end: the seed hands Bazarr a known API key and localhost bind before it starts, then the
+# reconcile applies the *arr link, language profiles and freeform settings. bazarr-configure errors on any
+# failed call, so reaching `active` proves it; the queries confirm both config.yaml and the database.
 { pkgs, common, ... }:
 pkgs.testers.runNixOSTest {
   name = "selfhost-bazarr";
@@ -72,8 +71,7 @@ pkgs.testers.runNixOSTest {
 
       machine.wait_for_unit("bazarr-configure.service")
 
-      # Language profiles live in the database, not config.yaml — this is the half a config file cannot do,
-      # and with no profile Bazarr fetches nothing at all.
+      # Profiles live in the database, not config.yaml, and with no profile Bazarr fetches nothing.
       profiles = json.loads(machine.succeed(f"curl -sf -H 'X-API-KEY: {key}' ${api}/system/languages/profiles"))
       by_name = {p["name"]: p for p in profiles}
       assert set(by_name) == {"English", "Multi"}, f"unexpected profiles: {list(by_name)}"
