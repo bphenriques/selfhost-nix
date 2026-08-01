@@ -10,6 +10,7 @@ let
   cfg = config.selfhost;
   app = cfg.apps.prowlarr;
   apiKeySecret = "prowlarr-api-key";
+  exporterUnit = "prometheus-exportarr-prowlarr-exporter";
 in
 {
   options.selfhost.apps.prowlarr = {
@@ -28,6 +29,12 @@ in
       defaultText = lib.literalMD "the generated API-key secret path";
       description = "Path to Prowlarr's generated API key, for the consumer indexer-sync reconciler.";
     };
+
+    exporterPort = lib.mkOption {
+      type = lib.types.port;
+      default = 9711;
+      description = "exportarr listen port (localhost) for Prowlarr metrics. Each *arr needs its own — exportarr defaults them all to 9708.";
+    };
   };
 
   config = lib.mkIf (cfg.enable && app.enable) {
@@ -42,9 +49,63 @@ in
         forwardAuth.enable = lib.mkDefault cfg.auth.forwardAuth.active;
         access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
         integrations.homepage.group = lib.mkDefault "Admin";
+        # No queue here (an indexer manager imports nothing) — health is the whole signal.
+        integrations.monitoring = {
+          exporters."exportarr-prowlarr" = {
+            enable = true;
+            listenAddress = "127.0.0.1";
+            port = app.exporterPort;
+            url = "http://127.0.0.1:${toString app.port}";
+            apiKeyFile = cfg.runtimeSecrets.${apiKeySecret}.path;
+          };
+          scrapeConfigs = [
+            {
+              job_name = "prowlarr";
+              static_configs = [
+                {
+                  targets = [ "127.0.0.1:${toString app.exporterPort}" ];
+                  labels.instance = "prowlarr";
+                }
+              ];
+            }
+          ];
+          rules = [
+            {
+              name = "prowlarr";
+              rules = [
+                {
+                  alert = "ProwlarrHealthIssue";
+                  expr = "prowlarr_system_health_issues > 0";
+                  "for" = "15m";
+                  labels.severity = "warning";
+                  annotations.summary = "Prowlarr: {{ $labels.message }}";
+                }
+                {
+                  alert = "ProwlarrCollectorError";
+                  expr = "{__name__=~\"prowlarr_.*collector_error\"} > 0";
+                  "for" = "15m";
+                  labels.severity = "warning";
+                  annotations.summary = "Prowlarr metrics collector failing";
+                }
+              ];
+            }
+          ];
+          systemdOverrides.${exporterUnit} = {
+            after = [ "prowlarr.service" ];
+            wants = [ "prowlarr.service" ];
+          };
+        };
       };
 
-      runtimeSecrets.${apiKeySecret}.restartUnits = [ "prowlarr.service" ];
+      runtimeSecrets.${apiKeySecret} = {
+        # 32 hex chars — the length Prowlarr generates for itself, and exportarr hard-rejects anything
+        # outside `^[a-zA-Z0-9]{20,32}$`. The framework's 64-char default would never start the exporter.
+        bytes = 16;
+        restartUnits = [
+          "prowlarr.service"
+        ]
+        ++ lib.optional cfg.services.prowlarr.integrations.monitoring.enable "${exporterUnit}.service";
+      };
       runtimeTemplates."prowlarr.env" = {
         content = "PROWLARR__AUTH__APIKEY=${cfg.runtimePlaceholder.${apiKeySecret}}\n";
         restartUnits = [ "prowlarr.service" ];

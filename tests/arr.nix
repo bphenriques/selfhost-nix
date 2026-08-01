@@ -27,10 +27,21 @@ let
       sonarr.enable = true;
       prowlarr.enable = true;
     };
+    selfhost.monitoring.enable = true;
   };
 
   svc = cfg.selfhost.services;
   units = cfg.systemd.services;
+  exporters = cfg.services.prometheus.exporters;
+  alerts = lib.flatten (
+    map (g: map (r: r.alert) g.rules) (
+      lib.concatMap (s: s.integrations.monitoring.rules) [
+        svc.radarr
+        svc.sonarr
+        svc.prowlarr
+      ]
+    )
+  );
 in
 assert lib.assertMsg (svc.radarr.healthcheck.path == "/ping") "radarr healthcheck path not /ping";
 assert lib.assertMsg (svc.radarr.access.allowedGroups == [ "admin" ]) "radarr should default to admin group";
@@ -46,4 +57,28 @@ assert lib.assertMsg (!(units ? "prowlarr-configure")) "prowlarr must not have a
 assert lib.assertMsg (
   cfg.selfhost.apps.radarr.apiKeyFile == cfg.selfhost.runtimeSecrets."radarr-api-key".path
 ) "apiKeyFile should expose the secret path";
+# Each *arr gets its own exportarr on its own port (upstream defaults them all to 9708) reading the
+# generated key, and the health/queue alerts that make a broken library config visible.
+assert lib.assertMsg (
+  exporters.exportarr-radarr.enable && exporters.exportarr-sonarr.enable && exporters.exportarr-prowlarr.enable
+) "exportarr should be wired for every *arr when monitoring is on";
+assert lib.assertMsg (
+  lib.length (
+    lib.unique [
+      exporters.exportarr-radarr.port
+      exporters.exportarr-sonarr.port
+      exporters.exportarr-prowlarr.port
+    ]
+  ) == 3
+) "each exportarr needs a distinct port";
+assert lib.assertMsg (
+  exporters.exportarr-sonarr.apiKeyFile == cfg.selfhost.runtimeSecrets."sonarr-api-key".path
+) "exportarr should read the generated api key";
+assert lib.assertMsg (lib.all (a: lib.elem a alerts) [
+  "SonarrHealthIssue"
+  "SonarrQueueStuck"
+  "ProwlarrHealthIssue"
+]) "arr health/queue alert rules missing";
+# Prowlarr imports nothing, so a queue alert there would never fire.
+assert lib.assertMsg (!(lib.elem "ProwlarrQueueStuck" alerts)) "prowlarr must not carry a queue alert";
 pkgs.runCommand "selfhost-arr-eval" { } "touch $out"

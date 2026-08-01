@@ -104,6 +104,7 @@ in
   vm-backup = runTest ./backup.nix;
   vm-miniflux = runTest ./miniflux.nix;
   vm-arr = runTest ./arr-vm.nix;
+  vm-bazarr = runTest ./bazarr.nix;
 
   # Eval-only: pure framework derivations/assignments against the live framework (no VM boot).
   template-default = import ./template.nix { inherit pkgs self nixpkgs; };

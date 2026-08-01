@@ -16,6 +16,7 @@
         path = "movie";
         file = "movies.json";
       };
+      defaultExporterPort = 9710;
     })
     (import ./media-arr.nix {
       name = "sonarr";
@@ -29,6 +30,7 @@
         path = "series";
         file = "series.json";
       };
+      defaultExporterPort = 9709;
     })
     ./prowlarr.nix
   ];

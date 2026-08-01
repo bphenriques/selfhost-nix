@@ -9,6 +9,7 @@
   icon,
   notifyTags,
   backupResource, # { path = "movie"|"series"; file = "movies.json"; } — the library list to snapshot
+  defaultExporterPort,
 }:
 {
   config,
@@ -22,6 +23,7 @@ let
   serviceCfg = cfg.services.${name};
   apiKeySecret = "${name}-api-key";
   envPrefix = lib.toUpper name;
+  exporterUnit = "prometheus-exportarr-${name}-exporter";
 
   configure = (import ../../builders.nix { inherit pkgs lib; }).writeNushellApplication {
     name = "${name}-configure";
@@ -72,6 +74,12 @@ in
       default = cfg.runtimeSecrets.${apiKeySecret}.path;
       defaultText = lib.literalMD "the generated API-key secret path";
       description = "Path to ${displayName}'s generated API key, for consumer reconcilers (e.g. Prowlarr sync, recyclarr).";
+    };
+
+    exporterPort = lib.mkOption {
+      type = lib.types.port;
+      default = defaultExporterPort;
+      description = "exportarr listen port (localhost) for ${displayName} metrics. Each *arr needs its own — exportarr defaults them all to 9708.";
     };
 
     rootFolders = lib.mkOption {
@@ -183,6 +191,62 @@ in
         forwardAuth.enable = lib.mkDefault cfg.auth.forwardAuth.active;
         access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
         integrations.homepage.icon = lib.mkDefault icon;
+        # A blackbox probe only proves the app answers HTTP. exportarr surfaces what it is actually saying:
+        # health checks it raised, and queue items it cannot import — the failures that are otherwise silent.
+        integrations.monitoring = {
+          exporters."exportarr-${name}" = {
+            enable = true;
+            listenAddress = "127.0.0.1";
+            port = app.exporterPort;
+            url = "http://127.0.0.1:${toString app.port}";
+            apiKeyFile = cfg.runtimeSecrets.${apiKeySecret}.path;
+          };
+          scrapeConfigs = [
+            {
+              job_name = name;
+              static_configs = [
+                {
+                  targets = [ "127.0.0.1:${toString app.exporterPort}" ];
+                  labels.instance = name;
+                }
+              ];
+            }
+          ];
+          rules = [
+            {
+              inherit name;
+              rules = [
+                {
+                  alert = "${displayName}HealthIssue";
+                  expr = "${name}_system_health_issues > 0";
+                  "for" = "15m";
+                  labels.severity = "warning";
+                  annotations.summary = "${displayName}: {{ $labels.message }}";
+                }
+                {
+                  # An item the app has given up importing sits here indefinitely; the download is never
+                  # completed, so the client is never told to remove it.
+                  alert = "${displayName}QueueStuck";
+                  expr = "${name}_queue_total{download_status=~\"warning|error\"} > 0";
+                  "for" = "2h";
+                  labels.severity = "warning";
+                  annotations.summary = "${displayName} queue stuck ({{ $labels.download_state }})";
+                }
+                {
+                  alert = "${displayName}CollectorError";
+                  expr = "{__name__=~\"${name}_.*collector_error\"} > 0";
+                  "for" = "15m";
+                  labels.severity = "warning";
+                  annotations.summary = "${displayName} metrics collector failing";
+                }
+              ];
+            }
+          ];
+          systemdOverrides.${exporterUnit} = {
+            after = [ "${name}.service" ];
+            wants = [ "${name}.service" ];
+          };
+        };
         backup = {
           after = [ "${name}.service" ];
           package = pkgs.writeShellApplication {
@@ -199,10 +263,18 @@ in
         };
       };
 
-      runtimeSecrets.${apiKeySecret}.restartUnits = [
-        "${name}.service"
-        "${name}-configure.service"
-      ];
+      runtimeSecrets.${apiKeySecret} = {
+        # 32 hex chars — the length ${displayName} generates for itself, and exportarr hard-rejects anything
+        # outside `^[a-zA-Z0-9]{20,32}$`. The framework's 64-char default would never start the exporter.
+        bytes = 16;
+        restartUnits = [
+          "${name}.service"
+          "${name}-configure.service"
+        ]
+        # Must track the exporter's own condition, not the global one: restartUnits declares the unit's
+        # ordering, so naming an exporter that was never instantiated leaves an ExecStart-less stub behind.
+        ++ lib.optional serviceCfg.integrations.monitoring.enable "${exporterUnit}.service";
+      };
       runtimeTemplates."${name}.env" = {
         content = "${envPrefix}__AUTH__APIKEY=${cfg.runtimePlaceholder.${apiKeySecret}}\n";
         restartUnits = [ "${name}.service" ];

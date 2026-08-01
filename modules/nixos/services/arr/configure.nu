@@ -128,10 +128,7 @@ def ensure_notification [] {
   let token = open $env.NTFY_TOKEN_FILE | str trim
   let existing = http get $"($base_url)/api/v3/notification" --headers $headers --full --allow-errors
   if $existing.status != 200 { error make {msg: $"Failed to list notifications: ($existing.status) - ($existing.body)"} }
-  if "ntfy" in ($existing.body | default [] | get -o name | default []) {
-    print "  Notification exists: ntfy"
-    return
-  }
+  let found = $existing.body | default [] | where name == "ntfy" | get 0?
   let schemas = http get $"($base_url)/api/v3/notification/schema" --headers $headers --full --allow-errors
   if $schemas.status != 200 { error make {msg: $"Failed to list notification schemas: ($schemas.status)"} }
   let schema = $schemas.body | where implementation == "Ntfy" | get 0?
@@ -156,12 +153,24 @@ def ensure_notification [] {
     onUpgrade: true
     onGrab: false
     onRename: false
-    onHealthIssue: false
     onApplicationUpdate: false
+    # A broken library config (dead root folder, unreachable client) is otherwise silent until you notice
+    # missing media — the *arr raises a health check nobody reads. These are the only automatic signal.
+    onHealthIssue: true
+    onHealthRestored: true
+    includeHealthWarnings: true
+    onManualInteractionRequired: true
   }
-  let r = http post $"($base_url)/api/v3/notification" $payload --headers $headers --content-type application/json --full --allow-errors
-  if $r.status not-in [200, 201] { error make {msg: $"Failed to create notification: ($r.status) - ($r.body)"} }
-  print "  Created notification: ntfy"
+  # Upsert, not create-once: the flags above must reach hosts that already have the connection.
+  if $found == null {
+    let r = http post $"($base_url)/api/v3/notification" $payload --headers $headers --content-type application/json --full --allow-errors
+    if $r.status not-in [200, 201] { error make {msg: $"Failed to create notification: ($r.status) - ($r.body)"} }
+    print "  Created notification: ntfy"
+  } else {
+    let r = http put $"($base_url)/api/v3/notification/($found.id)" ($found | merge $payload) --headers $headers --content-type application/json --full --allow-errors
+    if $r.status not-in [200, 202] { error make {msg: $"Failed to update notification: ($r.status) - ($r.body)"} }
+    print "  Updated notification: ntfy"
+  }
 }
 
 def main [] {

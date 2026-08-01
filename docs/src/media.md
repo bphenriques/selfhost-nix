@@ -1,7 +1,7 @@
 # Media automation
 
-The `*arr` apps (`apps.radarr`, `apps.sonarr`, `apps.prowlarr`) follow one rule that shapes the whole
-design: **the framework wires the plumbing, and never configures a source.**
+The `*arr` apps (`apps.radarr`, `apps.sonarr`, `apps.prowlarr`, `apps.bazarr`) follow one rule that shapes
+the whole design: **the framework wires the plumbing, and never configures a source.**
 
 ## The boundary
 
@@ -36,6 +36,27 @@ All three default to empty/none: enabling an app configures nothing you didn't a
 `apps.prowlarr` is wiring-only. An indexer manager talks to APIs, not files, so it has no root folders or
 download clients. Its indexer list and app-sync are acquisition and live in your config, reading the
 apps' `apiKeyFile`.
+
+`apps.bazarr` fetches subtitles for what Radarr/Sonarr already track. The framework seeds the API key and
+the localhost bind before Bazarr starts (it rewrites its own `config.yaml`, so that file can never be a
+store symlink), then reconciles the `sonarr`/`radarr` links and `languageProfiles` through Bazarr's
+settings API. **Which providers to search, and with whose credentials, is acquisition** — it arrives via
+the freeform `settings` seam, with credentials in `secretSettings` (read from a file at reconcile time,
+never through the store). No provider is named anywhere in the framework.
+
+`languageProfiles` defaults to empty, and Bazarr with no profile downloads nothing — so wanting subtitles
+at all is an explicit choice you make, not one the framework makes for you.
+
+## Failure visibility
+
+A media stack fails quietly: a dead root folder or an unreachable client stops imports, and because
+nothing is imported, nothing is ever removed from the download client. The apps therefore wire two signals
+by default — the *arr ntfy connection carries `onHealthIssue` / `onManualInteractionRequired`, and
+exportarr exposes `*_system_health_issues` and `*_queue_total` with alert rules on both. Neither is
+optional, because the failure mode they cover is invisible until you notice missing media.
+
+Note that the generated API keys are 32 characters rather than the framework's usual 64: exportarr rejects
+anything outside `^[a-zA-Z0-9]{20,32}$`.
 
 ## What stays yours
 
