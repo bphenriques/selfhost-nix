@@ -158,8 +158,10 @@ def ensure_notification [] {
     # The *arr raises a health check for these; nothing else surfaces them.
     onHealthIssue: true
     onHealthRestored: true
-    includeHealthWarnings: true
     onManualInteractionRequired: true
+    # Errors only. Warnings are dominated by "a new version exists", which is never actionable in a
+    # Nix deployment; they still reach Prometheus, which can filter per health-check source.
+    includeHealthWarnings: false
   }
   if $found == null {
     let r = http post $"($base_url)/api/v3/notification" $payload --headers $headers --content-type application/json --full --allow-errors

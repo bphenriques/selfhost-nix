@@ -75,7 +75,8 @@ in
               rules = [
                 {
                   alert = "ProwlarrHealthIssue";
-                  expr = "prowlarr_system_health_issues > 0";
+                  # UpdateCheck fires until nixpkgs bumps the package: not actionable from inside the app.
+                  expr = "prowlarr_system_health_issues{source!=\"UpdateCheck\"} > 0";
                   "for" = "15m";
                   labels.severity = "warning";
                   annotations.summary = "Prowlarr: {{ $labels.message }}";

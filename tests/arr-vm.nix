@@ -96,7 +96,9 @@ pkgs.testers.runNixOSTest {
       machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/downloadclient | jq -e --arg n Transmission '.[] | select(.name==$n)' >/dev/null")
 
       # Without these, a dead root folder raises an *arr health check that is delivered nowhere.
-      machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/notification | jq -e '.[] | select(.name==\"ntfy\") | select(.onHealthIssue and .onHealthRestored and .includeHealthWarnings and .onManualInteractionRequired)' >/dev/null")
+      # includeHealthWarnings stays off: warnings are dominated by "update available" and reach Prometheus,
+      # which can filter by health-check source where the *arr cannot.
+      machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/notification | jq -e '.[] | select(.name==\"ntfy\") | select(.onHealthIssue and .onHealthRestored and .onManualInteractionRequired and (.includeHealthWarnings == false))' >/dev/null")
 
       # Opting out of duplicate arrival messages must not opt out of the alerting.
       machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/notification | jq -e '.[] | select(.name==\"ntfy\") | select(.onDownload == false and .onUpgrade == false)' >/dev/null")
