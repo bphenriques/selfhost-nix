@@ -18,6 +18,12 @@ let
 in
 {
   options.selfhost.auth.oidc = {
+    active = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Whether an OIDC provider is active, set by the active provider. Compose service defaults against this.";
+    };
+
     provider = {
       displayName = lib.mkOption {
         type = lib.types.str;

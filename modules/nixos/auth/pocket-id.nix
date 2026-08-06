@@ -86,6 +86,7 @@ in
         healthcheck.path = "/health";
       };
 
+      auth.oidc.active = true;
       auth.oidc.provider = {
         displayName = "Pocket-ID";
         internalName = "PocketID";

@@ -7,6 +7,7 @@
 - [Users](users.md)
 - [Recipes](recipes.md)
 - [Media automation](media.md)
+- [Immich](immich.md)
 - [Security](security.md)
 - [FileBrowser (standalone module)](filebrowser.md)
 

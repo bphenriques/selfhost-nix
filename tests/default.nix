@@ -105,6 +105,7 @@ in
   vm-miniflux = runTest ./miniflux.nix;
   vm-arr = runTest ./arr-vm.nix;
   vm-bazarr = runTest ./bazarr.nix;
+  vm-immich = runTest ./immich.nix;
 
   # Eval-only: pure framework derivations/assignments against the live framework (no VM boot).
   template-default = import ./template.nix { inherit pkgs self nixpkgs; };

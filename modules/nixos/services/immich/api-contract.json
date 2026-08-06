@@ -1,0 +1,20 @@
+{
+  "_comment": "Request payloads configure.nu sends, asserted against the server's own /api/spec.json by the vm-immich test. Immich validates with zod, which strips unknown keys instead of rejecting them, so a renamed field would silently stop being applied. Renamed routes, missing response fields and newly required fields already fail loudly when the reconciler runs, so they are not listed here. Keep in sync when editing configure.nu.",
+  "sends": {
+    "post /auth/admin-sign-up": ["email", "name", "password"],
+    "post /auth/login": ["email", "password"],
+    "post /system-metadata/admin-onboarding": ["isOnboarded"],
+    "post /admin/users": [
+      "email",
+      "name",
+      "password",
+      "shouldChangePassword",
+      "isAdmin",
+      "quotaSizeInBytes",
+      "storageLabel"
+    ],
+    "put /admin/users/{id}": ["isAdmin", "quotaSizeInBytes", "storageLabel"],
+    "post /libraries": ["name", "ownerId", "importPaths", "exclusionPatterns"],
+    "put /libraries/{id}": ["name", "importPaths", "exclusionPatterns"]
+  }
+}

@@ -32,6 +32,7 @@
     ./services/filebrowser/selfhost.nix
     ./services/gitea
     ./services/homepage
+    ./services/immich
     ./services/miniflux
     ./services/radicale
     ./services/transmission
