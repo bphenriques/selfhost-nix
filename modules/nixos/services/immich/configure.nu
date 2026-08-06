@@ -1,9 +1,7 @@
 # Reconciles Immich: admin bootstrap, user accounts, and optional external libraries.
-# Every endpoint and payload field used here is declared in api-contract.json, which the VM test
-# asserts against the server's own /api/spec.json.
-#
-# Create-and-update only: nothing is ever deleted. Dropping a user or a library from the config leaves
-# the Immich side untouched, because removing either would take photos with it.
+# Payload fields are declared in api-contract.json, asserted against /api/spec.json by the VM test.
+# Create-and-update only: dropping a user or library from the config never deletes it, since that
+# would take photos with it.
 let base_url = $env.IMMICH_URL
 let config = open $env.IMMICH_CONFIG_FILE
 
@@ -18,8 +16,7 @@ def wait_ready [] {
   error make {msg: "Immich failed to start after 60 attempts"}
 }
 
-# Unauthenticated. isInitialized reports whether the admin account exists, isOnboarded whether the
-# admin wizard was dismissed; both gate one-time steps that would otherwise be read off an error status.
+# Unauthenticated, and the reason the one-time steps below are not inferred from an error status.
 def server_config [] {
   let r = http get $"($base_url)/api/server/config" --full --allow-errors
   if $r.status != 200 {
@@ -70,9 +67,8 @@ def get_libraries [headers: record] {
   $r.body
 }
 
-# The password and its change-on-login flag are bootstrap credentials: applied at creation and never
-# reconciled, so a later in-app change sticks. Users without a passwordFile get a random password and
-# are expected to log in via OIDC. Everything else below is reconciled on every run.
+# The password and its change-on-login flag are applied at creation and never reconciled, so a later
+# in-app change sticks. Everything in $desired is reconciled on every run.
 def ensure_user [user: record, existing: list<any>, headers: record] {
   let desired = {isAdmin: $user.isAdmin, quotaSizeInBytes: $user.quotaSizeInBytes, storageLabel: $user.storageLabel}
   let found = $existing | where email == $user.email | get 0?
@@ -180,8 +176,7 @@ def main [] {
     return
   }
 
-  # Owners resolve against the server, so a library may belong to any account that exists by now
-  # (a reconciled user or the bootstrap admin), not only to the users created in this run.
+  # Resolved against the server, so a library may belong to any existing account, not just these users.
   let owners = get_users $headers | reduce --fold {} {|u, acc| $acc | upsert $u.email $u.id }
   let existing_libraries = get_libraries $headers
   print "Reconciling external libraries..."

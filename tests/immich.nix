@@ -1,7 +1,6 @@
-# Immich: covers both consumer patterns in one boot. `admin` owns an external library (directories
-# scanned in place), `family` is upload-only with no libraries at all. No OIDC provider runs here, so
-# `services.immich.oidc.enable` composes to false; the OIDC wiring is configuration and is covered by
-# evaluation rather than by standing up a provider.
+# Both consumer patterns in one boot: `admin` owns an external library, `family` is upload-only.
+# No OIDC provider runs here, so `oidc.enable` composes to false; that wiring is covered by evaluation
+# rather than by standing up a provider.
 { pkgs, common, ... }:
 let
   contract = ../modules/nixos/services/immich/api-contract.json;
@@ -72,7 +71,7 @@ pkgs.testers.runNixOSTest {
         };
       };
 
-      # Machine learning is a heavy optional subsystem and nothing here exercises it.
+      # Heavy optional subsystem, unexercised here.
       services.immich.machine-learning.enable = false;
 
       systemd.tmpfiles.rules = [
@@ -101,7 +100,7 @@ pkgs.testers.runNixOSTest {
             f"curl -sf -H 'Authorization: Bearer {token}' http://127.0.0.1:2283/api{path}"
         ))
 
-    # Both one-time steps ran for real: posting {} to admin-onboarding would 400 on the required field.
+    # Both one-time steps ran for real: posting {} to admin-onboarding would 400 on its required field.
     cfg = json.loads(machine.succeed("curl -sf http://127.0.0.1:2283/api/server/config"))
     assert cfg["isInitialized"] and cfg["isOnboarded"], cfg
 
@@ -109,7 +108,7 @@ pkgs.testers.runNixOSTest {
     assert users["admin@test.local"]["isAdmin"] is True, users
     assert users["family@test.local"]["isAdmin"] is False, users
 
-    # Quota and storage label are what make the upload-only pattern usable for more than one person.
+    # What makes the upload-only pattern usable for more than one person.
     assert users["family@test.local"]["quotaSizeInBytes"] == 1073741824, users
     assert users["family@test.local"]["storageLabel"] == "family", users
     assert users["admin@test.local"]["quotaSizeInBytes"] is None, users

@@ -1,5 +1,4 @@
-# First-party Immich app: photo and video library with per-user accounts and optional external
-# libraries. See the Immich docs chapter for the model.
+# First-party Immich app. See the Immich docs chapter for the model.
 {
   config,
   lib,
@@ -69,8 +68,7 @@ in
         };
       };
 
-      # Bootstrap admin: API-only account the reconciler authenticates as. Generated on first install;
-      # once Immich holds data the account outlives the file, so a later loss is reported rather than
+      # Once Immich holds data the account outlives the file, so a later loss is reported rather than
       # replaced by a password that no longer opens it.
       runtimeSecrets.immich-admin-password = {
         generateOnce = true;
@@ -83,8 +81,7 @@ in
     services.immich = {
       enable = true;
       inherit (serviceCfg) host port;
-      # mediaLocation, ffmpeg, job concurrency and machine-learning tuning are deployment concerns:
-      # left at the nixpkgs defaults so a consumer can relocate or throttle without fighting the app.
+      # Storage and tuning stay at the nixpkgs defaults for the consumer to set.
       settings = {
         server.externalDomain = lib.mkDefault serviceCfg.publicUrl;
       }
@@ -97,8 +94,7 @@ in
           scope = lib.mkDefault "openid email profile";
           signingAlgorithm = lib.mkDefault "RS256";
           buttonText = lib.mkDefault "Login with ${oidcCfg.provider.displayName}";
-          # Accounts come from selfhost.users and nothing else, so OIDC only authenticates. Immich
-          # links a login to the existing account by email.
+          # OIDC only authenticates: Immich links a login to the declared account by email.
           autoRegister = lib.mkDefault false;
           autoLaunch = lib.mkDefault false;
         };
