@@ -130,9 +130,16 @@ in
       type = lib.types.attrsOf lib.types.anything;
       default = { };
       example = {
-        HardwareAccelerationType = "qsv";
+        TonemappingAlgorithm = "bt2390";
       };
-      description = "Fields merged into Jellyfin's encoding configuration. Hardware transcoding is host-specific, so the app sets none of it.";
+      description = ''
+        EncodingOptions fields that nixpkgs' `encoding.xml` template does not write. Set everything it does
+        cover on `services.jellyfin.hardwareAcceleration` and `services.jellyfin.transcoding` instead.
+
+        These are applied through the API after Jellyfin starts, so they layer on top of the generated file
+        rather than fighting it. Unknown keys are dropped silently, since Jellyfin ignores properties it does
+        not recognise.
+      '';
     };
 
     trickplay = lib.mkOption {

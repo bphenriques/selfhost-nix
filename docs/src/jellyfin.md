@@ -27,6 +27,17 @@ your config moves the library.
 
 A library's `name` is its reconcile identity, so renaming one creates a second library.
 
+## Transcoding is nixpkgs' job
+
+`services.jellyfin.hardwareAcceleration` and `services.jellyfin.transcoding` already generate
+`encoding.xml`, so set hardware acceleration there, not here. `apps.jellyfin.encoding` exists only for
+EncodingOptions fields that template does not write, `TonemappingAlgorithm` being the one that comes up.
+Those are applied through the API after startup, so they layer on top of the generated file.
+
+Jellyfin ignores properties it does not recognise, so a misspelled field is dropped without complaint.
+`EnableHwEncoding` and `EnableHwDecoding`, for instance, are not real fields; the API calls them
+`EnableHardwareEncoding` and `HardwareDecodingCodecs`.
+
 ## Forward-auth is off
 
 Jellyfin authenticates its own clients, and native apps cannot pass a forward-auth gateway, so
