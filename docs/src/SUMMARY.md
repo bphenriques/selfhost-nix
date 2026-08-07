@@ -8,6 +8,7 @@
 - [Recipes](recipes.md)
 - [Media automation](media.md)
 - [Immich](immich.md)
+- [Jellyfin](jellyfin.md)
 - [Security](security.md)
 - [FileBrowser (standalone module)](filebrowser.md)
 

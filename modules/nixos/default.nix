@@ -33,6 +33,7 @@
     ./services/gitea
     ./services/homepage
     ./services/immich
+    ./services/jellyfin
     ./services/miniflux
     ./services/radicale
     ./services/transmission

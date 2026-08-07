@@ -188,6 +188,10 @@ let
         description = ''
           Path to the data a generate-once secret protects (e.g. a service's data dir). While it exists and is
           non-empty, a missing secret is left absent rather than regenerated. Required when generateOnce = true.
+
+          The unit that creates this path must be listed in `restartUnits`, which is what orders it after the
+          generator. Without that ordering it can populate the path first, and the guard then suppresses the
+          very first generation, permanently and silently.
         '';
       };
       owner = lib.mkOption {

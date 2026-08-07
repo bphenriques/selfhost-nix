@@ -1,0 +1,11 @@
+{
+  "_comment": "Request payloads configure.nu sends, asserted against the server's own /api-docs/openapi.json by the vm-jellyfin test. Jellyfin deserialises with System.Text.Json, which ignores unknown keys instead of rejecting them, so a renamed field would silently stop being applied. Renamed routes and missing response fields already fail loudly when the reconciler runs. /Library/VirtualFolders takes name, collectionType and paths as query parameters, so its create call is not covered here. Keep in sync when editing configure.nu.",
+  "sends": {
+    "post /Startup/Configuration": ["UICulture", "MetadataCountryCode", "PreferredMetadataLanguage"],
+    "post /Startup/User": ["Name", "Password"],
+    "post /Startup/RemoteAccess": ["EnableRemoteAccess", "EnableAutomaticPortMapping"],
+    "post /Users/AuthenticateByName": ["Username", "Pw"],
+    "post /Users/New": ["Name", "Password"],
+    "post /Library/VirtualFolders/LibraryOptions": ["Id", "LibraryOptions"]
+  }
+}

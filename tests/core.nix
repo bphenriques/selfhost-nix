@@ -12,7 +12,8 @@ pkgs.testers.runNixOSTest {
       notify.ntfy.enable = true;
       notify.topics.probes.public = false;
 
-      # Generate-once secret guarded on a data dir the test controls (nothing else writes there).
+      # Guarded on a dir the test drives by hand, so the branches below are deterministic; the ordering
+      # that makes a real service-owned guard safe is asserted separately.
       runtimeSecrets.test-guarded = {
         generateOnce = true;
         generateOnceGuard = "/var/lib/guard-data";
@@ -52,6 +53,11 @@ pkgs.testers.runNixOSTest {
 
     # The publisher token landed root-owned 0400 (non-root consumers read it via LoadCredential).
     machine.succeed("stat -c '%U:%G %a' /var/lib/homelab-secrets/notify-publishers/probe | grep -qx 'root:root 400'")
+
+    # A guard is only safe because restartUnits orders its owning service after the generator, so the
+    # service cannot populate the guarded path before the first generation is decided.
+    before = machine.succeed("systemctl show homelab-runtime-secrets.service -p Before --value")
+    assert "ntfy-sh.service" in before, before
 
     # generateOnceGuard — first boot has no guarded data, so the secret is generated.
     machine.succeed("test -e /var/lib/homelab-secrets/test-guarded")

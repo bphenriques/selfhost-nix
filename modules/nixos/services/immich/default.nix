@@ -68,11 +68,9 @@ in
         };
       };
 
-      # Once Immich holds data the account outlives the file, so a later loss is reported rather than
-      # replaced by a password that no longer opens it.
+      # Set once at admin sign-up and never reconciled, so losing the file means the next run cannot
+      # authenticate and fails loudly. Restore it, or reset the password in Immich.
       runtimeSecrets.immich-admin-password = {
-        generateOnce = true;
-        generateOnceGuard = config.services.immich.mediaLocation;
         owner = config.services.immich.user;
         restartUnits = [ "immich-configure.service" ];
       };
