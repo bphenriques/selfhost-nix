@@ -133,12 +133,15 @@ in
         TonemappingAlgorithm = "bt2390";
       };
       description = ''
-        EncodingOptions fields that nixpkgs' `encoding.xml` template does not write. Set everything it does
-        cover on `services.jellyfin.hardwareAcceleration` and `services.jellyfin.transcoding` instead.
+        EncodingOptions fields, merged onto what Jellyfin holds and applied through the API after startup,
+        so anything not named here keeps its value.
 
-        These are applied through the API after Jellyfin starts, so they layer on top of the generated file
-        rather than fighting it. Unknown keys are dropped silently, since Jellyfin ignores properties it does
-        not recognise.
+        `services.jellyfin.hardwareAcceleration` and `services.jellyfin.transcoding` cover part of the same
+        ground by writing `encoding.xml` directly. Use one or the other, never both: together the file
+        always differs from the generated template, and each restart leaves another
+        `encoding.xml.backup-<timestamp>` behind.
+
+        Unknown keys are dropped silently, since Jellyfin ignores properties it does not recognise.
       '';
     };
 

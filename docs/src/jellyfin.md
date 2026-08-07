@@ -27,16 +27,25 @@ your config moves the library.
 
 A library's `name` is its reconcile identity, so renaming one creates a second library.
 
-## Transcoding is nixpkgs' job
+## Encoding takes exactly one writer
 
-`services.jellyfin.hardwareAcceleration` and `services.jellyfin.transcoding` already generate
-`encoding.xml`, so set hardware acceleration there, not here. `apps.jellyfin.encoding` exists only for
-EncodingOptions fields that template does not write, `TonemappingAlgorithm` being the one that comes up.
-Those are applied through the API after startup, so they layer on top of the generated file.
+Two mechanisms can own `encoding.xml`, and mixing them is the trap.
+
+`apps.jellyfin.encoding` merges onto what Jellyfin currently holds, so fields you do not name keep their
+value. `services.jellyfin.hardwareAcceleration` and `services.jellyfin.transcoding` instead write the
+file from a template, and on a server that already has one they do nothing until you also set
+`forceEncodingConfig`. That template carries 18 elements while a populated `encoding.xml` runs to over
+40, so everything outside it resets to Jellyfin's default, including `TonemappingAlgorithm`,
+`PreferSystemNativeHwDecoder` and `EnableDecodingColorDepth10Vp9`, none of which nixpkgs models.
+
+Set both and the file permanently differs from the template, so every restart leaves another
+`encoding.xml.backup-<timestamp>` behind. Prefer the nixpkgs options on a fresh install where their
+defaults are acceptable, and this one on a server whose settings are worth keeping.
 
 Jellyfin ignores properties it does not recognise, so a misspelled field is dropped without complaint.
-`EnableHwEncoding` and `EnableHwDecoding`, for instance, are not real fields; the API calls them
-`EnableHardwareEncoding` and `HardwareDecodingCodecs`.
+`EnableHwEncoding` and `EnableHwDecoding` are the trap worth naming: both are real `TrickplayOptions`
+fields, neither exists on `EncodingOptions`, where the equivalents are `EnableHardwareEncoding` and
+`HardwareDecodingCodecs`.
 
 ## Forward-auth is off
 
