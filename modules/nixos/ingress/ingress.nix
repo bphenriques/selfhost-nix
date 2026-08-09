@@ -1,6 +1,12 @@
 { lib, ... }:
 {
   options.selfhost.ingress = {
+    domain = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = "Base domain for publicly routed services (e.g. 'home.example.com'). Required once any service enables ingress; a host that routes nothing may leave it null.";
+    };
+
     acme = {
       email = lib.mkOption {
         type = lib.types.str;

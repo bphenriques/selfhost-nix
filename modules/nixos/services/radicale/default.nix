@@ -85,7 +85,7 @@ in
       # .well-known redirects (RFC 6764) let DAVx5 and others auto-discover the server.
       services.traefik.dynamicConfigOptions.http = {
         routers.radicale-dav = {
-          rule = "Host(`dav.${config.selfhost.domain}`)";
+          rule = "Host(`dav.${config.selfhost.ingress.domain}`)";
           entryPoints = [ "websecure" ];
           service = "radicale-svc";
           middlewares = [ "radicale-wellknown" ];

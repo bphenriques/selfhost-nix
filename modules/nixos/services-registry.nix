@@ -73,9 +73,15 @@ let
 
       publicHost = lib.mkOption {
         type = lib.types.str;
-        default = "${config.subdomain}.${cfg.domain}";
-        defaultText = lib.literalMD "`<subdomain>.<domain>`";
-        description = "Public hostname (derived from subdomain and domain)";
+        # Thrown rather than nullOr: keeping the type `str` spares every reader a null branch for a
+        # case that cannot happen on a host that routes anything.
+        default =
+          if cfg.ingress.domain == null then
+            throw "selfhost.services.${name}.publicHost needs selfhost.ingress.domain, which is unset."
+          else
+            "${config.subdomain}.${cfg.ingress.domain}";
+        defaultText = lib.literalMD "`<subdomain>.<ingress.domain>`";
+        description = "Public hostname (derived from subdomain and ingress.domain)";
       };
 
       publicUrl = lib.mkOption {
@@ -118,11 +124,6 @@ in
 {
   options.selfhost = {
     enable = lib.mkEnableOption "home-server services";
-
-    domain = lib.mkOption {
-      type = lib.types.str;
-      description = "Base domain for all services (e.g. 'home.example.com')";
-    };
 
     services = lib.mkOption {
       type = lib.types.attrsOf (
@@ -207,8 +208,11 @@ in
       let
         allServices = lib.attrValues cfg.services;
 
-        # Public hosts must be unique across ingress-enabled services.
-        ingressHosts = map (s: s.publicHost) (lib.filter (s: s.ingress.enable) allServices);
+        ingressServices = lib.filter (s: s.ingress.enable) allServices;
+
+        # Public hosts must be unique across ingress-enabled services. Guarded on domain so a missing
+        # one reports the assertion below instead of publicHost's throw.
+        ingressHosts = if cfg.ingress.domain == null then [ ] else map (s: s.publicHost) ingressServices;
         dupHosts = lib.attrNames (selfhostLib.collisions (builtins.groupBy lib.id ingressHosts));
 
         # One check over the whole registry: services + monitoring exporters + anything else registered.
@@ -220,6 +224,10 @@ in
         names = lib.concatMapStringsSep ", " (x: x.name);
       in
       [
+        {
+          assertion = ingressServices == [ ] || cfg.ingress.domain != null;
+          message = "selfhost.ingress.domain must be set when any service enables ingress. Routed services: ${names ingressServices}";
+        }
         {
           assertion = dupHosts == [ ];
           message = "Service public hosts must be unique. Conflicting: ${lib.concatStringsSep ", " dupHosts}";

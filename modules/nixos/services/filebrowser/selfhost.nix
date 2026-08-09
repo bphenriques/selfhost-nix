@@ -3,7 +3,7 @@
 { config, lib, ... }:
 let
   app = config.selfhost.apps.filebrowser;
-  smb = config.selfhost.storage.smb.mounts;
+  smb = config.selfhost.storage.mounts.smb.shares;
   fbRoot = config.services.filebrowser.settings.root;
   enabledUsers = lib.filterAttrs (_: u: u.services.filebrowser.enable) config.selfhost.users;
   grants = lib.concatLists (
@@ -76,7 +76,7 @@ in
 
       selfhost.services.filebrowser = {
         forwardAuth.enable = true;
-        storage.smb = lib.unique (map (g: g.mount) grants);
+        storage.mounts = lib.unique (map (g: g.mount) grants);
       };
 
       # ro grants get a ro bind that can't be bypassed (same namespace, never re-bound).

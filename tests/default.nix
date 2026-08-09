@@ -16,7 +16,7 @@ let
       imports = [ "${self}/modules/nixos" ];
       selfhost = {
         enable = true;
-        domain = "test.local";
+        ingress.domain = "test.local";
         users.admin = {
           email = "admin@test.local";
           firstName = "Ada";
@@ -75,7 +75,7 @@ let
           system.stateVersion = "24.11";
           selfhost = {
             enable = true;
-            domain = "test.local";
+            ingress.domain = "test.local";
             users.admin = {
               email = "admin@test.local";
               firstName = "Ada";

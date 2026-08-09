@@ -3,7 +3,6 @@
 {
   selfhost = {
     enable = true;
-    inherit (private.settings) domain;
 
     # OIDC provider (Pocket-ID) for app logins, plus a forward-auth gate for apps without native OIDC.
     auth.oidc.pocket-id.enable = true;
@@ -14,6 +13,7 @@
 
     # Public entry: Traefik terminates TLS via an ACME DNS-01 challenge. The DNS token → secrets.nix.
     ingress = {
+      inherit (private.settings) domain;
       traefik.enable = true;
       acme = {
         dnsProvider = "cloudflare";

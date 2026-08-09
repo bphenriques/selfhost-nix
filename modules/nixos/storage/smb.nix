@@ -6,7 +6,7 @@
   ...
 }:
 let
-  cfg = config.selfhost.storage.smb;
+  cfg = config.selfhost.storage.mounts.smb;
   selfhostCfg = config.selfhost;
 
   mountUnit = mountCfg: "${utils.escapeSystemdPath mountCfg.localMount}.mount";
@@ -26,22 +26,22 @@ let
     else
       [ svc.name ];
 
-  servicesWithStorage = lib.filter (svc: svc.storage.smb != [ ]) (lib.attrValues selfhostCfg.services);
-  tasksWithStorage = lib.filter (task: task.storage.smb != [ ]) (lib.attrValues selfhostCfg.tasks);
+  servicesWithStorage = lib.filter (svc: svc.storage.mounts != [ ]) (lib.attrValues selfhostCfg.services);
+  tasksWithStorage = lib.filter (task: task.storage.mounts != [ ]) (lib.attrValues selfhostCfg.tasks);
 
   serviceMountDeps = lib.foldl' (
     acc: svc:
     let
       units = resolveServiceUnits svc;
     in
-    lib.foldl' (acc2: mountName: acc2 // { ${mountName} = (acc2.${mountName} or [ ]) ++ units; }) acc svc.storage.smb
+    lib.foldl' (acc2: mountName: acc2 // { ${mountName} = (acc2.${mountName} or [ ]) ++ units; }) acc svc.storage.mounts
   ) { } servicesWithStorage;
 
   taskMountDeps = lib.foldl' (
     acc: task:
     lib.foldl' (
       acc2: mountName: acc2 // { ${mountName} = (acc2.${mountName} or [ ]) ++ task.systemdServices; }
-    ) acc task.storage.smb
+    ) acc task.storage.mounts
   ) { } tasksWithStorage;
 
   allDependentUnits =
@@ -82,7 +82,7 @@ let
   );
 in
 {
-  options.selfhost.storage.smb = {
+  options.selfhost.storage.mounts.smb = {
     enable = lib.mkEnableOption "Home-server storage";
 
     hostname = lib.mkOption {
@@ -95,7 +95,7 @@ in
       description = "Path to the SMB credentials file (must be provided by the host, e.g. via sops-nix)";
     };
 
-    mounts = lib.mkOption {
+    shares = lib.mkOption {
       type = lib.types.attrsOf smbMountCfg;
       default = { };
       description = ''
@@ -116,16 +116,16 @@ in
 
     assertions =
       let
-        allGids = lib.mapAttrsToList (_: m: m.gid) cfg.mounts;
+        allGids = lib.mapAttrsToList (_: m: m.gid) cfg.shares;
         dupGids = lib.filter (gid: lib.count (g: g == gid) allGids > 1) (lib.unique allGids);
-        allLocalMounts = lib.mapAttrsToList (_: m: m.localMount) cfg.mounts;
+        allLocalMounts = lib.mapAttrsToList (_: m: m.localMount) cfg.shares;
         dupLocalMounts = lib.filter (path: lib.count (p: p == path) allLocalMounts > 1) (lib.unique allLocalMounts);
 
         allResolvedUnits =
           lib.concatMap resolveServiceUnits servicesWithStorage ++ lib.concatMap (task: task.systemdServices) tasksWithStorage;
         missingUnits = lib.filter (unit: !(config.systemd.services ? ${unit})) allResolvedUnits;
 
-        tasksMissingUnits = lib.filter (task: task.storage.smb != [ ] && task.systemdServices == [ ]) (
+        tasksMissingUnits = lib.filter (task: task.storage.mounts != [ ] && task.systemdServices == [ ]) (
           lib.attrValues selfhostCfg.tasks
         );
       in
@@ -148,7 +148,7 @@ in
         }
         {
           assertion = tasksMissingUnits == [ ];
-          message = "Tasks with storage.smb must declare systemdServices: ${
+          message = "Tasks with storage.mounts must declare systemdServices: ${
             lib.concatMapStringsSep ", " (t: t.name) tasksMissingUnits
           }";
         }
@@ -156,7 +156,7 @@ in
 
     environment.systemPackages = [ pkgs.cifs-utils ];
 
-    users.groups = lib.mapAttrs' (_name: mountCfg: lib.nameValuePair mountCfg.group { inherit (mountCfg) gid; }) cfg.mounts;
+    users.groups = lib.mapAttrs' (_name: mountCfg: lib.nameValuePair mountCfg.group { inherit (mountCfg) gid; }) cfg.shares;
 
     fileSystems = lib.mapAttrs' (
       name: mountCfg:
@@ -184,7 +184,7 @@ in
           "x-systemd.mount-timeout=30s"
         ];
       }
-    ) cfg.mounts;
+    ) cfg.shares;
 
     systemd.units = lib.mapAttrs' (
       _name: mountCfg:
@@ -195,7 +195,7 @@ in
           StartLimitIntervalSec=0
         '';
       }
-    ) cfg.mounts;
+    ) cfg.shares;
 
     systemd.services = lib.mkMerge (
       lib.mapAttrsToList (
@@ -212,7 +212,7 @@ in
             };
           }) (allDependentUnits name mountCfg)
         )
-      ) cfg.mounts
+      ) cfg.shares
     );
   };
 }

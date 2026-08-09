@@ -6,8 +6,8 @@
 }:
 {
   options.storage = {
-    smb = lib.mkOption {
-      type = lib.types.listOf (lib.types.enum (lib.attrNames selfhostCfg.storage.smb.mounts));
+    mounts = lib.mkOption {
+      type = lib.types.listOf (lib.types.enum (lib.attrNames selfhostCfg.storage.mounts.smb.shares));
       default = [ ];
       description = "Named selfhost SMB shares this service may access; their automount guards start before the service.";
     };

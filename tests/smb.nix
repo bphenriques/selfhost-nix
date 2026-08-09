@@ -1,4 +1,4 @@
-# storage.smb (eval-only): CIFS mounts derive automounts, access groups, dependent-service guards, and
+# storage.mounts.smb (eval-only): CIFS mounts derive automounts, access groups, dependent-service guards, and
 # mount retry drop-ins. No VM: a real mount needs a live SMB server; this covers pure config generation.
 { pkgs, evalConfig }:
 let
@@ -12,8 +12,8 @@ let
 
   cfg = evalConfig {
     selfhost = {
-      storage.smb = base // {
-        mounts = {
+      storage.mounts.smb = base // {
+        shares = {
           media = {
             gid = 5001;
           };
@@ -26,7 +26,7 @@ let
       services.gallery = {
         port = 8080;
         ingress.enable = false;
-        storage.smb = [ "media" ];
+        storage.mounts = [ "media" ];
       };
     };
   };
@@ -38,8 +38,8 @@ let
   mediaMountUnit = cfg.systemd.units."mnt-homelab\\x2dmedia.mount";
 
   collide = evalConfig {
-    selfhost.storage.smb = base // {
-      mounts = {
+    selfhost.storage.mounts.smb = base // {
+      shares = {
         media = {
           gid = 5001;
         };

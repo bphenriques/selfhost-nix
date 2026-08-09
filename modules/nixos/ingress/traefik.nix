@@ -126,8 +126,8 @@ in
               certResolver = "default";
               domains = [
                 {
-                  main = cfg.domain;
-                  sans = [ "*.${cfg.domain}" ];
+                  main = ingressCfg.domain;
+                  sans = [ "*.${ingressCfg.domain}" ];
                 }
               ];
             };
