@@ -236,10 +236,12 @@ in
                 "!$RECYCLE.BIN"
                 "!.DS_Store"
                 "!Thumbs.db"
-                # Synology. #snapshot holds a full point-in-time copy of the share per snapshot,
-                # so binding a share root without this walks the whole tree once per snapshot.
+                # Filesystem-managed snapshot views: each holds a full point-in-time copy of the
+                # tree, so binding a share root without these walks it once per snapshot. Synology
+                # exposes #snapshot; ZFS exposes .zfs once snapdir=visible is set.
                 "!#snapshot"
                 "!#recycle"
+                "!.zfs"
               ];
               description = "rustic include/exclude globs ('!' = exclude). Default excludes common NAS/sync/OS metadata.";
             };
