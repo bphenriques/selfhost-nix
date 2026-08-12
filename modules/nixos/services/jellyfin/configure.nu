@@ -15,7 +15,10 @@ def wait_ready [] {
   for attempt in 1..60 {
     print $"Waiting for Jellyfin... ($attempt)"
     let r = try { public_info } catch { null }
-    if $r != null { return $r }
+    # Jellyfin answers this endpoint mid-startup with ASP.NET's default camelCase, before its own
+    # PascalCase serializer is wired up. Responding is therefore not enough: wait for the casing the
+    # rest of the script reads, or every field lookup below fails on a fast-answering server.
+    if $r != null and "StartupWizardCompleted" in ($r | columns) { return $r }
     sleep 2sec
   }
   error make {msg: "Jellyfin failed to start after 60 attempts"}
