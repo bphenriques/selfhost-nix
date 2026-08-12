@@ -57,6 +57,8 @@ in
             port = app.exporterPort;
             url = cfg.services.prowlarr.url;
             apiKeyFile = cfg.runtimeSecrets.${apiKeySecret}.path;
+            # Default `info` logs a line per upstream HTTP call, i.e. several per scrape, forever.
+            environment.LOG_LEVEL = lib.mkDefault "warn";
           };
           scrapeConfigs = [
             {

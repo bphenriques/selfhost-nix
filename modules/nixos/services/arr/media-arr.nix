@@ -211,6 +211,8 @@ in
             port = app.exporterPort;
             inherit (serviceCfg) url;
             apiKeyFile = cfg.runtimeSecrets.${apiKeySecret}.path;
+            # Default `info` logs a line per upstream HTTP call, i.e. several per scrape, forever.
+            environment.LOG_LEVEL = lib.mkDefault "warn";
           };
           scrapeConfigs = [
             {
