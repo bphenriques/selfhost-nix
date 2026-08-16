@@ -20,6 +20,8 @@ let
   rusticManageEnv = {
     STATE_DIR = stateDir;
     SEND_NOTIFICATION = "${notifyCfg.package}/bin/send-notification";
+  }
+  // lib.optionalAttrs notifyCfg.active {
     NOTIFY_URL = notifyCfg.url;
     NOTIFY_TOPIC = backupTaskCfg.integrations.notify.topic;
     NOTIFY_TOKEN_FILE = backupTaskCfg.integrations.notify.tokenFile;
@@ -119,7 +121,8 @@ let
       unitConfig.RequiresMountsFor = lib.attrValues t.bindings ++ lib.optional (lib.hasPrefix "/" t.repository) t.repository;
       environment = rusticManageEnv;
       serviceConfig = hardenedServiceConfig // {
-        ExecStartPre = lib.getExe (mkAssembleScript name hooks);
+        # Only when there is something to assemble: an empty hook set would still build a derivation.
+        ExecStartPre = lib.optional (hooks != { }) (lib.getExe (mkAssembleScript name hooks));
         ExecStart = "${rusticManage} backup ${name}";
         # Runs on failure too; list form merges with the failure-notify ExecStopPost.
         ExecStopPost = [
@@ -179,6 +182,8 @@ in
   options.selfhost.backup = {
     package = lib.mkOption {
       type = lib.types.package;
+      default = pkgs.selfhost.rustic-manage;
+      defaultText = lib.literalExpression "pkgs.selfhost.rustic-manage";
       description = "The rustic-manage package to use (shared by all targets).";
     };
 

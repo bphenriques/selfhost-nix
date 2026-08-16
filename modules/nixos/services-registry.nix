@@ -8,118 +8,215 @@ let
   # once some user is in it) while still catching typos.
   knownGroups = lib.unique (lib.attrValues cfg.groups ++ lib.concatMap (u: u.groups) (lib.attrValues cfg.users));
 
-  baseServiceModule = { name, config, ... }: {
-    # No ingress route means no link to render, so default to no dashboard tile.
-    config.integrations.homepage.enable = lib.mkDefault config.ingress.enable;
+  # A container's unit is named for its backend, not the service, so the default follows suit.
+  ociContainers = config.virtualisation.oci-containers.containers or { };
+  ociBackend = config.virtualisation.oci-containers.backend or "podman";
 
-    options = {
-      # Routing (backend)
-      host = lib.mkOption {
-        type = lib.types.str;
-        default = "127.0.0.1";
-        description = "Hostname or IP where the service listens (local or remote)";
-      };
+  baseServiceModule =
+    {
+      name,
+      config,
+      options,
+      ...
+    }:
+    {
+      # No ingress route means no link to render, so default to no dashboard tile.
+      config.integrations.homepage.enable = lib.mkDefault config.ingress.enable;
 
-      port = lib.mkOption {
-        type = lib.types.port;
-        description = "Port the service listens on";
-      };
+      # Route it only if there is something to route to, and if its access model is satisfied:
+      # `forwardAuth` is the one model where the service authenticates nobody itself, so it waits for the
+      # gateway rather than going up unguarded. The others carry their own login.
+      config.ingress.enable = lib.mkDefault (
+        (config.backend != null || options.port.isDefined)
+        && (config.access.model != "forwardAuth" || cfg.auth.forwardAuth.active)
+      );
 
-      scheme = lib.mkOption {
-        type = lib.types.enum [
-          "http"
-          "https"
-        ];
-        default = "http";
-        description = "URL scheme for backend connection";
-      };
+      # The probe targets the backend, so an entry borrowing one would only re-probe what its owner
+      # already does — same URL, second alert on one outage.
+      config.integrations.monitoring.healthcheck = lib.mkDefault (config.backend == null);
 
-      url = lib.mkOption {
-        type = lib.types.str;
-        default = "${config.scheme}://${config.host}:${toString config.port}";
-        defaultText = lib.literalMD "`<scheme>://<host>:<port>`";
-        description = "Full URL for proxying (derived from scheme, host and port)";
-      };
+      # `backend` first so a borrowed entry short-circuits: it has no port definition of its own.
+      config.ownsBackend = config.backend == null && options.port.isDefined;
+      config.port = lib.mkIf (config.backend != null) cfg.services.${config.backend}.port;
 
-      healthcheck.path = lib.mkOption {
-        type = lib.types.str;
-        default = "/";
-        description = "Path for health checks (used by monitoring and homepage)";
-      };
-
-      healthcheck.url = lib.mkOption {
-        type = lib.types.str;
-        default = "${config.url}${config.healthcheck.path}";
-        defaultText = lib.literalMD "`<url><healthcheck.path>`";
-        readOnly = true;
-        description = "Full health check URL (derived from url and healthcheck path)";
-      };
-
-      healthcheck.probeModule = lib.mkOption {
-        type = lib.types.enum [
-          "http_2xx"
-          "http_any"
-        ];
-        default = "http_2xx";
-        description = "Blackbox exporter module for health probes. Use http_any for services that require authentication on all endpoints.";
-      };
-
-      # Routing (public)
-      subdomain = lib.mkOption {
-        type = lib.types.str;
-        default = name;
-        description = "Subdomain prefix (combined with domain for publicHost)";
-      };
-
-      publicHost = lib.mkOption {
-        type = lib.types.str;
-        # Thrown rather than nullOr: keeping the type `str` spares every reader a null branch for a
-        # case that cannot happen on a host that routes anything.
-        default =
-          if cfg.ingress.domain == null then
-            throw "selfhost.services.${name}.publicHost needs selfhost.ingress.domain, which is unset."
-          else
-            "${config.subdomain}.${cfg.ingress.domain}";
-        defaultText = lib.literalMD "`<subdomain>.<ingress.domain>`";
-        description = "Public hostname (derived from subdomain and ingress.domain)";
-      };
-
-      publicUrl = lib.mkOption {
-        type = lib.types.str;
-        default = "https://${config.publicHost}";
-        defaultText = lib.literalMD "`https://<publicHost>`";
-        description = "Full public URL (derived from publicHost)";
-      };
-
-      ingress.enable = lib.mkEnableOption "HTTP ingress route for this service" // {
-        default = true;
-      };
-
-      # Access control policy (consumed by whichever auth mechanism is active). Empty = any authenticated user.
-      access.allowedGroups = lib.mkOption {
-        type = lib.types.listOf (lib.types.enum knownGroups);
-        default = [ ];
-        description = "Groups authorized to access this service (canonical groups or any a user is in). Empty means unrestricted (any authenticated user).";
-      };
-
-      # Pre-backup hook (consumed by backup.nix)
-      backup = {
-        package = lib.mkOption {
-          type = lib.types.nullOr lib.types.package;
+      options = {
+        # Routing (backend)
+        backend = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
           default = null;
-          description = "Package providing backup script. Use writeShellApplication with runtimeInputs for dependencies. OUTPUT_DIR is provided as an environment variable pointing to a fresh, empty directory for the hook's output.";
+          example = "radicale";
+          description = ''
+            Another registry entry whose backend this one routes to, instead of owning one. Its
+            `host`/`port`/`scheme` become this entry's, and only the owner is counted for port collisions.
+
+            For a second hostname onto the same process — one that wants its own `access.model`,
+            middlewares or healthcheck. Null means this entry owns its backend.
+          '';
         };
 
-        after = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
+        ownsBackend = lib.mkOption {
+          type = lib.types.bool;
+          readOnly = true;
+          defaultText = lib.literalMD "true when `port` is set and `backend` is not";
+          description = "Whether this entry's `host:port` is a socket it actually listens on (read-only).";
+        };
+
+        host = lib.mkOption {
+          type = lib.types.str;
+          default = if config.backend == null then "127.0.0.1" else cfg.services.${config.backend}.host;
+          defaultText = lib.literalMD "`127.0.0.1`, or the `backend` entry's host";
+          description = "Hostname or IP where the service listens (local or remote)";
+        };
+
+        port = lib.mkOption {
+          type = lib.types.port;
+          # Deliberately no default: absence is the signal that this entry has no HTTP backend, and
+          # `isDefined` reads it. A default here would be evaluated by that check, so a borrowed port
+          # is *defined* below rather than defaulted.
+          description = "Port the service listens on. Leave unset for a service with no HTTP backend (a UDP daemon, say).";
+        };
+
+        scheme = lib.mkOption {
+          type = lib.types.enum [
+            "http"
+            "https"
+          ];
+          default = if config.backend == null then "http" else cfg.services.${config.backend}.scheme;
+          defaultText = lib.literalMD "`http`, or the `backend` entry's scheme";
+          description = "URL scheme for backend connection";
+        };
+
+        url = lib.mkOption {
+          type = lib.types.str;
+          default = "${config.scheme}://${config.host}:${toString config.port}";
+          defaultText = lib.literalMD "`<scheme>://<host>:<port>`";
+          description = "Full URL for proxying (derived from scheme, host and port)";
+        };
+
+        healthcheck.path = lib.mkOption {
+          type = lib.types.str;
+          default = "/";
+          description = "Path for health checks (used by monitoring and homepage)";
+        };
+
+        healthcheck.url = lib.mkOption {
+          type = lib.types.str;
+          default = "${config.url}${config.healthcheck.path}";
+          defaultText = lib.literalMD "`<url><healthcheck.path>`";
+          readOnly = true;
+          description = "Full health check URL (derived from url and healthcheck path)";
+        };
+
+        healthcheck.probeModule = lib.mkOption {
+          type = lib.types.enum [
+            "http_2xx"
+            "http_any"
+          ];
+          default = "http_2xx";
+          description = "Blackbox exporter module for health probes. Use http_any for services that require authentication on all endpoints.";
+        };
+
+        # Routing (public)
+        subdomain = lib.mkOption {
+          type = lib.types.str;
+          default = name;
+          description = "Subdomain prefix (combined with domain for publicHost)";
+        };
+
+        publicHost = lib.mkOption {
+          type = lib.types.str;
+          # Thrown rather than nullOr: keeping the type `str` spares every reader a null branch for a
+          # case that cannot happen on a host that routes anything.
+          default =
+            if cfg.ingress.domain == null then
+              throw "selfhost.services.${name}.publicHost needs selfhost.ingress.domain, which is unset."
+            else
+              "${config.subdomain}.${cfg.ingress.domain}";
+          defaultText = lib.literalMD "`<subdomain>.<ingress.domain>`";
+          description = "Public hostname (derived from subdomain and ingress.domain)";
+        };
+
+        publicUrl = lib.mkOption {
+          type = lib.types.str;
+          default = "https://${config.publicHost}";
+          defaultText = lib.literalMD "`https://<publicHost>`";
+          description = "Full public URL (derived from publicHost)";
+        };
+
+        systemdServices = lib.mkOption {
+          type = lib.types.coercedTo lib.types.str (s: [ s ]) (lib.types.listOf lib.types.str);
+          default =
+            if config.backend != null then
+              cfg.services.${config.backend}.systemdServices
+            else if ociContainers ? ${name} then
+              [ "${ociBackend}-${name}" ]
+            else
+              [ name ];
+          defaultText = lib.literalMD "the `backend` entry's units, else the matching OCI container's unit, else `<name>`";
+          description = ''
+            Systemd units this service owns; selfhost concerns attach to them (storage automount guards,
+            failure notifications).
+
+            Names are trusted, not checked: attaching ordering to a unit is what *defines* it, so a name
+            that matches nothing yields a stub carrying only the attachment rather than an error. Set this
+            when the unit is not named after the service.
+          '';
+        };
+
+        ingress.enable = lib.mkEnableOption "HTTP ingress route for this service" // {
+          default = true;
+        };
+
+        access.model = lib.mkOption {
+          type = lib.types.enum [
+            "oidc"
+            "forwardAuth"
+            "native"
+            "open"
+          ];
+          default = "native";
+          description = ''
+            Who authenticates this service's users.
+
+            - `oidc`: the service is its own client of the framework's OIDC provider (configure it under
+              `access.oidc`).
+            - `forwardAuth`: the gateway authenticates before the service sees the request. The service
+              has no login of its own, so it is routed only while a forward-auth provider is active.
+            - `native`: the service authenticates its own users by a mechanism the framework does not
+              manage.
+            - `open`: nobody authenticates. Anyone who can reach the route can use it. This says the service
+              has no lock, not that it faces the internet — nothing is exposed beyond
+              `ingress.allowedInterfaces` under any model.
+
+            Only `oidc` and `forwardAuth` let the framework enforce `access.allowedGroups`.
+          '';
+        };
+
+        # Access control policy (consumed by whichever auth mechanism is active). Empty = any authenticated user.
+        access.allowedGroups = lib.mkOption {
+          type = lib.types.listOf (lib.types.enum knownGroups);
           default = [ ];
-          description = "Systemd services this backup hook requires and orders after.";
+          description = "Groups authorized to access this service (canonical groups or any a user is in). Empty means unrestricted (any authenticated user).";
+        };
+
+        # Pre-backup hook (consumed by backup.nix)
+        backup = {
+          package = lib.mkOption {
+            type = lib.types.nullOr lib.types.package;
+            default = null;
+            description = "Package providing backup script. Use writeShellApplication with runtimeInputs for dependencies. OUTPUT_DIR is provided as an environment variable pointing to a fresh, empty directory for the hook's output.";
+          };
+
+          after = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+            description = "Systemd services this backup hook requires and orders after.";
+          };
+
         };
 
       };
-
     };
-  };
 in
 {
   options.selfhost = {
@@ -198,11 +295,13 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # A remote proxy target binds nothing here, so only local listeners can collide.
+    # Only sockets this host actually listens on can collide: a remote proxy target binds nothing here,
+    # an entry routing to another's backend binds nothing of its own, and an entry with no HTTP backend
+    # has no socket to speak of.
     selfhost.internal.listeningPorts = map (s: {
       name = "service/${s.name}";
       inherit (s) host port;
-    }) (lib.filter (s: s.host == "127.0.0.1" || s.host == "localhost") (lib.attrValues cfg.services));
+    }) (lib.filter (s: s.ownsBackend && (s.host == "127.0.0.1" || s.host == "localhost")) (lib.attrValues cfg.services));
 
     assertions =
       let
@@ -220,7 +319,12 @@ in
           builtins.groupBy (e: selfhostLib.socket e.host e.port) cfg.internal.listeningPorts
         );
 
-        dualAuth = lib.filter (s: s.oidc.enable && s.forwardAuth.enable) allServices;
+        oidcServices = lib.filter (s: s.access.model == "oidc") allServices;
+
+        danglingBackends = lib.filter (
+          s: s.backend != null && (s.backend == s.name || !(cfg.services ? ${s.backend}))
+        ) allServices;
+
         names = lib.concatMapStringsSep ", " (x: x.name);
       in
       [
@@ -229,8 +333,21 @@ in
           message = "selfhost.ingress.domain must be set when any service enables ingress. Routed services: ${names ingressServices}";
         }
         {
+          assertion = danglingBackends == [ ];
+          message = "Services set access to another entry's backend that is not registered (or is themselves): ${
+            lib.concatMapStringsSep ", " (s: "${s.name} -> ${s.backend}") danglingBackends
+          }";
+        }
+        {
           assertion = dupHosts == [ ];
           message = "Service public hosts must be unique. Conflicting: ${lib.concatStringsSep ", " dupHosts}";
+        }
+        {
+          # Nothing provisions the client without a provider, so the service would come up
+          # authenticating nobody while the inventory reported it as SSO. The forwardAuth counterpart
+          # of this lives in the ingress implementation, which is what applies that gate.
+          assertion = oidcServices == [ ] || cfg.auth.oidc.active;
+          message = "Services set access.model = \"oidc\" but no OIDC provider is active (enable one, e.g. selfhost.auth.oidc.pocket-id.enable): ${names oidcServices}";
         }
         {
           assertion = portCollisions == { };
@@ -238,24 +355,25 @@ in
             lib.concatStringsSep "; " (lib.mapAttrsToList (socket: group: "${socket} ← ${names group}") portCollisions)
           }";
         }
-        {
-          assertion = dualAuth == [ ];
-          message = "Services must not enable both OIDC and forwardAuth. Offending: ${names dualAuth}";
-        }
       ];
 
-    # allowedGroups are only enforced by a framework auth mechanism; a service that sets them but
-    # enables neither relies on its own auth (or is unrestricted). Warn, don't block; the framework
-    # can't tell deliberate native-auth from a forgotten enforcer.
+    # Only `oidc` and `forwardAuth` put the framework in the request path, so only they can enforce
+    # groups. Under the other two the service decides for itself, which is a legitimate choice — hence
+    # a warning naming what to do about it, not a hard failure.
     warnings =
       let
-        unenforced = lib.filter (s: s.access.allowedGroups != [ ] && !s.oidc.enable && !s.forwardAuth.enable) (
-          lib.attrValues cfg.services
-        );
+        unenforced = lib.filter (
+          s:
+          s.access.allowedGroups != [ ]
+          && !(lib.elem s.access.model [
+            "oidc"
+            "forwardAuth"
+          ])
+        ) (lib.attrValues cfg.services);
       in
       lib.optional (unenforced != [ ])
-        "Services set access.allowedGroups but enable no framework auth (oidc/forwardAuth), so the groups are not enforced; the service must authenticate itself: ${
-          lib.concatMapStringsSep ", " (s: s.name) unenforced
+        "Services set access.allowedGroups under an access.model the framework does not enforce, so the groups do nothing. Either set access.model to oidc/forwardAuth, or drop the groups and let the service decide: ${
+          lib.concatMapStringsSep ", " (s: "${s.name} (${s.access.model})") unenforced
         }";
   };
 }

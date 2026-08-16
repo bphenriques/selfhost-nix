@@ -28,23 +28,18 @@ in
 {
   options.selfhost.notify.ntfy = {
     enable = lib.mkEnableOption "ntfy notification implementation (server + provisioning)";
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 2586;
-      description = "ntfy listen port (localhost, behind ingress).";
-    };
   };
 
   config = lib.mkIf cfg.notify.ntfy.enable {
     selfhost = {
       services.ntfy = {
-        displayName = "Ntfy";
-        meta.homepage = "https://ntfy.sh";
-        meta.description = "Push Notifications";
+        displayName = lib.mkDefault "Ntfy";
+        meta.homepage = lib.mkDefault "https://ntfy.sh";
+        meta.description = lib.mkDefault "Push Notifications";
         meta.category = lib.mkDefault "monitoring";
-        port = cfg.notify.ntfy.port;
+        port = lib.mkDefault 2586;
         healthcheck.path = "/v1/health";
-        integrations.homepage.group = "Admin";
+        integrations.homepage.group = lib.mkDefault "Admin";
       };
 
       notify.url = serviceCfg.url;

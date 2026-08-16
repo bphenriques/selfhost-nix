@@ -210,7 +210,17 @@ let
 in
 {
   options.selfhost.monitoring = {
-    enable = lib.mkEnableOption "Prometheus monitoring (metrics, healthchecks, alert rules)";
+    enable = lib.mkEnableOption "Prometheus monitoring (metrics, healthchecks, alert rules)" // {
+      description = ''
+        Prometheus monitoring (metrics, healthchecks, alert rules).
+
+        Prometheus and Alertmanager authenticate nobody, so they are routed only once a forward-auth
+        provider is active — without one they stay on localhost and no `<name>.<domain>` route is
+        created. This is deliberate: publishing them ungated would expose every metric and let anyone
+        silence alerts. Set `selfhost.services.prometheus.ingress.enable` (or `.alertmanager.`) to
+        override, at which point authenticating them is yours to arrange.
+      '';
+    };
 
     prometheusPort = lib.mkOption {
       type = lib.types.port;
@@ -266,7 +276,8 @@ in
       meta.category = lib.mkDefault "monitoring";
       port = mon.prometheusPort;
       healthcheck.path = "/-/healthy";
-      forwardAuth.enable = true;
+      access.model = "forwardAuth"; # Prometheus authenticates nobody
+      access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
       integrations.homepage.group = "Admin";
       integrations.monitoring = {
         scrapeConfigs = [
@@ -312,6 +323,8 @@ in
       ruleFiles = lib.optional (allRules != [ ]) (yaml.generate "alerts.yml" { groups = allRules; });
     };
 
-    systemd.services = lib.foldl' lib.recursiveUpdate { } allSystemdOverrides;
+    # mkMerge, not recursiveUpdate: two scopes touching the same unit must combine their lists rather
+    # than the last one silently winning.
+    systemd.services = lib.mkMerge allSystemdOverrides;
   };
 }

@@ -12,9 +12,10 @@ the split.
   (+ `generateOnceGuard`) handles data-bound keys, where a key lost while its data survives is left *absent
   and logged*, never silently replaced.
 - **The edge is the only public surface.** Services bind `127.0.0.1`, and the reverse proxy fronts them.
-  Access is gated by per-service OIDC clients (group-scoped) or `forwardAuth`. The forwardAuth middleware
-  sets the identity headers from the auth response, and an assertion refuses `forwardAuth` with no active
-  provider.
+  Each service declares `access.model`, and the framework gates it accordingly: a per-service OIDC client
+  (group-scoped), or `forwardAuth`, whose middleware sets the identity headers from the auth response. A
+  service that authenticates nobody itself is not routed at all until a forward-auth provider exists, so
+  the failure mode is an unreachable service rather than an unguarded one.
 - **Hardened service units.** Bundled reconcilers and backups run with `ProtectSystem = strict`,
   `NoNewPrivileges`, etc. The notify token reaches non-root consumers via systemd `LoadCredential`.
 - **WireGuard, not public exposure.** That is the way in.
@@ -39,7 +40,7 @@ the split.
 |---|---|
 | OIDC client secrets | Framework-managed: `oidc-rotate [<client>]` (always available) or the opt-in `rotation` timer. It removes the secret and the provider re-mints it. |
 | Random per-service secrets (`regenerateIfMissing`) | Delete the file. Regenerated on next activation. |
-| Data-bound keys (`generateOnce`) | **Manual and deliberate.** Rotating means re-keying the data it protects, so the framework refuses to auto-rotate (that would brick the data). Remove the secret *together with* its data (or its `.generated` marker) to re-key. |
+| Data-bound keys (`generateOnce`) | **Manual and deliberate.** Rotating means re-keying the data it protects, so the framework refuses to auto-rotate (that would brick the data). Remove the secret *together with* the data its `generateOnceGuard` watches to re-key. |
 | Externally-synced secrets (`regenerateIfMissing = false`) | Rotate in your own store. The framework leaves them untouched. |
 
 ## Restore & disaster recovery

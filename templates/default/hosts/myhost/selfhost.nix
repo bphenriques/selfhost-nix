@@ -13,7 +13,7 @@
 
     # Public entry: Traefik terminates TLS via an ACME DNS-01 challenge. The DNS token → secrets.nix.
     ingress = {
-      inherit (private.settings) domain;
+      inherit (private.settings) domain allowedInterfaces;
       traefik.enable = true;
       acme = {
         dnsProvider = "cloudflare";

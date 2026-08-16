@@ -22,14 +22,21 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: cachix/install-nix-action@v31
+      - uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: nix-fast-${{ hashFiles('flake.lock') }}
+          restore-prefixes-first-match: nix-fast-
+          gc-max-store-size: 5G
       - name: Non-VM checks
         run: |
           all=$(nix eval --json .#checks.x86_64-linux --apply builtins.attrNames | jq -r '.[]')
+          failed=""
           for c in $(echo "$all" | grep -v '^vm-' || true); do
             echo "::group::$c"
-            nix build -L --no-link ".#checks.x86_64-linux.$c"
+            nix build -L --no-link ".#checks.x86_64-linux.$c" || failed="$failed $c"
             echo "::endgroup::"
           done
+          [ -z "$failed" ] || { echo "failed:$failed"; exit 1; }
 
   # NixOS VM integration tests: slower, need KVM. Auto-discovered by the `vm-` prefix, so new tests
   # are picked up without touching this file.
@@ -48,11 +55,19 @@ jobs:
         with:
           extra_nix_config: |
             system-features = nixos-test benchmark big-parallel kvm
+      # The VM matrix otherwise rebuilds every image from scratch on each push.
+      - uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: nix-vm-${{ hashFiles('flake.lock') }}
+          restore-prefixes-first-match: nix-vm-
+          gc-max-store-size: 8G
       - name: VM checks
         run: |
           all=$(nix eval --json .#checks.x86_64-linux --apply builtins.attrNames | jq -r '.[]')
+          failed=""
           for c in $(echo "$all" | grep '^vm-' || true); do
             echo "::group::$c"
-            nix build -L --no-link ".#checks.x86_64-linux.$c"
+            nix build -L --no-link ".#checks.x86_64-linux.$c" || failed="$failed $c"
             echo "::endgroup::"
           done
+          [ -z "$failed" ] || { echo "failed:$failed"; exit 1; }

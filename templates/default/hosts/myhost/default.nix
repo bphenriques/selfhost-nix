@@ -9,5 +9,5 @@
   networking.hostName = "myhost";
 
   # Match the NixOS version you installed with. Do not bump casually.
-  system.stateVersion = "24.11";
+  system.stateVersion = "25.11";
 }

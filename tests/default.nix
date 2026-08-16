@@ -72,7 +72,7 @@ let
         self.nixosModules.default
         {
           boot.isContainer = true;
-          system.stateVersion = "24.11";
+          system.stateVersion = "25.11";
           selfhost = {
             enable = true;
             ingress.domain = "test.local";
@@ -96,6 +96,7 @@ in
   vm-ingress = runTest ./ingress.nix;
   vm-monitoring = runTest ./monitoring.nix;
   vm-filebrowser = runTest ./filebrowser.nix;
+  vm-filebrowser-selfhost = runTest ./filebrowser-selfhost.nix;
   vm-radicale = runTest ./radicale.nix;
   vm-transmission = runTest ./transmission.nix;
   vm-bentopdf = runTest ./bentopdf.nix;
@@ -110,6 +111,11 @@ in
 
   # Eval-only: pure framework derivations/assignments against the live framework (no VM boot).
   template-default = import ./template.nix { inherit pkgs self nixpkgs; };
+  everything-eval = runEval ./everything.nix;
+}
+# One `app-<name>-eval` per first-party app, so a broken app names itself.
+// import ./apps.nix { inherit pkgs evalConfig; }
+// {
   wireguard-eval = runEval ./wireguard.nix;
   homepage-eval = runEval ./homepage.nix;
   arr-eval = runEval ./arr.nix;

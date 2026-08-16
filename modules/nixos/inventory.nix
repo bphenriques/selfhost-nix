@@ -3,14 +3,7 @@
 { lib, config, ... }:
 let
   cfg = config.selfhost;
-  accessOf =
-    s:
-    if s.oidc.enable || s.forwardAuth.enable then
-      "sso"
-    else if s.access.allowedGroups != [ ] then
-      "private"
-    else
-      "open";
+  accessOf = s: if s.access.model == "oidc" || s.access.model == "forwardAuth" then "sso" else s.access.model;
 in
 {
   options.selfhost.inventory = lib.mkOption {
@@ -19,13 +12,20 @@ in
     description = ''
       Registered services as use-case-agnostic facts (name, displayName, description, normalized
       access model, ingress, publicUrl, meta.homepage). Read-only; consumers decide presentation.
+
+      `publicUrl` is present only when `ingress` is true: it derives from `ingress.domain`, which a
+      host that routes nothing may leave unset.
     '';
-    default = lib.mapAttrsToList (_: s: {
-      inherit (s) name displayName;
-      inherit (s.meta) description homepage category;
-      access = accessOf s;
-      ingress = s.ingress.enable;
-      inherit (s) publicUrl;
-    }) cfg.services;
+    defaultText = lib.literalMD "derived from `selfhost.services`";
+    default = lib.mapAttrsToList (
+      _: s:
+      {
+        inherit (s) name displayName;
+        inherit (s.meta) description homepage category;
+        access = accessOf s;
+        ingress = s.ingress.enable;
+      }
+      // lib.optionalAttrs s.ingress.enable { inherit (s) publicUrl; }
+    ) cfg.services;
   };
 }

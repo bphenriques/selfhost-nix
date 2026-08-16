@@ -20,9 +20,9 @@ decision and its consequences with the operator.
 
 ## What the app wires
 
-`apps.radarr` / `apps.sonarr` register the service (ingress, forward-auth defaulting to the active
-provider, admin-group access), generate the API key out of the store and set the app to trust the
-forward-auth identity, add a library-list backup hook, and run an **idempotent reconcile** that applies
+`apps.radarr` / `apps.sonarr` register the service (admin-group access, with both the route and
+forward-auth following the active provider), generate the API key out of the store and set the app to trust
+the forward-auth identity, add a library-list backup hook, and run an **idempotent reconcile** that applies
 only what you declare:
 
 - `rootFolders`: library paths (storage-agnostic, and the path must exist).
@@ -32,6 +32,9 @@ only what you declare:
 - `delayProfile`: optional, carrying the protocol preference, so it stays your call with no default.
 
 All three default to empty/none: enabling an app configures nothing you didn't ask for.
+
+Because the app is set to trust the identity header, it serves no login of its own, so it is routed only
+once a forward-auth provider is active. Without one it stays on localhost rather than going up unguarded.
 
 `apps.prowlarr` is wiring-only. An indexer manager talks to APIs, not files, so it has no root folders or
 download clients. Its indexer list and app-sync are acquisition and live in your config, reading the

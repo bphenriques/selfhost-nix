@@ -1,0 +1,28 @@
+# Tracks nixpkgs-unstable, so drift arrives continuously whether or not anyone runs an update. Opening a
+# PR on a schedule puts that drift in front of the check suite instead of into the next manual bump.
+name: update flake
+
+on:
+  schedule:
+    - cron: "0 4 * * 1" # Monday 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    name: nix flake update
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: cachix/install-nix-action@v31
+      - run: nix flake update
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: flake-update
+          title: "chore: nix flake update"
+          commit-message: "chore: nix flake update"
+          body: Scheduled `nix flake update`. The checks workflow gates it.
+          delete-branch: true

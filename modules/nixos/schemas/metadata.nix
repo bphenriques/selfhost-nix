@@ -18,7 +18,8 @@
     meta = {
       description = lib.mkOption {
         type = lib.types.str;
-        description = "Short description (nixpkgs `meta.description`).";
+        default = "";
+        description = "Short description (nixpkgs `meta.description`); shown under the name on a dashboard tile. Empty renders no subtitle.";
       };
 
       homepage = lib.mkOption {

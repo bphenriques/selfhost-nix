@@ -63,12 +63,6 @@ in
   options.selfhost.apps.${name} = {
     enable = lib.mkEnableOption "the first-party ${displayName} app (media automation; ingress + auth + secrets wired, zero acquisition config)";
 
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = defaultPort;
-      description = "${displayName} listen port (localhost, behind ingress).";
-    };
-
     apiKeyFile = lib.mkOption {
       type = lib.types.str;
       readOnly = true;
@@ -143,10 +137,12 @@ in
             enableUsenet = lib.mkOption {
               type = lib.types.bool;
               default = true;
+              description = "Whether this profile may grab usenet releases.";
             };
             enableTorrent = lib.mkOption {
               type = lib.types.bool;
               default = true;
+              description = "Whether this profile may grab torrent releases.";
             };
             preferredProtocol = lib.mkOption {
               type = lib.types.enum [
@@ -158,14 +154,17 @@ in
             usenetDelay = lib.mkOption {
               type = lib.types.int;
               default = 0;
+              description = "Minutes to hold a usenet release before grabbing it, letting a better one appear first.";
             };
             torrentDelay = lib.mkOption {
               type = lib.types.int;
               default = 0;
+              description = "Minutes to hold a torrent release before grabbing it, letting a better one appear first.";
             };
             bypassIfHighestQuality = lib.mkOption {
               type = lib.types.bool;
               default = true;
+              description = "Grab immediately, ignoring the delays above, when the release already meets the highest wanted quality.";
             };
           };
         }
@@ -194,16 +193,16 @@ in
   config = lib.mkIf (cfg.enable && app.enable) {
     selfhost = {
       services.${name} = {
-        inherit displayName;
-        meta.description = description;
-        meta.homepage = homepage;
+        displayName = lib.mkDefault displayName;
+        meta.description = lib.mkDefault description;
+        meta.homepage = lib.mkDefault homepage;
         meta.category = lib.mkDefault "downloads";
-        inherit (app) port;
+        port = lib.mkDefault defaultPort;
         healthcheck.path = "/ping";
-        forwardAuth.enable = lib.mkDefault cfg.auth.forwardAuth.active;
+        # The reconcile sets AUTH__METHOD=External, so ${displayName} serves no login of its own.
+        access.model = "forwardAuth";
         access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
         integrations.homepage.icon = lib.mkDefault icon;
-        # A blackbox probe only proves it answers HTTP; these are the failures it stays up through.
         integrations.monitoring = {
           exporters."exportarr-${name}" = {
             enable = true;
@@ -301,7 +300,7 @@ in
 
     services.${name} = {
       enable = true;
-      settings.server.port = app.port;
+      settings.server.port = serviceCfg.port;
       settings.server.bindaddress = "127.0.0.1";
       environmentFiles = [ cfg.runtimeTemplates."${name}.env".path ];
     };

@@ -9,23 +9,20 @@ in
 {
   options.selfhost.apps.homepage = {
     enable = lib.mkEnableOption "the first-party homepage dashboard app (gethomepage)";
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 3001;
-      description = "homepage listen port (localhost, behind ingress).";
-    };
   };
 
   config = lib.mkIf (config.selfhost.enable && app.enable) {
     selfhost.services.homepage = {
-      meta.description = "Dashboard";
-      inherit (app) port;
+      displayName = lib.mkDefault "Homepage";
+      meta.description = lib.mkDefault "Dashboard";
+      port = lib.mkDefault 3001;
+      access.model = "open"; # a link list, gated by whatever gates the links
       integrations.homepage.enable = false; # the dashboard doesn't list itself
     };
 
     services.homepage-dashboard = {
       enable = true;
-      listenPort = app.port;
+      listenPort = serviceCfg.port;
       allowedHosts = serviceCfg.publicHost;
       services = lib.mapAttrsToList (group: tiles: { ${group} = tiles; }) config.selfhost.dashboards.generatedTiles;
     };

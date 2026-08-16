@@ -3,8 +3,11 @@
 { config, lib, ... }:
 let
   app = config.selfhost.apps.filebrowser;
+  serviceCfg = config.selfhost.services.filebrowser;
   smb = config.selfhost.storage.mounts.smb.shares;
   fbRoot = config.services.filebrowser.settings.root;
+  # Scope for anyone the gateway authenticates who has no grants here; kept empty and unwritable.
+  unlistedScope = "/.unlisted";
   enabledUsers = lib.filterAttrs (_: u: u.services.filebrowser.enable) config.selfhost.users;
   grants = lib.concatLists (
     lib.mapAttrsToList (
@@ -53,13 +56,39 @@ in
 
   config = lib.mkMerge [
     (lib.mkIf (config.selfhost.enable && app.enable) {
-      services.filebrowser-multiuser.enable = true;
+      services.filebrowser = {
+        enable = true;
+        settings = {
+          address = serviceCfg.host;
+          inherit (serviceCfg) port;
+        };
+      };
+
+      services.filebrowser-multiuser = {
+        enable = true;
+        unlistedScope = lib.mkDefault unlistedScope;
+      };
+
+      # Arrange the scope only while it is still ours: point `unlistedScope` somewhere else and it is
+      # yours to create, which is the base module's contract for every scope.
+      systemd.tmpfiles.settings.filebrowser-selfhost =
+        lib.optionalAttrs (config.services.filebrowser-multiuser.unlistedScope == unlistedScope)
+          {
+            "${fbRoot}${unlistedScope}".d = {
+              inherit (config.services.filebrowser) user group;
+              mode = "0555";
+            };
+          };
+
       selfhost.services.filebrowser = {
         displayName = lib.mkDefault "File Browser";
         meta.homepage = lib.mkDefault "https://filebrowser.org";
         meta.description = lib.mkDefault "File Browser";
         meta.category = lib.mkDefault "files";
         port = lib.mkDefault 8085;
+        # Unconditional, because proxy auth is: the reconciler sets --auth.method=proxy whether or not
+        # the selfhost integration is on, so the header is trusted either way and needs a gateway to set it.
+        access.model = "forwardAuth";
       };
     })
 
@@ -68,16 +97,25 @@ in
         name: _: "selfhost.users.${name}.services.filebrowser is enabled with no storage grants — empty FileBrowser."
       ) (lib.filterAttrs (_: u: u.services.filebrowser.storage == { }) enabledUsers);
 
+      # Every listed user needs their scope to exist: grants bind *into* it, so a user with none (or one
+      # whose storage the consumer arranges themselves) would otherwise fail the scope check for everyone.
+      systemd.tmpfiles.settings.filebrowser-selfhost = lib.mapAttrs' (
+        name: _:
+        lib.nameValuePair "${fbRoot}/${name}" {
+          d = {
+            inherit (config.services.filebrowser) user group;
+            mode = "0750";
+          };
+        }
+      ) enabledUsers;
+
       services.filebrowser-multiuser.users = lib.mapAttrs (user: u: {
         scope = "/${user}";
         readOnly = !(lib.elem "rw" (lib.attrValues u.services.filebrowser.storage));
         inherit (u.services.filebrowser) admin;
       }) enabledUsers;
 
-      selfhost.services.filebrowser = {
-        forwardAuth.enable = true;
-        storage.mounts = lib.unique (map (g: g.mount) grants);
-      };
+      selfhost.services.filebrowser.storage.mounts = lib.unique (map (g: g.mount) grants);
 
       # ro grants get a ro bind that can't be bypassed (same namespace, never re-bound).
       systemd.services.filebrowser.serviceConfig = {

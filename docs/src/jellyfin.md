@@ -49,9 +49,9 @@ fields, neither exists on `EncodingOptions`, where the equivalents are `EnableHa
 
 ## Forward-auth is off
 
-Jellyfin authenticates its own clients, and native apps cannot pass a forward-auth gateway, so
-`forwardAuth.enable` defaults to false here rather than following the gateway. Turn it on only if every
-client you use is a browser.
+Jellyfin authenticates its own clients, and native apps cannot pass a forward-auth gateway, so it stays on
+`access.model = "native"` rather than following the gateway. Set it to `"forwardAuth"` only if every client
+you use is a browser.
 
 ## Accounts
 

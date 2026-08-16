@@ -10,25 +10,9 @@
 let
   private = {
     sopsSecretsFile = builtins.toFile "secrets.yaml" ""; # unused on the eval path
-    settings = {
-      domain = "test.local";
-      acme.email = "admin@test.local";
-      smtp = {
-        host = "smtp.test.local";
-        port = 587;
-        from = "admin@test.local";
-        user = "admin@test.local";
-        tls = "starttls";
-      };
-      users.admin = {
-        email = "admin@test.local";
-        firstName = "Ada";
-        lastName = "Admin";
-        groups = [ "admin" ];
-        auth.oidc.enable = true;
-        services.radicale.enable = true;
-      };
-    };
+    # The template's own settings rather than a copy of their shape: a mock drifts from the file
+    # consumers actually start from, and then proves only that the mock still evaluates.
+    settings = import "${self}/templates/default/private/hosts/myhost/settings.nix";
   };
 
   host = nixpkgs.lib.nixosSystem {
@@ -39,7 +23,7 @@ let
       "${self}/templates/default/hosts/myhost/selfhost.nix"
       {
         boot.isContainer = true; # evaluable without real hardware/bootloader
-        system.stateVersion = "24.11";
+        system.stateVersion = "25.11";
         # Stand in for secrets.nix: the consumer normally wires these from sops; the framework only needs paths.
         selfhost.mail.passwordFile = "/run/secrets/stub";
         selfhost.ingress.acme.credentialsEnvFile = "/run/secrets/stub";

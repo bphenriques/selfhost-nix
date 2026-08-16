@@ -9,18 +9,13 @@
 let
   cfg = config.selfhost;
   app = cfg.apps.prowlarr;
+  serviceCfg = cfg.services.prowlarr;
   apiKeySecret = "prowlarr-api-key";
   exporterUnit = "prometheus-exportarr-prowlarr-exporter";
 in
 {
   options.selfhost.apps.prowlarr = {
     enable = lib.mkEnableOption "the first-party Prowlarr app (indexer manager; wiring only, no indexers)";
-
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 9696;
-      description = "Prowlarr listen port (localhost, behind ingress).";
-    };
 
     apiKeyFile = lib.mkOption {
       type = lib.types.str;
@@ -40,13 +35,14 @@ in
   config = lib.mkIf (cfg.enable && app.enable) {
     selfhost = {
       services.prowlarr = {
-        displayName = "Prowlarr";
-        meta.homepage = "https://prowlarr.com";
-        meta.description = "Indexer Manager";
+        displayName = lib.mkDefault "Prowlarr";
+        meta.homepage = lib.mkDefault "https://prowlarr.com";
+        meta.description = lib.mkDefault "Indexer Manager";
         meta.category = lib.mkDefault "downloads";
-        inherit (app) port;
+        port = lib.mkDefault 9696;
         healthcheck.path = "/ping";
-        forwardAuth.enable = lib.mkDefault cfg.auth.forwardAuth.active;
+        # The reconcile sets PROWLARR__AUTH__METHOD=External, so Prowlarr serves no login of its own.
+        access.model = "forwardAuth";
         access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
         integrations.homepage.group = lib.mkDefault "Admin";
         # No queue here (an indexer manager imports nothing) — health is the whole signal.
@@ -116,7 +112,7 @@ in
 
     services.prowlarr = {
       enable = true;
-      settings.server.port = app.port;
+      settings.server.port = serviceCfg.port;
       settings.server.bindaddress = "127.0.0.1";
       environmentFiles = [ cfg.runtimeTemplates."prowlarr.env".path ];
     };

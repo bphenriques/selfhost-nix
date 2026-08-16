@@ -46,7 +46,7 @@ let
     name = "wg-manage";
     runtimeInputs = [ pkgs.selfhost.wg-manage ];
     text = ''
-      ${lib.concatStringsSep "\n" (lib.mapAttrsToList (k: v: "export ${k}=\"${v}\"") wgEnv)}
+      ${lib.concatStringsSep "\n" (lib.mapAttrsToList (k: v: "export ${k}=${lib.escapeShellArg v}") wgEnv)}
       exec wg-manage-bin "$@"
     '';
   };
@@ -120,9 +120,11 @@ in
     lib.mkMerge [
       {
         selfhost.services.wireguard = {
-          meta.description = "VPN";
-          port = wg.listenPort;
-          ingress.enable = false;
+          displayName = lib.mkDefault "WireGuard";
+          meta.description = lib.mkDefault "VPN";
+          # No port: WireGuard is a UDP daemon with no HTTP backend, so it is neither routed nor part
+          # of the loopback port-collision check. The entry exists for its metadata and metrics.
+
           integrations.monitoring = {
             healthcheck = false;
             exporters.wireguard = {
@@ -161,11 +163,11 @@ in
           script = ''
             if [ ! -f "${serverKeyFile}" ]; then
               echo "Generating Wireguard key..."
-              wg genkey > ${serverKeyFile}
-              chmod 0600 ${serverKeyFile}
+              (umask 077; wg genkey > ${serverKeyFile})
+            fi
+            # Derived from the private key, so regenerate whenever it is missing — not only alongside it.
+            if [ ! -f "${serverPubKeyFile}" ]; then
               wg pubkey < ${serverKeyFile} > ${serverPubKeyFile}
-            else
-              echo "Wireguard key already exists."
             fi
             echo "Wireguard key ready."
           '';

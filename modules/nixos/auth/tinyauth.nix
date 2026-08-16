@@ -8,27 +8,27 @@ in
 {
   options.selfhost.auth.forwardAuth.tinyauth = {
     enable = lib.mkEnableOption "tinyauth forward-auth gateway (federates to the selfhost OIDC provider)";
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 3000;
-      description = "tinyauth listen port (localhost, behind ingress).";
-    };
   };
 
   config = lib.mkIf cfg.auth.forwardAuth.tinyauth.enable {
     selfhost = {
       services.tinyauth = {
-        meta.homepage = "https://tinyauth.app";
-        meta.description = "ForwardAuth Gateway";
+        displayName = lib.mkDefault "Tinyauth";
+        meta.homepage = lib.mkDefault "https://tinyauth.app";
+        meta.description = lib.mkDefault "ForwardAuth Gateway";
         meta.category = lib.mkDefault "identity";
-        port = cfg.auth.forwardAuth.tinyauth.port;
+        port = lib.mkDefault 3000;
         integrations.homepage.enable = false; # Transparent auth gateway, not a destination.
-        access.allowedGroups = with cfg.groups; [
-          users
-          admin
-        ];
-        oidc = {
-          enable = true;
+        # Who may pass the gateway at all: overridable, since narrowing it is the consumer's call.
+        access.allowedGroups = lib.mkDefault (
+          with cfg.groups;
+          [
+            users
+            admin
+          ]
+        );
+        access.model = "oidc";
+        access.oidc = {
           callbackURLs = [ "${serviceCfg.publicUrl}/api/oauth/callback/pocketid" ];
           systemd.dependentServices = [ "tinyauth" ];
         };
@@ -65,16 +65,18 @@ in
         OAUTH_PROVIDERS_POCKETID_USERINFOURL = "${oidcCfg.provider.issuerUrl}/api/oidc/userinfo";
         OAUTH_PROVIDERS_POCKETID_REDIRECTURL = "${serviceCfg.publicUrl}/api/oauth/callback/pocketid";
         OAUTH_PROVIDERS_POCKETID_SCOPES = "openid profile email groups";
-        OAUTH_PROVIDERS_POCKETID_CLIENTSECRETFILE = serviceCfg.oidc.secret.file; # Client ID uses placeholder (no _FILE support); secret uses native file ref
+        OAUTH_PROVIDERS_POCKETID_CLIENTSECRETFILE = serviceCfg.access.oidc.secret.file; # Client ID uses placeholder (no _FILE support); secret uses native file ref
       }
       // lib.listToAttrs (
         lib.mapAttrsToList (_: svc: {
           name = "APPS_${lib.toUpper (lib.replaceStrings [ "-" ] [ "_" ] svc.subdomain)}_OAUTH_GROUPS";
           value = lib.concatStringsSep "," svc.access.allowedGroups;
-        }) (lib.filterAttrs (_: s: s.forwardAuth.enable) cfg.services)
+          # Empty allowedGroups means unrestricted, which is the absent key — emitting "" would ask
+          # tinyauth to match a group nobody has.
+        }) (lib.filterAttrs (_: s: s.access.model == "forwardAuth" && s.access.allowedGroups != [ ]) cfg.services)
       );
     };
 
-    systemd.services.tinyauth.serviceConfig.SupplementaryGroups = serviceCfg.oidc.systemd.supplementaryGroups;
+    systemd.services.tinyauth.serviceConfig.SupplementaryGroups = serviceCfg.access.oidc.systemd.supplementaryGroups;
   };
 }

@@ -40,7 +40,7 @@ For the curious, after most Flake ceremonies, it will resemble something like th
     services.miniflux = {
       port = 8081;
       healthcheck.path = "/healthcheck";
-      oidc.enable = true;
+      access.model = "oidc";
       integrations.homepage.enable = true;
       integrations.monitoring.enable = true;
     };

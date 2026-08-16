@@ -44,6 +44,7 @@ in
   options.selfhost.dashboards.generatedTiles = lib.mkOption {
     type = lib.types.attrsOf (lib.types.listOf lib.types.anything);
     default = tilesByGroup;
+    defaultText = lib.literalMD "derived from services and externals that opt into `integrations.homepage`";
     readOnly = true;
     description = "Service/external tiles keyed by `integrations.homepage.group` (read-only). The bundled `apps.homepage` renders these; otherwise read them into a dashboard you own and decide tabs/layout.";
   };

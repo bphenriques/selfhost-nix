@@ -34,7 +34,7 @@ pkgs.testers.runNixOSTest {
         };
       };
       # Gate the hello backend at the edge.
-      services.hello.forwardAuth.enable = true;
+      services.hello.access.model = "forwardAuth";
     };
   };
 

@@ -63,7 +63,9 @@ in
         port = lib.mkDefault 5232;
         subdomain = lib.mkDefault "radicale";
         access.allowedGroups = lib.mkDefault [ config.selfhost.groups.admin ];
-        forwardAuth.enable = lib.mkDefault config.selfhost.auth.forwardAuth.active; # follows the gateway being active
+        # htpasswd protects every endpoint, but only the gateway can enforce allowedGroups, so the web
+        # route rides it. The dav route below stays on htpasswd for sync clients that cannot.
+        access.model = "forwardAuth";
         integrations.homepage.group = lib.mkDefault "Admin";
         healthcheck.path = "/.web/";
         healthcheck.probeModule = "http_any"; # Radicale requires htpasswd auth on all endpoints; 401 confirms it is up
@@ -81,16 +83,19 @@ in
         };
       };
 
-      # CalDAV/CardDAV sync endpoint without forwardAuth — clients use Radicale's own htpasswd auth.
-      # .well-known redirects (RFC 6764) let DAVx5 and others auto-discover the server.
-      services.traefik.dynamicConfigOptions.http = {
-        routers.radicale-dav = {
-          rule = "Host(`dav.${config.selfhost.ingress.domain}`)";
-          entryPoints = [ "websecure" ];
-          service = "radicale-svc";
-          middlewares = [ "radicale-wellknown" ];
-        };
-        middlewares.radicale-wellknown.redirectRegex = {
+      # Sync clients authenticate against Radicale's own htpasswd, so this endpoint needs no gateway and
+      # must stay up even when the web route is withheld for want of one. A second entry onto the same
+      # backend, so it gets routing and host-uniqueness like anything else (its healthcheck is the
+      # owner's, since the probe targets the backend they share).
+      selfhost.services.radicale-dav = {
+        displayName = lib.mkDefault "Radicale (DAV)";
+        meta.description = lib.mkDefault "CalDAV & CardDAV sync endpoint";
+        backend = "radicale";
+        subdomain = lib.mkDefault "dav";
+        access.model = "native"; # htpasswd, which is what DAV clients can actually do
+        integrations.homepage.enable = false; # a sync endpoint, not a destination
+        # .well-known redirects (RFC 6764) let DAVx5 and others auto-discover the server.
+        traefik.middlewares.radicale-wellknown.redirectRegex = {
           regex = "^(https?://[^/]+)/\\.well-known/(caldav|carddav)/?$"; # Traefik matches the full URL, not the path
           replacement = "\${1}/";
           permanent = false;

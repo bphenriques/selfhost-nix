@@ -10,12 +10,10 @@ let
   mkPlaceholder = field: "@HOMELAB_OIDC_${name}_${field}@";
 in
 {
-  options.oidc = lib.mkOption {
+  options.access.oidc = lib.mkOption {
     type = lib.types.submodule (
       { config, ... }: {
         options = {
-          enable = lib.mkEnableOption "OIDC client for this service";
-
           id = {
             file = lib.mkOption {
               type = lib.types.str;
@@ -108,6 +106,6 @@ in
       }
     );
     default = { };
-    description = "OIDC client configuration for this service";
+    description = "OIDC client configuration, provisioned when `access.model = \"oidc\"`.";
   };
 }

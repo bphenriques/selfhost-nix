@@ -20,6 +20,7 @@ in
       meta.description = lib.mkDefault "PDF Toolkit";
       meta.category = lib.mkDefault "productivity";
       port = lib.mkDefault 8092;
+      access.model = "open"; # a client-side PDF toolkit with nothing to protect
     };
 
     systemd.services.bentopdf = {

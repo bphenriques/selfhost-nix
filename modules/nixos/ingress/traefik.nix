@@ -7,7 +7,8 @@ let
     rule = "Host(`${host}`)";
     entryPoints = [ "websecure" ];
     service = "${service.name}-svc";
-    middlewares = lib.optionals service.forwardAuth.enable [ "forwardAuth" ] ++ lib.attrNames service.traefik.middlewares;
+    middlewares =
+      lib.optionals (service.access.model == "forwardAuth") [ "forwardAuth" ] ++ lib.attrNames service.traefik.middlewares;
   };
 
   mkTraefikRoute = service: {
@@ -58,14 +59,22 @@ in
 
     assertions =
       let
-        forwardAuthServices = lib.filter (s: s.forwardAuth.enable && s.ingress.enable) (lib.attrValues cfg.services);
+        forwardAuthServices = lib.filter (s: s.access.model == "forwardAuth" && s.ingress.enable) (lib.attrValues cfg.services);
       in
       [
         {
+          # The wildcard TLS SANs below interpolate the domain, so without one Traefik fails as a raw
+          # coercion error rather than saying what is missing.
+          assertion = ingressCfg.domain != null;
+          message = "selfhost.ingress.traefik.enable requires selfhost.ingress.domain, which is unset.";
+        }
+        {
+          # These are routed only because someone set ingress.enable explicitly: the registry otherwise
+          # leaves an access.model = "forwardAuth" service unrouted until a provider exists.
           assertion = forwardAuthServices == [ ] || cfg.auth.forwardAuth.active;
-          message = "Services enable forwardAuth but no forward-auth provider is active (selfhost.auth.forwardAuth.url is unset): ${
+          message = "Services set access.model = \"forwardAuth\" and are routed, but no forward-auth provider is active (selfhost.auth.forwardAuth.url is unset): ${
             lib.concatMapStringsSep ", " (s: s.name) forwardAuthServices
-          }. Traefik would silently skip auth for these services.";
+          }. Traefik would serve them with no authentication at all.";
         }
       ];
 
@@ -154,7 +163,7 @@ in
         (
           routes:
           routes
-          ++ lib.optional (cfg.auth.forwardAuth.url != null) {
+          ++ lib.optional cfg.auth.forwardAuth.active {
             http.middlewares.forwardAuth.forwardAuth = {
               address = "${cfg.auth.forwardAuth.url}${cfg.auth.forwardAuth.path}";
               trustForwardHeader = true;

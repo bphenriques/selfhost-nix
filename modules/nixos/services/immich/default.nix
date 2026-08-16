@@ -57,8 +57,9 @@ in
         meta.category = lib.mkDefault "media";
         port = lib.mkDefault 2283;
         healthcheck.path = "/api/server/ping";
-        oidc = {
-          enable = lib.mkDefault config.selfhost.auth.oidc.active;
+        # Immich has its own login, so it federates only when a provider exists.
+        access.model = lib.mkDefault (if config.selfhost.auth.oidc.active then "oidc" else "native");
+        access.oidc = {
           callbackURLs = lib.mkDefault [
             "${serviceCfg.publicUrl}/auth/login"
             "${serviceCfg.publicUrl}/user-settings"
@@ -83,12 +84,12 @@ in
       settings = {
         server.externalDomain = lib.mkDefault serviceCfg.publicUrl;
       }
-      // lib.optionalAttrs serviceCfg.oidc.enable {
+      // lib.optionalAttrs (serviceCfg.access.model == "oidc") {
         oauth = {
           enabled = true;
           inherit (oidcCfg.provider) issuerUrl;
-          clientId._secret = serviceCfg.oidc.id.file;
-          clientSecret._secret = serviceCfg.oidc.secret.file;
+          clientId._secret = serviceCfg.access.oidc.id.file;
+          clientSecret._secret = serviceCfg.access.oidc.secret.file;
           scope = lib.mkDefault "openid email profile";
           signingAlgorithm = lib.mkDefault "RS256";
           buttonText = lib.mkDefault "Login with ${oidcCfg.provider.displayName}";
@@ -103,8 +104,8 @@ in
       # Immich writes sidecars and thumbnails beside the originals it imports.
       ReadWritePaths = importPaths;
     }
-    // lib.optionalAttrs serviceCfg.oidc.enable {
-      SupplementaryGroups = serviceCfg.oidc.systemd.supplementaryGroups;
+    // lib.optionalAttrs (serviceCfg.access.model == "oidc") {
+      SupplementaryGroups = serviceCfg.access.oidc.systemd.supplementaryGroups;
     };
 
     systemd.services.immich-configure = {

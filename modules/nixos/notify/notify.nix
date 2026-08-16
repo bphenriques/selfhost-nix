@@ -1,6 +1,7 @@
 {
   lib,
   config,
+  options,
   pkgs,
   ...
 }:
@@ -12,31 +13,34 @@ let
     _: task: task.integrations.notify.enable && task.systemdServices != [ ]
   ) config.selfhost.tasks;
 
-  notifyFailureScript = pkgs.writeShellScript "task-notify-failure" ''
-    if [ "''${SERVICE_RESULT:-}" != "success" ]; then
-      ${sendNotification} --topic "$NOTIFY_TOPIC" --title "Task Failed" \
-        --message "$1 failed (''${SERVICE_RESULT:-unknown})" --priority high --tags x || true
-    fi
-  '';
+  # `OnFailure` rather than an `ExecStopPost` hook, so this fires when systemd gives up rather than on
+  # every failed attempt: a unit with `Restart=on-failure` only reaches the failed state once its start
+  # limit is exhausted. A unit that does not restart still alerts on its first failure, as it should.
+  # One notifier per task (its topic and token differ), instanced by `%n` so the message names the unit.
+  notifierUnit = taskName: "homelab-notify-failure-${taskName}@";
+
+  mkNotifier =
+    taskName: task:
+    lib.nameValuePair (notifierUnit taskName) {
+      description = "Notify that %i failed";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = ''
+          ${sendNotification} --topic ${lib.escapeShellArg task.integrations.notify.topic} \
+            --title "Task Failed" --message "%i failed" --priority high --tags x
+        '';
+        LoadCredential = [ "notify-token:${task.integrations.notify.tokenFile}" ];
+      };
+      environment = {
+        NOTIFY_URL = notifyCfg.url;
+        NOTIFY_TOKEN_FILE = "%d/notify-token";
+      };
+    };
 
   mkFailureOverrides =
-    _: task:
-    let
-      inherit (task.integrations) notify;
-      env = {
-        NOTIFY_URL = notifyCfg.url;
-        NOTIFY_TOPIC = notify.topic;
-        NOTIFY_TOKEN_FILE = notify.tokenFile;
-      };
-    in
+    taskName: task:
     lib.listToAttrs (
-      map (
-        svc:
-        lib.nameValuePair svc {
-          environment = env;
-          serviceConfig.ExecStopPost = lib.mkAfter [ "${notifyFailureScript} ${svc}" ];
-        }
-      ) task.systemdServices
+      map (svc: lib.nameValuePair svc { onFailure = [ "${notifierUnit taskName}%n.service" ]; }) task.systemdServices
     );
 in
 {
@@ -44,8 +48,8 @@ in
     active = lib.mkOption {
       type = lib.types.bool;
       readOnly = true;
-      default = config.selfhost.notify.url != null;
-      defaultText = lib.literalMD "true once a provider sets `url`";
+      default = options.selfhost.notify.url.isDefined;
+      defaultText = lib.literalMD "true once a provider defines `url`";
       description = "Whether a notify provider is active. Compose service defaults against this.";
     };
 
@@ -64,9 +68,8 @@ in
     };
 
     url = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      description = "Base URL of the notification endpoint, set by the active notify provider and consumed by send-notification (NOTIFY_URL); null = no provider active.";
+      type = lib.types.str;
+      description = "Base URL of the notification endpoint, set by the active notify provider and consumed by send-notification (NOTIFY_URL). Left undefined until one is, which is what `active` reads.";
     };
 
     provisioningUnit = lib.mkOption {
@@ -99,6 +102,8 @@ in
         }
       ];
 
-    systemd.services = lib.mkMerge (lib.attrValues (lib.mapAttrs mkFailureOverrides tasksWithNotify));
+    systemd.services = lib.mkMerge (
+      lib.attrValues (lib.mapAttrs mkFailureOverrides tasksWithNotify) ++ [ (lib.mapAttrs' mkNotifier tasksWithNotify) ]
+    );
   };
 }

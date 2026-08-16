@@ -5,5 +5,7 @@ pkgs.mkShellNoCC {
 
   packages = [
     pkgs.git
+    pkgs.mdbook # `mdbook serve docs`, per the docs chapter
+    pkgs.nushell # the reconcilers under modules/nixos/services/*/ are .nu scripts
   ];
 }

@@ -1,4 +1,9 @@
-{ lib, config, ... }:
+{
+  lib,
+  config,
+  options,
+  ...
+}:
 let
   selfhostCfg = config.selfhost;
   cfg = selfhostCfg.auth.oidc;
@@ -6,9 +11,9 @@ let
   # boot → drift. Persisting (rotate-when-missing keeps the file) makes them stable; rotation is deliberate.
   credentialsBaseDir = "/var/lib/homelab-oidc";
 
-  oidcServices = lib.filterAttrs (_: svc: svc.oidc.enable) selfhostCfg.services;
+  oidcServices = lib.filterAttrs (_: svc: svc.access.model == "oidc") selfhostCfg.services;
 
-  derivedClients = lib.mapAttrs (_: svc: svc.oidc // { inherit (svc.access) allowedGroups; }) oidcServices;
+  derivedClients = lib.mapAttrs (_: svc: svc.access.oidc // { inherit (svc.access) allowedGroups; }) oidcServices;
 
   enabledUsers = lib.filterAttrs (_: u: u.auth.oidc.enable) selfhostCfg.users;
 
@@ -20,8 +25,10 @@ in
   options.selfhost.auth.oidc = {
     active = lib.mkOption {
       type = lib.types.bool;
-      default = false;
-      description = "Whether an OIDC provider is active, set by the active provider. Compose service defaults against this.";
+      readOnly = true;
+      default = options.selfhost.auth.oidc.provider.issuerUrl.isDefined;
+      defaultText = lib.literalMD "true once a provider defines `provider.issuerUrl`";
+      description = "Whether an OIDC provider is active. Compose service defaults against this.";
     };
 
     provider = {
@@ -37,7 +44,7 @@ in
 
       issuerUrl = lib.mkOption {
         type = lib.types.str;
-        description = "OIDC issuer URL (e.g. https://auth.example.com)";
+        description = "OIDC issuer URL (e.g. https://auth.example.com). Left undefined until a provider sets it, which is what `active` reads.";
       };
 
       discoveryUrl = lib.mkOption {

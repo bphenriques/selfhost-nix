@@ -12,43 +12,21 @@ let
   mountUnit = mountCfg: "${utils.escapeSystemdPath mountCfg.localMount}.mount";
   automountUnit = mountCfg: "${utils.escapeSystemdPath mountCfg.localMount}.automount";
 
-  # Resolve which systemd units a service needs for its storage mounts.
-  # Priority: explicit storage.systemdServices > OCI container auto-detect > service name.
-  ociContainers = config.virtualisation.oci-containers.containers or { };
-  ociBackend = config.virtualisation.oci-containers.backend or "podman";
+  # Services and tasks are the same shape here: both name the units they own, and both want their
+  # shares' automount guards started first.
+  entriesWithStorage = lib.filter (e: e.storage.mounts != [ ]) (
+    lib.attrValues selfhostCfg.services ++ lib.attrValues selfhostCfg.tasks
+  );
 
-  resolveServiceUnits =
-    svc:
-    if svc.storage.systemdServices != [ ] then
-      svc.storage.systemdServices
-    else if ociContainers ? ${svc.name} then
-      [ "${ociBackend}-${svc.name}" ]
-    else
-      [ svc.name ];
-
-  servicesWithStorage = lib.filter (svc: svc.storage.mounts != [ ]) (lib.attrValues selfhostCfg.services);
-  tasksWithStorage = lib.filter (task: task.storage.mounts != [ ]) (lib.attrValues selfhostCfg.tasks);
-
-  serviceMountDeps = lib.foldl' (
-    acc: svc:
-    let
-      units = resolveServiceUnits svc;
-    in
-    lib.foldl' (acc2: mountName: acc2 // { ${mountName} = (acc2.${mountName} or [ ]) ++ units; }) acc svc.storage.mounts
-  ) { } servicesWithStorage;
-
-  taskMountDeps = lib.foldl' (
-    acc: task:
+  mountDeps = lib.foldl' (
+    acc: entry:
     lib.foldl' (
-      acc2: mountName: acc2 // { ${mountName} = (acc2.${mountName} or [ ]) ++ task.systemdServices; }
-    ) acc task.storage.mounts
-  ) { } tasksWithStorage;
+      acc2: mountName: acc2 // { ${mountName} = (acc2.${mountName} or [ ]) ++ entry.systemdServices; }
+    ) acc entry.storage.mounts
+  ) { } entriesWithStorage;
 
   allDependentUnits =
-    mountName: mountCfg:
-    lib.unique (
-      mountCfg.systemd.dependentServices ++ (serviceMountDeps.${mountName} or [ ]) ++ (taskMountDeps.${mountName} or [ ])
-    );
+    mountName: mountCfg: lib.unique (mountCfg.systemd.dependentServices ++ (mountDeps.${mountName} or [ ]));
 
   smbMountCfg = lib.types.submodule (
     { name, config, ... }: {
@@ -120,14 +98,6 @@ in
         dupGids = lib.filter (gid: lib.count (g: g == gid) allGids > 1) (lib.unique allGids);
         allLocalMounts = lib.mapAttrsToList (_: m: m.localMount) cfg.shares;
         dupLocalMounts = lib.filter (path: lib.count (p: p == path) allLocalMounts > 1) (lib.unique allLocalMounts);
-
-        allResolvedUnits =
-          lib.concatMap resolveServiceUnits servicesWithStorage ++ lib.concatMap (task: task.systemdServices) tasksWithStorage;
-        missingUnits = lib.filter (unit: !(config.systemd.services ? ${unit})) allResolvedUnits;
-
-        tasksMissingUnits = lib.filter (task: task.storage.mounts != [ ] && task.systemdServices == [ ]) (
-          lib.attrValues selfhostCfg.tasks
-        );
       in
       [
         {
@@ -141,16 +111,6 @@ in
         {
           assertion = !lib.elem "/" allLocalMounts;
           message = "Homelab mounts cannot use / as a local path";
-        }
-        {
-          assertion = missingUnits == [ ];
-          message = "Storage mount wiring references unknown systemd units: ${lib.concatStringsSep ", " missingUnits}. Set storage.systemdServices explicitly if the unit name differs from the service name.";
-        }
-        {
-          assertion = tasksMissingUnits == [ ];
-          message = "Tasks with storage.mounts must declare systemdServices: ${
-            lib.concatMapStringsSep ", " (t: t.name) tasksMissingUnits
-          }";
         }
       ];
 

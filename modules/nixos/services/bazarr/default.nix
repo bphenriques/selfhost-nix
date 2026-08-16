@@ -54,39 +54,48 @@ let
     )
   );
 
-  arrLinkModule = displayName: defaultPort: {
-    options = {
-      host = lib.mkOption {
-        type = lib.types.str;
-        default = "127.0.0.1";
-        description = "${displayName} host reachable from Bazarr.";
+  # When the matching first-party *arr runs here, its registry entry and generated key already hold
+  # these values, so read them back rather than asking for them twice. A remote *arr still spells
+  # them out, which is the only case where they aren't already known.
+  arrLinkModule = name: displayName: fallbackPort: {
+    options =
+      let
+        local = cfg.apps.${name}.enable;
+      in
+      {
+        host = lib.mkOption {
+          type = lib.types.str;
+          default = if local then cfg.services.${name}.host else "127.0.0.1";
+          defaultText = lib.literalMD "the local ${displayName}'s host when `apps.${name}.enable`";
+          description = "${displayName} host reachable from Bazarr.";
+        };
+        port = lib.mkOption {
+          type = lib.types.port;
+          default = if local then cfg.services.${name}.port else fallbackPort;
+          defaultText = lib.literalMD "the local ${displayName}'s port when `apps.${name}.enable`";
+          description = "${displayName} port.";
+        };
+        baseUrl = lib.mkOption {
+          type = lib.types.str;
+          default = "/";
+          description = "${displayName} URL base.";
+        };
+        apiKeyFile = lib.mkOption {
+          type = lib.types.str;
+          default =
+            if local then
+              cfg.apps.${name}.apiKeyFile
+            else
+              throw "selfhost.apps.bazarr.${name}.apiKeyFile must be set: apps.${name} does not run here, so its key is not ours to know.";
+          defaultText = lib.literalMD "the local ${displayName}'s generated API key when `apps.${name}.enable`";
+          description = "Path to ${displayName}'s API key.";
+        };
       };
-      port = lib.mkOption {
-        type = lib.types.port;
-        default = defaultPort;
-        description = "${displayName} port.";
-      };
-      baseUrl = lib.mkOption {
-        type = lib.types.str;
-        default = "/";
-        description = "${displayName} URL base.";
-      };
-      apiKeyFile = lib.mkOption {
-        type = lib.types.str;
-        description = "Path to ${displayName}'s API key — typically `apps.${lib.toLower displayName}.apiKeyFile`.";
-      };
-    };
   };
 in
 {
   options.selfhost.apps.bazarr = {
     enable = lib.mkEnableOption "the first-party Bazarr app (subtitle automation; wiring + reconcile, no providers)";
-
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 6767;
-      description = "Bazarr listen port (localhost, behind ingress).";
-    };
 
     exporterPort = lib.mkOption {
       type = lib.types.port;
@@ -109,13 +118,13 @@ in
     };
 
     sonarr = lib.mkOption {
-      type = lib.types.nullOr (lib.types.submodule (arrLinkModule "Sonarr" 8989));
+      type = lib.types.nullOr (lib.types.submodule (arrLinkModule "sonarr" "Sonarr" 8989));
       default = null;
       description = "Sonarr to pull the series library from. Null = Bazarr handles no TV.";
     };
 
     radarr = lib.mkOption {
-      type = lib.types.nullOr (lib.types.submodule (arrLinkModule "Radarr" 7878));
+      type = lib.types.nullOr (lib.types.submodule (arrLinkModule "radarr" "Radarr" 7878));
       default = null;
       description = "Radarr to pull the movie library from. Null = Bazarr handles no movies.";
     };
@@ -201,9 +210,9 @@ in
         meta.homepage = lib.mkDefault "https://www.bazarr.media";
         meta.description = lib.mkDefault "Subtitles";
         meta.category = lib.mkDefault "downloads";
-        inherit (app) port;
+        port = lib.mkDefault 6767;
         healthcheck.path = "/api/system/ping";
-        forwardAuth.enable = lib.mkDefault cfg.auth.forwardAuth.active;
+        access.model = "forwardAuth"; # Bazarr ships no login of its own
         access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
         integrations.homepage.icon = lib.mkDefault "bazarr.svg";
         integrations.monitoring = {
@@ -286,7 +295,7 @@ in
 
     services.bazarr = {
       enable = true;
-      listenPort = app.port;
+      listenPort = serviceCfg.port;
       inherit (app) dataDir;
     };
 

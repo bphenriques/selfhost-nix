@@ -6,19 +6,17 @@ let
   inherit (pkgs) lib;
   cfg = evalConfig {
     selfhost = {
-      notify.topics.admin = { };
       auth.oidc = {
         systemd.clientProvisionUnitPrefix = "test-provision-"; # a provider normally sets this
         rotation = {
           enable = true;
           schedule = "monthly";
-          notifyTopic = "admin";
         };
       };
       # A service with an OIDC client gives rotation something to rotate.
       services.app = {
         port = 8081;
-        oidc.enable = true;
+        access.model = "oidc";
       };
     };
   };
@@ -29,7 +27,10 @@ assert lib.assertMsg (
   cfg.systemd.timers.oidc-rotate.timerConfig.OnCalendar == "monthly"
 ) "rotation schedule not wired to the timer";
 assert lib.assertMsg (cfg.selfhost.tasks ? oidc-rotate) "rotation failure-notify task missing";
+# Self-registered and defaulted, like oidc-provision: a silent rotation failure leaves clients holding
+# secrets the provider no longer accepts.
+assert lib.assertMsg (cfg.selfhost.notify.topics ? homelab-rotation) "rotation should register its own notify topic";
 assert lib.assertMsg (
-  cfg.selfhost.tasks.oidc-rotate.integrations.notify.topic == "admin"
+  cfg.selfhost.tasks.oidc-rotate.integrations.notify.topic == "homelab-rotation"
 ) "rotation notify topic not wired";
 pkgs.runCommand "selfhost-oidc-rotation-eval" { } "touch $out"

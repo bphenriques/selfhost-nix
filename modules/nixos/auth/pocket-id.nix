@@ -10,7 +10,7 @@ let
   serviceCfg = config.selfhost.services.pocket-id;
   oidcCfg = config.selfhost.auth.oidc;
   smtpCfg = config.selfhost.mail;
-  port = cfg.auth.oidc.pocket-id.port;
+
   baseServiceName = "pocket-id-provision-base";
 
   usersConfigFile = pkgs.writeText "oidc-provision-users-config.json" (
@@ -67,26 +67,20 @@ in
 {
   options.selfhost.auth.oidc.pocket-id = {
     enable = lib.mkEnableOption "Pocket-ID OIDC implementation";
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 8094;
-      description = "Pocket-ID listen port (localhost, behind ingress).";
-    };
   };
 
   config = lib.mkIf cfg.auth.oidc.pocket-id.enable {
     selfhost = {
       services.pocket-id = {
-        displayName = "Pocket ID";
-        meta.homepage = "https://pocket-id.org";
-        meta.description = "OIDC Provider";
+        displayName = lib.mkDefault "Pocket ID";
+        meta.homepage = lib.mkDefault "https://pocket-id.org";
+        meta.description = lib.mkDefault "OIDC Provider";
         meta.category = lib.mkDefault "identity";
-        subdomain = "auth";
-        inherit port;
+        subdomain = lib.mkDefault "auth";
+        port = lib.mkDefault 8094;
         healthcheck.path = "/health";
       };
 
-      auth.oidc.active = true;
       auth.oidc.provider = {
         displayName = "Pocket-ID";
         internalName = "PocketID";
@@ -132,7 +126,7 @@ in
       enable = true;
       settings = {
         APP_URL = serviceCfg.publicUrl;
-        PORT = port;
+        PORT = serviceCfg.port;
         HOST = "127.0.0.1";
         TRUST_PROXY = true;
         ANALYTICS_DISABLED = true;

@@ -44,10 +44,9 @@ in
         port = lib.mkDefault 8081;
         access.allowedGroups = lib.mkDefault [ config.selfhost.groups.admin ];
         healthcheck.path = "/healthcheck";
-        oidc = {
-          enable = true;
-          systemd.dependentServices = [ "miniflux" ];
-        };
+        # Miniflux keeps its local admin either way, so it federates only where a provider exists.
+        access.model = lib.mkDefault (if oidcCfg.active then "oidc" else "native");
+        access.oidc.systemd.dependentServices = [ "miniflux" ];
       };
 
       # Bootstrap admin: auto-generated random password (root-readable), rarely used since login is OIDC.
@@ -75,18 +74,21 @@ in
         RUN_MIGRATIONS = true;
         CREATE_ADMIN = true;
         DISABLE_LOCAL_AUTH = 0; # keep the local admin able to log in alongside OIDC
-
+      }
+      // lib.optionalAttrs (serviceCfg.access.model == "oidc") {
         OAUTH2_USER_CREATION = 1;
         OAUTH2_PROVIDER = "oidc";
-        OAUTH2_REDIRECT_URL = builtins.head serviceCfg.oidc.callbackURLs;
+        OAUTH2_REDIRECT_URL = builtins.head serviceCfg.access.oidc.callbackURLs;
         OAUTH2_OIDC_DISCOVERY_ENDPOINT = oidcCfg.provider.issuerUrl;
         OAUTH2_OIDC_PROVIDER_NAME = oidcCfg.provider.displayName;
-        OAUTH2_CLIENT_ID_FILE = serviceCfg.oidc.id.file;
-        OAUTH2_CLIENT_SECRET_FILE = serviceCfg.oidc.secret.file;
+        OAUTH2_CLIENT_ID_FILE = serviceCfg.access.oidc.id.file;
+        OAUTH2_CLIENT_SECRET_FILE = serviceCfg.access.oidc.secret.file;
       };
     };
 
-    systemd.services.miniflux.serviceConfig.SupplementaryGroups = serviceCfg.oidc.systemd.supplementaryGroups;
+    systemd.services.miniflux.serviceConfig.SupplementaryGroups = lib.optionals (
+      serviceCfg.access.model == "oidc"
+    ) serviceCfg.access.oidc.systemd.supplementaryGroups;
     systemd.services.miniflux-dbsetup.serviceConfig.RemainAfterExit = true; # oneshot must stay active to satisfy start-limit
 
     systemd.services.miniflux-configure = {

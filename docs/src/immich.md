@@ -33,7 +33,7 @@ moves the existing account.
 `passwordFile` is a bootstrap credential: applied when the account is created and never reconciled, so a
 password changed in the app survives. An account given one is asked to change it on first login.
 Accounts without a `passwordFile` get a random password, which is the right default when sign-in is
-through OIDC. Without an OIDC provider the service's `oidc.enable` composes to false, and each account
+through OIDC. Without an OIDC provider the service's `access.model` composes to `native`, and each account
 needs a `passwordFile` to be reachable.
 
 OIDC only authenticates. `autoRegister` is off, so an OIDC login lands on an account that

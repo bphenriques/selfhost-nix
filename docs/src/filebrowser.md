@@ -34,3 +34,9 @@ On a selfhost host, `selfhost.apps.filebrowser.enable` runs the app (and the bas
 `enableSelfhostIntegration` (default on) exposes a per-user opt-in at `selfhost.users.<name>.services.filebrowser`:
 SMB `storage` grants (`ro`/`rw`) assembled into the user's scope, with the service registered behind the
 active forwardAuth. Turn it off to wire users, storage, and auth yourself.
+
+Being the host, the adapter also does the arranging the base deliberately won't. It creates each enabled
+user's scope, so a user with no grants yet gets an empty view instead of failing startup for everyone, and
+points `unlistedScope` at an empty, unwritable directory so an authenticated name it doesn't know reaches
+nothing. Since proxy auth means the app has no login of its own, the route follows the gateway: with no
+active forwardAuth provider the service stays on localhost rather than trusting a header nobody sets.

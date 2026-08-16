@@ -212,7 +212,9 @@ let
       path = lib.mkOption {
         type = lib.types.str;
         default = "${secretsDir}/${name}";
+        defaultText = lib.literalMD "`${secretsDir}/<name>`";
         readOnly = true;
+        description = "Where this secret is generated; read it to feed a consumer that wants a file path.";
       };
       restartUnits = lib.mkOption {
         type = lib.types.listOf lib.types.str;
@@ -303,8 +305,14 @@ in
       type = lib.types.attrsOf (
         lib.types.submodule {
           options = {
-            id = lib.mkOption { type = lib.types.str; };
-            secret = lib.mkOption { type = lib.types.str; };
+            id = lib.mkOption {
+              type = lib.types.str;
+              description = "Placeholder standing in for this client's OIDC client ID.";
+            };
+            secret = lib.mkOption {
+              type = lib.types.str;
+              description = "Placeholder standing in for this client's OIDC client secret.";
+            };
           };
         }
       );

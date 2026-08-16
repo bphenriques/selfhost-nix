@@ -35,7 +35,9 @@ in
       port = lib.mkDefault 9091;
       healthcheck.path = "/transmission/web/";
       access.allowedGroups = lib.mkDefault [ config.selfhost.groups.admin ];
-      forwardAuth.enable = lib.mkDefault config.selfhost.auth.forwardAuth.active; # follows the gateway being active
+      # rpc-bind-address below is localhost-only and no RPC auth is set, so the gateway is the only
+      # thing standing in front of it.
+      access.model = "forwardAuth";
       # Sane default topic when one exists; consumers with a different taxonomy override it.
       integrations.notify.topic = lib.mkDefault (if notifyCfg.topics ? "downloads" then "downloads" else null);
     };

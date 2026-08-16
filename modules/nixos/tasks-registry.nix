@@ -14,8 +14,9 @@ let
 
         systemdServices = lib.mkOption {
           type = lib.types.coercedTo lib.types.str (s: [ s ]) (lib.types.listOf lib.types.str);
-          default = [ ];
-          description = "Systemd units this task owns; selfhost concerns attach to them.";
+          default = [ name ];
+          defaultText = lib.literalMD "`<name>`";
+          description = "Systemd units this task owns; selfhost concerns attach to them (storage automount guards, failure notifications). Names are trusted, not checked.";
         };
       };
     };
@@ -30,7 +31,7 @@ in
         modules = [
           baseTaskModule
           ./schemas/notify.nix
-          ./schemas/task-storage.nix
+          ./schemas/storage.nix
         ];
       }
     );

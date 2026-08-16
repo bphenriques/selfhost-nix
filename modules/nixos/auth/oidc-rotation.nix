@@ -46,11 +46,6 @@ in
       description = "systemd OnCalendar expression for the rotation timer (default: weekly, Sunday 03:00).";
     };
 
-    notifyTopic = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      description = "selfhost.notify topic to alert on if a scheduled rotation fails (null = no alert).";
-    };
   };
 
   config = lib.mkMerge [
@@ -77,10 +72,13 @@ in
         };
       };
 
-      # Alert on failure via the notify integration (notify/notify.nix attaches the failure hook to this task's unit).
+      # Alert on failure via the notify integration (notify/notify.nix attaches the failure hook to this
+      # task's unit). Self-registered and defaulted like oidc-provision: a rotation that fails silently
+      # leaves clients holding secrets the provider no longer accepts.
+      selfhost.notify.topics."homelab-rotation".public = lib.mkDefault false;
       selfhost.tasks.oidc-rotate = {
         systemdServices = [ "oidc-rotate" ];
-        integrations.notify.topic = cfg.notifyTopic;
+        integrations.notify.topic = lib.mkDefault "homelab-rotation";
       };
     })
   ];

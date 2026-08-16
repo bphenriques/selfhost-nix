@@ -111,8 +111,9 @@ in
         port = lib.mkDefault 3100;
         subdomain = lib.mkDefault "git";
         access.allowedGroups = lib.mkDefault [ config.selfhost.groups.admin ];
-        oidc = {
-          enable = true;
+        # Gitea keeps a break-glass local admin, so it federates only where a provider exists.
+        access.model = lib.mkDefault (if oidcCfg.active then "oidc" else "native");
+        access.oidc = {
           callbackURLs = [ "${serviceCfg.publicUrl}/user/oauth2/${oidcCfg.provider.internalName}/callback" ];
           systemd.dependentServices = [
             "gitea"
@@ -193,13 +194,13 @@ in
     # Provision the OIDC source into the DB before the server registers providers (after nixpkgs' preStart).
     # Non-fatal: gitea's server fail-soft-skips an unreachable source (first boot before the cert), so we
     # mustn't be stricter — let it start; the next start provisions.
-    systemd.services.gitea = {
-      serviceConfig.SupplementaryGroups = serviceCfg.oidc.systemd.supplementaryGroups;
+    systemd.services.gitea = lib.mkIf (serviceCfg.access.model == "oidc") {
+      serviceConfig.SupplementaryGroups = serviceCfg.access.oidc.systemd.supplementaryGroups;
       environment = {
         OIDC_PROVIDER_NAME = oidcCfg.provider.internalName;
         OIDC_DISCOVERY_URL = oidcCfg.provider.discoveryUrl;
-        OIDC_CLIENT_ID_FILE = serviceCfg.oidc.id.file;
-        OIDC_CLIENT_SECRET_FILE = serviceCfg.oidc.secret.file;
+        OIDC_CLIENT_ID_FILE = serviceCfg.access.oidc.id.file;
+        OIDC_CLIENT_SECRET_FILE = serviceCfg.access.oidc.secret.file;
       };
       preStart = lib.mkAfter ''
         ${lib.getExe gitea-oidc-source} || echo "gitea-oidc-source: OIDC provider unreachable; starting without the source (will retry next start)"
@@ -227,7 +228,9 @@ in
         User = config.services.gitea.user;
         Group = config.services.gitea.group;
         WorkingDirectory = config.services.gitea.stateDir;
-        SupplementaryGroups = serviceCfg.oidc.systemd.supplementaryGroups;
+        SupplementaryGroups = lib.optionals (
+          serviceCfg.access.model == "oidc"
+        ) serviceCfg.access.oidc.systemd.supplementaryGroups;
       };
       environment = {
         GITEA_URL = serviceCfg.url;

@@ -18,7 +18,7 @@ pkgs.testers.runNixOSTest {
           lastName = "Guest";
           groups = [ config.selfhost.groups.users ];
           auth.oidc.enable = false;
-          # no apps.radicale.enable → must be absent from the htpasswd
+          # no services.radicale.enable → must be absent from the htpasswd
         };
 
         runtimeSecrets."radicale-password-admin".regenerateIfMissing = lib.mkForce true;

@@ -161,8 +161,8 @@ in
         meta.category = lib.mkDefault "media";
         port = lib.mkDefault 8096;
         healthcheck.path = "/health";
-        # Jellyfin authenticates its own clients, and native apps cannot pass a forward-auth gateway.
-        forwardAuth.enable = lib.mkDefault false;
+        # Left off (the registry default): Jellyfin authenticates its own clients, and native apps
+        # cannot pass a forward-auth gateway.
       };
 
       # Set once by the startup wizard and never reconciled, so losing the file means the next run cannot

@@ -41,7 +41,8 @@ in
       meta.category = lib.mkDefault "monitoring";
       port = mon.alertmanager.port;
       healthcheck.path = "/-/healthy";
-      forwardAuth.enable = true;
+      access.model = "forwardAuth"; # Alertmanager authenticates nobody
+      access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
       integrations.homepage.group = "Admin";
       integrations.notify = {
         enable = true;

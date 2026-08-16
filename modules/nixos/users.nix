@@ -9,14 +9,27 @@ let
       username = lib.mkOption {
         type = lib.types.str;
         default = name;
+        defaultText = lib.literalMD "the attribute name";
+        description = "Login name used by the services this user is enabled on.";
       };
-      email = lib.mkOption { type = lib.types.str; }; # Not enforced unique: guest/ad-hoc users may share placeholder emails
-      firstName = lib.mkOption { type = lib.types.str; };
-      lastName = lib.mkOption { type = lib.types.str; };
+      email = lib.mkOption {
+        type = lib.types.str;
+        # Not enforced unique: guest/ad-hoc users may share placeholder emails.
+        description = "Email address, used by services that identify accounts by one (OIDC, Gitea, Immich).";
+      };
+      firstName = lib.mkOption {
+        type = lib.types.str;
+        description = "Given name, used to build `name` and by services that store it separately.";
+      };
+      lastName = lib.mkOption {
+        type = lib.types.str;
+        description = "Family name, used to build `name` and by services that store it separately.";
+      };
       name = lib.mkOption {
         type = lib.types.str;
         default = "${config.firstName} ${config.lastName}";
         defaultText = lib.literalMD "`<firstName> <lastName>`";
+        description = "Display name shown by services that take a single full name.";
       };
       groups = lib.mkOption {
         type = lib.types.listOf lib.types.str;
@@ -27,6 +40,7 @@ let
         readOnly = true;
         default = lib.elem cfg.groups.admin config.groups;
         defaultText = lib.literalMD "true if the user's `groups` include the admin group";
+        description = "Whether this user is an admin (derived from `groups`; set the group, not this).";
       };
       extraConfig = lib.mkOption {
         type = lib.types.submodule { freeformType = lib.types.attrsOf lib.types.anything; };
@@ -66,6 +80,11 @@ in
         ]
       );
       default = { };
+      description = ''
+        People and service identities, keyed by username. Per-service config mirrors the registry at
+        `users.<name>.services.<service>`; a concern's per-user opt-in mirrors the concern, e.g.
+        `users.<name>.auth.oidc.enable`. At least one admin is required.
+      '';
     };
   };
 

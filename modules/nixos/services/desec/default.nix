@@ -54,16 +54,21 @@ in
       # (+ myipv6=preserve) keeps us to the A record and never clobbers an AAAA. The token is written
       # to a curl config with printf (a bash builtin, so it never lands in a process's argv) and read
       # back via -K, keeping it off the command line.
+      path = [ pkgs.curl ];
       script = ''
         conf="$RUNTIME_DIRECTORY/curl.conf"
         printf 'header = "Authorization: Token %s"\n' "$(< ${cfg.tokenFile})" > "$conf"
         for host in ${lib.escapeShellArgs cfg.domains}; do
-          ${pkgs.curl}/bin/curl -4 -fsS --retry 3 --max-time 30 \
+          curl -4 -fsS --retry 3 --max-time 30 \
             -K "$conf" \
             --url "https://update.dedyn.io/?hostname=$host&myipv6=preserve"
         done
       '';
     };
+
+    # Without this the timer fails silently: a stale A record is only noticed when something can't
+    # resolve the domain.
+    selfhost.tasks.desec-ddns.systemdServices = [ "desec-ddns" ];
 
     systemd.timers.desec-ddns = {
       description = "Periodic deSEC dynamic DNS update";

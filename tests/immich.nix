@@ -1,5 +1,5 @@
 # Both consumer patterns in one boot: `admin` owns an external library, `family` is upload-only.
-# No OIDC provider runs here, so `oidc.enable` composes to false; that wiring is covered by evaluation
+# No OIDC provider runs here, so `access.model` composes to `native`; that wiring is covered by evaluation
 # rather than by standing up a provider.
 { pkgs, common, ... }:
 let

@@ -38,7 +38,7 @@ Nothing else changes. `flake.nix` already reads it as `private.hosts.myhost`.
 ## Extend from here
 
 - **More apps**: `selfhost.apps.<name>.enable = true;` in `selfhost.nix`, then opt users in via
-  `apps.<name>` in their private user file.
+  `services.<name>` in their private user file.
 - **More users**: add `private/hosts/myhost/users/<name>.nix` and reference it in `settings.nix`.
 - **More hosts**: add `private/hosts/<host>/` and another `nixosConfigurations.<host>` block.
 - **Beyond the basics**: monitoring, backups, storage mounts, and consumer-owned per-user config via
