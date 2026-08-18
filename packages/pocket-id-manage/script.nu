@@ -187,7 +187,8 @@ def "main provision-client" [] {
   # Rotate only when there's no cached secret (new client, first deploy, or a deliberate rotate). pocket-id
   # can't return an existing one, so rotating every run would desync consumers that persist it (e.g. Gitea).
   if $is_new or (not ($secret_file | path exists)) {
-    let secret_r = http post $"($base_url)/api/oidc/clients/($client_id)/secret" "" --headers $headers --content-type application/json --full --allow-errors
+    # Empty *object*: pocket-id 2.12 binds this body into a DTO, and a bare "" is a JSON string to it.
+    let secret_r = http post $"($base_url)/api/oidc/clients/($client_id)/secret" {} --headers $headers --content-type application/json --full --allow-errors
     if $secret_r.status != 200 {
       error make {msg: $"Failed to generate secret for OIDC client ($client.name): ($secret_r.status) - ($secret_r.body)"}
     }

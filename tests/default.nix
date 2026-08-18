@@ -98,6 +98,7 @@ in
   vm-filebrowser = runTest ./filebrowser.nix;
   vm-filebrowser-selfhost = runTest ./filebrowser-selfhost.nix;
   vm-radicale = runTest ./radicale.nix;
+  vm-romm = runTest ./romm.nix;
   vm-transmission = runTest ./transmission.nix;
   vm-bentopdf = runTest ./bentopdf.nix;
   vm-gitea = runTest ./gitea.nix;

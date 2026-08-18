@@ -36,6 +36,7 @@
     ./services/jellyfin
     ./services/miniflux
     ./services/radicale
+    ./services/romm
     ./services/transmission
     ./services/wireguard
   ];

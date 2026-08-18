@@ -28,6 +28,7 @@ let
     prowlarr = { };
     radarr = { };
     radicale = { };
+    romm = { };
     sonarr = { };
     transmission = { };
     wireguard = {
