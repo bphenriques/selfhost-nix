@@ -121,5 +121,6 @@ in
   homepage-eval = runEval ./homepage.nix;
   arr-eval = runEval ./arr.nix;
   smb-eval = runEval ./smb.nix;
+  ports-eval = runEval ./ports.nix;
   oidc-rotation-eval = runEval ./oidc-rotation.nix;
 }

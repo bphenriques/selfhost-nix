@@ -284,6 +284,14 @@ in
               type = lib.types.port;
               description = "Listen port.";
             };
+            protocol = lib.mkOption {
+              type = lib.types.enum [
+                "tcp"
+                "udp"
+              ];
+              default = "tcp";
+              description = "Transport the socket binds; only sockets sharing one can collide.";
+            };
           };
         }
       );
@@ -301,7 +309,7 @@ in
     selfhost.internal.listeningPorts = map (s: {
       name = "service/${s.name}";
       inherit (s) host port;
-    }) (lib.filter (s: s.ownsBackend && (s.host == "127.0.0.1" || s.host == "localhost")) (lib.attrValues cfg.services));
+    }) (lib.filter (s: s.ownsBackend && selfhostLib.bindsLocally s.host) (lib.attrValues cfg.services));
 
     assertions =
       let
@@ -315,9 +323,18 @@ in
         dupHosts = lib.attrNames (selfhostLib.collisions (builtins.groupBy lib.id ingressHosts));
 
         # One check over the whole registry: services + monitoring exporters + anything else registered.
-        portCollisions = selfhostLib.collisions (
-          builtins.groupBy (e: selfhostLib.socket e.host e.port) cfg.internal.listeningPorts
-        );
+        # Within a port and transport, two entries collide when they share an address, or when either
+        # binds a wildcard, which occupies every address there.
+        portCollisions =
+          let
+            conflicting =
+              group:
+              let
+                hosts = map (e: selfhostLib.normalizeHost e.host) group;
+              in
+              lib.length group > 1 && (lib.any selfhostLib.isWildcard hosts || lib.length (lib.unique hosts) != lib.length hosts);
+          in
+          lib.filterAttrs (_: conflicting) (builtins.groupBy (e: "${e.protocol}/${toString e.port}") cfg.internal.listeningPorts);
 
         oidcServices = lib.filter (s: s.access.model == "oidc") allServices;
 
