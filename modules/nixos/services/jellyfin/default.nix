@@ -174,7 +174,8 @@ in
 
     systemd.services.jellyfin-configure = {
       description = "Reconcile Jellyfin settings, libraries and accounts";
-      wantedBy = [ "jellyfin.service" ];
+      # Activation only restarts running units, so a reconcile left stopped would never pick up its fix.
+      wantedBy = [ "multi-user.target" ];
       after = [ "jellyfin.service" ];
       requires = [ "jellyfin.service" ];
       partOf = [ "jellyfin.service" ];
