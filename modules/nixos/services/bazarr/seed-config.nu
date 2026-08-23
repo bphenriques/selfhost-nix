@@ -7,9 +7,11 @@ let api_key = open $env.BAZARR_API_KEY_FILE | str trim
 mkdir ($config_file | path dirname)
 
 # Bazarr creates the file empty on first run, so "exists" is not the same as "parseable".
+# Spec 1.1 both ways: PyYAML writes this file and reads 1.1, where nu's 1.2 default re-emits a
+# quoted "yes" unquoted and PyYAML then takes it for a boolean.
 let current = if ($config_file | path exists) {
   try {
-    open $config_file --raw | from yaml | default {}
+    open $config_file --raw | from yaml --spec 1.1 | default {}
   } catch { {} }
 } else {
   {}
@@ -29,5 +31,5 @@ if $updated == $current {
   exit 0
 }
 
-$updated | to yaml | save --force $config_file
+$updated | to yaml --spec 1.1 | save --force $config_file
 print $"Seeded ($config_file)"
