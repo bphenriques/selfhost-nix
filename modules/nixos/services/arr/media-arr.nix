@@ -9,6 +9,7 @@
   icon,
   notifyTags,
   backupResource, # { path = "movie"|"series"; file = "movies.json"; } — the library list to snapshot
+  unmonitorDeletedField, # mediamanagement key for "unmonitor deleted"; differs per arr
   defaultExporterPort,
 }:
 {
@@ -48,6 +49,12 @@ let
         }) app.downloadClients;
       }
       // lib.optionalAttrs (app.delayProfile != null) { inherit (app) delayProfile; }
+      // {
+        mediaManagement = {
+          field = unmonitorDeletedField;
+          inherit (app.mediaManagement) unmonitorDeleted;
+        };
+      }
       // lib.optionalAttrs notifyEnabled {
         notification = {
           serverUrl = cfg.notify.url;
@@ -169,6 +176,12 @@ in
           };
         }
       );
+    };
+
+    mediaManagement.unmonitorDeleted = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Unmonitor an item when its file disappears. Off by default: an unmounted or half-restored share is indistinguishable from a deleted library, so one rescan unmonitors everything.";
     };
 
     notifyOnImport = lib.mkOption {

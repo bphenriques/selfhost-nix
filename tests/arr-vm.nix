@@ -94,6 +94,7 @@ pkgs.testers.runNixOSTest {
       # default profile is best-effort (it may still be seeding), so assert presence, not the profile id.
       machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/rootfolder | jq -e --arg p /mnt/media/movies '.[] | select(.path==$p)' >/dev/null")
       machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/downloadclient | jq -e --arg n Transmission '.[] | select(.name==$n)' >/dev/null")
+      machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/config/mediamanagement | jq -e '.autoUnmonitorPreviouslyDownloadedMovies == false' >/dev/null")
 
       # Without these, a dead root folder raises an *arr health check that is delivered nowhere.
       # includeHealthWarnings stays off: warnings are dominated by "update available" and reach Prometheus,
@@ -112,6 +113,14 @@ pkgs.testers.runNixOSTest {
           )
       )
 
+      mm = json.loads(machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/config/mediamanagement"))
+      mm["autoUnmonitorPreviouslyDownloadedMovies"] = True
+      machine.succeed(
+          "curl -sf -X PUT -H 'X-Api-Key: {}' -H 'Content-Type: application/json' -d {} {}/config/mediamanagement".format(
+              key, shlex.quote(json.dumps(mm)), "${api}"
+          )
+      )
+
       # Idempotent: a second reconcile updates in place — still exactly one client, no duplicates or errors.
       machine.systemctl("restart radarr-configure.service")
       machine.wait_for_unit("radarr-configure.service")
@@ -122,6 +131,9 @@ pkgs.testers.runNixOSTest {
       machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/notification | jq -e '.[] | select(.name==\"ntfy\") | select(.onHealthIssue)' >/dev/null")
       ntfy_count = machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/notification | jq '[.[] | select(.name==\"ntfy\")] | length'").strip()
       assert ntfy_count == "1", f"expected exactly one ntfy connection after re-reconcile, got {ntfy_count}"
+
+      # ...and unmonitor-deleted is forced back off: a half-restored share must not unmonitor the library.
+      machine.succeed(f"curl -sf -H 'X-Api-Key: {key}' ${api}/config/mediamanagement | jq -e '.autoUnmonitorPreviouslyDownloadedMovies == false' >/dev/null")
 
       # exportarr must actually authenticate against Radarr, not merely listen: system_health_issues only
       # appears once the health collector has talked to the API with the generated key.

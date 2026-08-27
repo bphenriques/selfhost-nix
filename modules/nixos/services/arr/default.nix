@@ -16,6 +16,7 @@
         path = "movie";
         file = "movies.json";
       };
+      unmonitorDeletedField = "autoUnmonitorPreviouslyDownloadedMovies";
       defaultExporterPort = 9710;
     })
     (import ./media-arr.nix {
@@ -30,6 +31,7 @@
         path = "series";
         file = "series.json";
       };
+      unmonitorDeletedField = "autoUnmonitorPreviouslyDownloadedEpisodes";
       defaultExporterPort = 9709;
     })
     ./prowlarr.nix

@@ -120,6 +120,19 @@ def ensure_delay_profile [] {
   print "  Updated default delay profile"
 }
 
+
+# GET/merge/PUT: the endpoint replaces the whole object.
+def ensure_media_management [] {
+  let mm = $config | get -o mediaManagement
+  if $mm == null { return }
+  print "Reconciling media management..."
+  let existing = http get $"($base_url)/api/v3/config/mediamanagement" --headers $headers --full --allow-errors
+  if $existing.status != 200 { error make {msg: $"Failed to get media management: ($existing.status) - ($existing.body)"} }
+  let r = http put $"($base_url)/api/v3/config/mediamanagement" ($existing.body | upsert $mm.field $mm.unmonitorDeleted) --headers $headers --content-type application/json --full --allow-errors
+  if $r.status not-in [200, 202] { error make {msg: $"Failed to update media management: ($r.status) - ($r.body)"} }
+  print $"  ($mm.field) = ($mm.unmonitorDeleted)"
+}
+
 # ntfy connection (framework notify seam). Upserted, so flag changes reach hosts that already have it.
 def ensure_notification [] {
   let n = $config | get -o notification
@@ -180,6 +193,7 @@ def main [] {
   ensure_root_folders
   ensure_download_clients
   ensure_delay_profile
+  ensure_media_management
   ensure_notification
   print $"($arr_name) reconcile complete"
 }
