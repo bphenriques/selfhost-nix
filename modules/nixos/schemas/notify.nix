@@ -27,12 +27,19 @@ in
             description = "Notification topic this service/task publishes to (null = none).";
           };
 
+          titlePrefix = lib.mkOption {
+            type = lib.types.str;
+            default = "";
+            description = "Prepended to failure-notification titles as `<prefix>: `. Set it when several hosts publish to one topic, where the unit name alone does not say which host failed.";
+          };
+
           tokenFile = lib.mkOption {
             type = lib.types.str;
             default = "${tokenDir}/${name}";
-            readOnly = true;
             description = ''
-              Path to this publisher's access token, provisioned root-owned `0400`. How a publisher reads it
+              Path to this publisher's access token, root-owned `0400`. A host running the notify provider
+              provisions it at the default path; a host that only publishes to another host's provider has
+              nothing to provision it, so it points this at its own secret. How a publisher reads it
               depends on its user:
 
               - **runs as root** (e.g. backup, task failure-hooks): read this path directly, at send time.

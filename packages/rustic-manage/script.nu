@@ -8,9 +8,11 @@ def require_env [name: string] {
   }
 }
 
+# Titled by host: several hosts publish to one topic, so "Backup OK" alone names neither of them.
 def notify-success [body: string] {
   let send = require_env "SEND_NOTIFICATION"
-  ^$send --topic (require_env "NOTIFY_TOPIC") --title "Backup OK" --tags "white_check_mark" --message $body
+  let host = require_env "BACKUP_HOST"
+  ^$send --topic (require_env "NOTIFY_TOPIC") --title $"($host): Backup OK" --tags "white_check_mark" --message $body
 }
 
 # Run backup, prune old snapshots, and notify. `profile` selects the rustic config (/etc/rustic/<profile>.toml).

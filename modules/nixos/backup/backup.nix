@@ -12,6 +12,7 @@ let
   targetRoot = name: "${stateDir}/${name}";
   targetSrc = name: "${targetRoot name}/src";
   targetExtras = name: "${targetSrc name}/extras";
+  scopeTag = name: "target:${name}";
 
   notifyCfg = config.selfhost.notify;
   backupTaskCfg = config.selfhost.tasks.backup;
@@ -20,6 +21,7 @@ let
   rusticManageEnv = {
     STATE_DIR = stateDir;
     SEND_NOTIFICATION = "${notifyCfg.package}/bin/send-notification";
+    BACKUP_HOST = config.networking.hostName;
   }
   // lib.optionalAttrs notifyCfg.active {
     NOTIFY_URL = notifyCfg.url;
@@ -51,10 +53,19 @@ let
           git-ignore = true;
           no-require-git = true;
           inherit (t) globs;
+          tags = [ (scopeTag name) ];
           snapshots = [ { sources = [ (targetSrc name) ]; } ];
+        };
+        # `forget` evaluates every snapshot the filter admits: unscoped, this host's retention would be
+        # applied to a co-tenant host's snapshots. Filters are only honoured under [snapshot-filter].
+        snapshot-filter = {
+          filter-hosts = [ config.networking.hostName ];
+          filter-tags = [ (scopeTag name) ];
         };
         forget = {
           prune = true;
+          # Escape hatch: `rustic tag --add keep-forever <id>` pins a snapshot against any policy.
+          keep-tags = [ "keep-forever" ];
           keep-within-daily = t.retention.daily;
           keep-within-weekly = t.retention.weekly;
           keep-within-monthly = t.retention.monthly;
@@ -189,7 +200,15 @@ in
 
     targets = lib.mkOption {
       default = { };
-      description = "Backup destinations. Each is an independent rustic pipeline with its own content, repository, retention, and schedule.";
+      description = ''
+        Backup destinations. Each is an independent rustic pipeline with its own content, repository,
+        retention, and schedule.
+
+        Snapshots are scoped by host and target name, so several hosts may share one repository without
+        applying each other's retention. Renaming a host leaves its existing snapshots outside every
+        scope (rustic cannot rewrite a snapshot's hostname): they are never forgotten, and have to be
+        removed by id.
+      '';
       type = lib.types.attrsOf (
         lib.types.submodule {
           options = {
@@ -326,6 +345,8 @@ in
 
     selfhost.notify.topics."homelab-backup".public = lib.mkDefault false;
     selfhost.tasks.backup.integrations.notify.topic = lib.mkDefault "homelab-backup";
+    # Every host backing up publishes here, and the unit name is identical on each.
+    selfhost.tasks.backup.integrations.notify.titlePrefix = lib.mkDefault config.networking.hostName;
 
     selfhost.tasks.backup.systemdServices = lib.concatMap (name: [
       "homelab-backup-${name}"

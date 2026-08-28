@@ -21,13 +21,17 @@ let
 
   mkNotifier =
     taskName: task:
+    let
+      inherit (task.integrations.notify) titlePrefix;
+      title = lib.optionalString (titlePrefix != "") "${titlePrefix}: " + "Task Failed";
+    in
     lib.nameValuePair (notifierUnit taskName) {
       description = "Notify that %i failed";
       serviceConfig = {
         Type = "oneshot";
         ExecStart = ''
           ${sendNotification} --topic ${lib.escapeShellArg task.integrations.notify.topic} \
-            --title "Task Failed" --message "%i failed" --priority high --tags x
+            --title ${lib.escapeShellArg title} --message "%i failed" --priority high --tags x
         '';
         LoadCredential = [ "notify-token:${task.integrations.notify.tokenFile}" ];
       };
