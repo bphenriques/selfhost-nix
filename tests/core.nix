@@ -12,6 +12,9 @@ pkgs.testers.runNixOSTest {
       notify.ntfy.enable = true;
       notify.topics.probes.public = false;
 
+      # A publisher that runs on another host: provisioned here, its token carried across by hand.
+      notify.ntfy.remotePublishers.offsite.topic = "probes";
+
       # Guarded on a dir the test drives by hand, so the branches below are deterministic; the ordering
       # that makes a real service-owned guard safe is asserted separately.
       runtimeSecrets.test-guarded = {
@@ -53,6 +56,11 @@ pkgs.testers.runNixOSTest {
 
     # The publisher token landed root-owned 0400 (non-root consumers read it via LoadCredential).
     machine.succeed("stat -c '%U:%G %a' /var/lib/homelab-secrets/notify-publishers/probe | grep -qx 'root:root 400'")
+
+    # A remote publisher provisions identically. Its ACL is covered by the unit succeeding: `ntfy access`
+    # runs in the same loop iteration, and a failure there fails the oneshot.
+    machine.succeed("stat -c '%U:%G %a' /var/lib/homelab-secrets/notify-publishers/offsite | grep -qx 'root:root 400'")
+    machine.succeed("test -s /var/lib/homelab-secrets/notify-publishers/offsite")
 
     # A guard is only safe because restartUnits orders its owning service after the generator, so the
     # service cannot populate the guarded path before the first generation is decided.

@@ -10,13 +10,19 @@ let
   serviceCfg = cfg.services.ntfy;
   inherit (cfg.notify) topics;
 
+  tokenDir = "/var/lib/homelab-secrets/notify-publishers";
+
   notifyServices = lib.filterAttrs (_: s: s.integrations.notify.enable) cfg.services;
   servicePublishers = lib.mapAttrs (_: s: { inherit (s.integrations.notify) topic tokenFile; }) notifyServices;
 
   notifyTasks = lib.filterAttrs (_: t: t.integrations.notify.enable) cfg.tasks;
   taskPublishers = lib.mapAttrs (_: t: { inherit (t.integrations.notify) topic tokenFile; }) notifyTasks;
 
-  allPublishers = servicePublishers // taskPublishers;
+  localPublishers = servicePublishers // taskPublishers;
+  allPublishers = localPublishers // cfg.notify.ntfy.remotePublishers;
+  shadowedPublishers = lib.intersectLists (lib.attrNames cfg.notify.ntfy.remotePublishers) (
+    lib.attrNames localPublishers
+  );
 
   configFile = pkgs.writeText "ntfy-configure.json" (
     builtins.toJSON {
@@ -28,9 +34,39 @@ in
 {
   options.selfhost.notify.ntfy = {
     enable = lib.mkEnableOption "ntfy notification implementation (server + provisioning)";
+
+    remotePublishers = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule (
+          { name, ... }:
+          {
+            options = {
+              topic = lib.mkOption {
+                type = lib.types.enum (lib.attrNames topics);
+                description = "Topic this publisher may write to.";
+              };
+              tokenFile = lib.mkOption {
+                type = lib.types.str;
+                default = "${tokenDir}/${name}";
+                description = "Where the provisioned token lands, root-owned 0400.";
+              };
+            };
+          }
+        )
+      );
+      default = { };
+      description = "Publishers that run on another host. Their user, ACL and token are provisioned here; there is no secret transport between hosts, so copying the token into the other host's own secrets stays manual.";
+    };
   };
 
   config = lib.mkIf cfg.notify.ntfy.enable {
+    assertions = [
+      {
+        assertion = shadowedPublishers == [ ];
+        message = "Remote publishers shadow a local service/task publisher of the same name: ${toString shadowedPublishers}";
+      }
+    ];
+
     selfhost = {
       services.ntfy = {
         displayName = lib.mkDefault "Ntfy";
@@ -73,7 +109,7 @@ in
 
     systemd.tmpfiles.rules = [
       # 0700: tokens are root-owned and reach non-root consumers via LoadCredential, so nothing else traverses here.
-      "d /var/lib/homelab-secrets/notify-publishers 0700 root root -"
+      "d ${tokenDir} 0700 root root -"
     ];
 
     systemd.services.ntfy-configure = {
