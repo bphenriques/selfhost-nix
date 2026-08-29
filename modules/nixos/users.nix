@@ -81,9 +81,11 @@ in
       );
       default = { };
       description = ''
-        People and service identities, keyed by username. Per-service config mirrors the registry at
-        `users.<name>.services.<service>`; a concern's per-user opt-in mirrors the concern, e.g.
-        `users.<name>.auth.oidc.enable`. At least one admin is required.
+        People, keyed by username. Non-human principals belong in `selfhost.serviceAccounts`: this
+        schema requires a name and an email and layers OIDC onto every entry, which a robot has
+        neither of. Per-service config mirrors the registry at `users.<name>.services.<service>`; a
+        concern's per-user opt-in mirrors the concern, e.g. `users.<name>.auth.oidc.enable`. One admin
+        is required once any service is registered.
       '';
     };
   };

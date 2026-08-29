@@ -60,13 +60,21 @@ def set_admin [user: record, is_admin: bool, token: string] {
   print $"  ($user.login): admin=($is_admin)"
 }
 
-# Public keys currently registered for a user (no token needed).
+# Type and base64 body only: the trailing comment does not round-trip, so a key has to compare equal
+# however it was labelled.
+def key_id [key: string] {
+  $key | split row " " | first 2 | str join " "
+}
+
+# Public keys currently registered for a user, from gitea's unauthenticated authorized_keys view. The
+# /api/v1 equivalent answers 401 without a token, and minting one merely to look would defeat the
+# mint-only-on-a-delta rule in main.
 def user_keys [username: string] {
-  let r = http get $"($base_url)/api/v1/users/($username)/keys" --full --allow-errors
+  let r = http get $"($base_url)/($username).keys" --full --allow-errors
   if $r.status != 200 {
     error make {msg: $"($username): failed to list ssh keys: ($r.status) - ($r.body)"}
   }
-  $r.body | each {|k| $k.key }
+  $r.body | lines | where {|l| ($l | str trim) != "" and not ($l | str starts-with "#") } | each {|l| key_id $l }
 }
 
 # Add-only: register one public key for a user (the caller diffs against user_keys for idempotency).
@@ -121,7 +129,7 @@ def main [] {
     let desired = $u.sshKeys? | default []
     if ($desired | is-empty) { [] } else {
       let present = user_keys $u.username
-      $desired | where {|k| $k.key not-in $present } | each {|k| { username: $u.username, key: $k } }
+      $desired | where {|k| (key_id $k.key) not-in $present } | each {|k| { username: $u.username, key: $k } }
     }
   } | flatten
   let needs_admin = $users | any {|u| ($u.isAdmin? | default false) != ($u.username in $current_admins) }

@@ -42,12 +42,19 @@ pkgs.testers.runNixOSTest {
           };
         };
 
-        # A non-human principal from the shared registry: gets a Gitea account, but no Unix identity,
-        # since systemUser.enable is off. No sshKeys: that path is broken independently of the registry
-        # (it assumes the keys endpoint needs no token, and gitea 1.27 answers 401).
+        # A non-human principal from the shared registry: a Gitea account and an SSH key, but no Unix
+        # identity, since systemUser.enable is off. The key is deliberately commented, so a mismatch
+        # against gitea's comment-less view would show up as a re-add on every reconcile.
         serviceAccounts.ci = {
           description = "CI bot";
-          services.gitea.enable = true;
+          services.gitea = {
+            enable = true;
+            sshKeys = [
+              {
+                key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMdeA2/9yRvM9z2Eu+UygBHSDJEqP2MnQAvmBYSj5lM2 ci@test";
+              }
+            ];
+          };
         };
       };
     };
@@ -56,6 +63,7 @@ pkgs.testers.runNixOSTest {
     { nodes, ... }:
     let
       gitea = "${nodes.machine.services.gitea.package}/bin/gitea -c /var/lib/gitea/custom/conf/app.ini";
+      giteaUrl = nodes.machine.selfhost.services.gitea.url;
     in
     ''
       machine.wait_for_unit("pocket-id.service")
@@ -73,8 +81,11 @@ pkgs.testers.runNixOSTest {
       # The service account came from selfhost.serviceAccounts, not an app-scoped list, and is not an admin.
       machine.succeed("runuser -u gitea -- ${gitea} admin user list | grep -qw ci")
       machine.fail("runuser -u gitea -- ${gitea} admin user list --admin | grep -qw ci")
-      # posix.enable is off for it, so no Unix user was created alongside.
+      # systemUser.enable is off for it, so no Unix user was created alongside.
       machine.fail("getent passwd ci")
+
+      # Its key registered, read back through the same unauthenticated view the reconcile uses.
+      machine.succeed("${pkgs.curl}/bin/curl -sf ${giteaUrl}/ci.keys | grep -q AAAAC3NzaC1lZDI1NTE5AAAAIMdeA2")
 
       # the ephemeral admin token was minted (it can't be revoked here: gitea basic auth is disabled).
       machine.succeed("journalctl -u gitea-configure.service | grep -q 'Ephemeral admin token left in place'")
@@ -94,7 +105,8 @@ pkgs.testers.runNixOSTest {
       row = machine.succeed("sqlite3 " + db + " \"SELECT is_admin || '|' || login_source || '|' || login_type FROM user WHERE name='alice'\"").strip()
       assert row == "1|" + src + "|3", f"alice should be re-promoted with her source preserved, got: {row} (src={src})"
 
-      # Over-minting guard: a steady-state reconcile (alice already admin, no new users or keys) detects no
+      # Over-minting guard, which doubles as the key-idempotency check: ci's key is now registered, so a
+      # steady-state reconcile (alice already admin, no new users or keys) must detect no
       # delta via the CLI and mints no token — the minted-token count stays put across the no-op restart.
       before = machine.succeed("journalctl -u gitea-configure.service | grep -c 'Ephemeral admin token left in place' || true").strip()
       machine.systemctl("restart gitea-configure.service")
