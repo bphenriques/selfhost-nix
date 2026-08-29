@@ -10,11 +10,38 @@
 let
   selfhostCfg = config.selfhost;
   cfg = selfhostCfg.storage.shares.smb;
+  selfhostLib = import ../lib.nix { inherit lib; };
 
   # To smbd a person and a machine are the same: a name, a password, a Unix identity.
   principals = lib.filterAttrs (_: p: p.storage.smb.enable) (selfhostCfg.users // selfhostCfg.serviceAccounts);
 
-  grantees = lib.unique (lib.concatMap (s: lib.attrNames s.access) (lib.attrValues cfg.shares));
+  knownGroups = selfhostLib.knownGroups selfhostCfg;
+
+  levelRank = {
+    ro = 1;
+    rw = 2;
+  };
+
+  # Only people hold groups, so a service account always resolves through `access.users`.
+  groupLevel =
+    share: name:
+    let
+      granted = lib.filter (level: level != null) (
+        map (group: share.access.groups.${group} or null) (selfhostCfg.users.${name}.groups or [ ])
+      );
+    in
+    if granted == [ ] then "none" else lib.head (lib.sort (a: b: levelRank.${a} > levelRank.${b}) granted);
+
+  # A `users` grant replaces whatever the groups produced for that principal, `none` included.
+  resolved = lib.mapAttrs (
+    _: share:
+    lib.filterAttrs (_: level: level != "none") (
+      lib.mapAttrs (name: _: share.access.users.${name} or (groupLevel share name)) principals
+    )
+  ) cfg.shares;
+
+  userGrantees = lib.unique (lib.concatMap (s: lib.attrNames s.access.users) (lib.attrValues cfg.shares));
+  grantedGroups = lib.unique (lib.concatMap (s: lib.attrNames s.access.groups) (lib.attrValues cfg.shares));
 
   # smbd drops to the connecting user, so the parent of every share root must stay traversable.
   shareParents = lib.unique (lib.filter (p: p != "/") (map (s: dirOf s.path) (lib.attrValues cfg.shares)));
@@ -24,16 +51,17 @@ let
   allOwnedPaths = lib.concatMap ownedPaths (lib.attrValues cfg.shares);
 
   mkShare =
-    share:
+    name: share:
     let
-      readOnly = lib.attrNames (lib.filterAttrs (_: level: level == "ro") share.access);
+      access = resolved.${name};
+      readOnly = lib.attrNames (lib.filterAttrs (_: level: level == "ro") access);
     in
     lib.optionalAttrs (readOnly != [ ]) { "read list" = lib.concatStringsSep " " readOnly; }
     // {
       inherit (share) path;
       browseable = "yes";
       "read only" = "no";
-      "valid users" = lib.concatStringsSep " " (lib.attrNames share.access);
+      "valid users" = lib.concatStringsSep " " (lib.attrNames access);
       "force group" = share.group;
       "create mask" = "0660";
       "directory mask" = "2770";
@@ -119,7 +147,7 @@ in
                 type = lib.types.str;
                 default = "storage-${name}";
                 defaultText = lib.literalMD "`storage-<name>`";
-                description = "Group owning the share, forced onto everything written into it. Its members are `access`.";
+                description = "Group owning the share, forced onto everything written into it. Its members are whoever `access` resolves to.";
               };
 
               gid = lib.mkOption {
@@ -129,18 +157,41 @@ in
               };
 
               access = lib.mkOption {
-                type = lib.types.attrsOf (
-                  lib.types.enum [
-                    "rw"
-                    "ro"
-                  ]
-                );
-                default = { };
-                example = {
-                  ada = "rw";
-                  machine-backup = "ro";
+                type = lib.types.submodule {
+                  options = {
+                    groups = lib.mkOption {
+                      type = lib.types.attrsOf (
+                        lib.types.enum [
+                          "rw"
+                          "ro"
+                        ]
+                      );
+                      default = { };
+                      example = {
+                        family = "rw";
+                      };
+                      description = "Groups let into this share, by `selfhost.users.<name>.groups`. Additive: a principal holding several gets the most permissive. No `none` here, because a group grant is taken away per principal under `users`.";
+                    };
+
+                    users = lib.mkOption {
+                      type = lib.types.attrsOf (
+                        lib.types.enum [
+                          "rw"
+                          "ro"
+                          "none"
+                        ]
+                      );
+                      default = { };
+                      example = {
+                        machine-backup = "ro";
+                        teenager = "none";
+                      };
+                      description = "Principals granted directly. Takes precedence over `groups` for that principal, so `none` revokes what a group gave. Every name must be a `selfhost.users` or `selfhost.serviceAccounts` entry with `storage.smb.enable`. Service accounts hold no groups, so they are always named here.";
+                    };
+                  };
                 };
-                description = "Principals let into this share, and at what level. Every name must be a `selfhost.users` or `selfhost.serviceAccounts` entry with `storage.smb.enable`.";
+                default = { };
+                description = "Who may reach this share, and at what level. Groups grant; a `users` entry overrides the group result for that principal.";
               };
 
               directories = lib.mkOption {
@@ -159,18 +210,24 @@ in
   };
 
   config = lib.mkIf (selfhostCfg.enable && cfg.enable) {
-    # A rebuilt root reallocates gids, and the data keeps the numbers already written into it.
     warnings =
       let
+        # A rebuilt root reallocates gids, and the data keeps the numbers already written into it.
         unpinned = lib.attrNames (lib.filterAttrs (_: s: s.gid == null) cfg.shares);
+        heldGroups = lib.unique (lib.concatMap (name: selfhostCfg.users.${name}.groups or [ ]) (lib.attrNames principals));
+        unheld = lib.subtractLists heldGroups (lib.intersectLists knownGroups grantedGroups);
       in
       lib.optional (unpinned != [ ])
-        "SMB shares with no pinned gid: ${toString unpinned}. Read each back with `getent group` and set `selfhost.storage.shares.smb.shares.<name>.gid`.";
+        "SMB shares with no pinned gid: ${toString unpinned}. Read each back with `getent group` and set `selfhost.storage.shares.smb.shares.<name>.gid`."
+      ++
+        lib.optional (unheld != [ ])
+          "SMB shares grant access to groups no SMB principal holds, so the grants resolve to nobody: ${toString unheld}. Set `storage.smb.enable` on the members, or grant the principals directly under `access.users`.";
 
     assertions =
       let
-        ungrantedShares = lib.attrNames (lib.filterAttrs (_: s: s.access == { }) cfg.shares);
-        ungranted = lib.filter (n: !(principals ? ${n})) grantees;
+        unserved = lib.attrNames (lib.filterAttrs (name: _: resolved.${name} == { }) cfg.shares);
+        ungranted = lib.filter (n: !(principals ? ${n})) userGrantees;
+        unknownGroups = lib.subtractLists knownGroups grantedGroups;
         needUnixUser = lib.unique (lib.attrNames principals ++ lib.mapAttrsToList (_: s: s.owner) cfg.shares);
         missingUnixUser = lib.filter (n: !(config.users.users ? ${n})) needUnixUser;
         missingPassword = lib.attrNames (lib.filterAttrs (_: p: p.storage.smb.passwordFile == null) principals);
@@ -181,12 +238,16 @@ in
           message = "A share cannot be named `global`: its settings would replace samba's global section, taking every hardening line with them.";
         }
         {
-          assertion = ungrantedShares == [ ];
-          message = "SMB shares with no `access` entries: ${toString ungrantedShares}. Samba reads an empty `valid users` as no restriction, so the share would admit every principal that can authenticate.";
+          assertion = unserved == [ ];
+          message = "SMB shares whose `access` resolves to nobody: ${toString unserved}. Samba reads an empty `valid users` as no restriction, so the share would admit every principal that can authenticate.";
         }
         {
           assertion = ungranted == [ ];
           message = "SMB shares grant access to principals with no SMB account: ${toString ungranted}. Set `storage.smb.enable` on their selfhost.users or selfhost.serviceAccounts entry, or drop the grant; samba silently never matches a `valid users` name that cannot authenticate.";
+        }
+        {
+          assertion = unknownGroups == [ ];
+          message = "SMB shares grant access to groups nobody is in: ${toString unknownGroups}. `access.groups` names a `selfhost.groups` entry or a group some `selfhost.users` entry holds.";
         }
         {
           assertion = missingUnixUser == [ ];
@@ -199,10 +260,10 @@ in
       ];
 
     users.groups = lib.mapAttrs' (
-      _: share:
+      name: share:
       lib.nameValuePair share.group {
         inherit (share) gid;
-        members = lib.attrNames share.access;
+        members = lib.attrNames resolved.${name};
       }
     ) cfg.shares;
 
@@ -222,7 +283,7 @@ in
           "smb ports" = "445"; # netbios is off, so do not listen on 139 either
         };
       }
-      // lib.mapAttrs (_: mkShare) cfg.shares;
+      // lib.mapAttrs mkShare cfg.shares;
     };
 
     networking.firewall.allowedTCPPorts = lib.mkIf cfg.openFirewall [ 445 ];

@@ -1,7 +1,8 @@
 # Users
 
 selfhost-nix models people and service identities as `selfhost.users.<name>`, across three access tiers
-via `groups`: `admin`, `users`, `guests`. At least one admin user is asserted (more is your call). Per-user
+via `groups`: `admin`, `users`, `guests`. The same groups gate services
+(`access.allowedGroups`) and SMB shares (`storage.shares.smb.shares.<name>.access.groups`). At least one admin user is asserted (more is your call). Per-user
 attributes **mirror the framework's registry**, so where an option lives tells you what it touches:
 
 - A user's per-service config sits at `selfhost.users.<name>.services.<service>` — for *any* service,

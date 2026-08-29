@@ -1,10 +1,23 @@
 # storage.shares.smb (VM): a real smbd and a real CIFS mount. Covers what eval cannot — the passdb is
 # provisioned from the credential files, the permissions unit lands setgid ownership on the share, and
-# `read list` actually denies a write.
+# the resolved access list actually denies a write or a whole mount.
 { pkgs, common, ... }:
 let
   adaPassword = "ada-secret";
+  bobPassword = "bob-secret";
   backupPassword = "backup-secret";
+
+  person = groups: passwordFile: {
+    email = "person@test.local";
+    firstName = "Test";
+    lastName = "Person";
+    inherit groups;
+    auth.oidc.enable = false;
+    storage.smb = {
+      enable = true;
+      inherit passwordFile;
+    };
+  };
 in
 pkgs.testers.runNixOSTest {
   name = "selfhost-shares";
@@ -26,6 +39,10 @@ pkgs.testers.runNixOSTest {
         isNormalUser = true;
         uid = 4000;
       };
+      users.users.bob = {
+        isNormalUser = true;
+        uid = 4001;
+      };
       # smbpasswd -a needs a Unix account; this one is never declared as a principal.
       users.users.stale = {
         isSystemUser = true;
@@ -34,21 +51,13 @@ pkgs.testers.runNixOSTest {
 
       environment.etc = {
         "smb/ada".text = adaPassword;
+        "smb/bob".text = bobPassword;
         "smb/machine-backup".text = backupPassword;
       };
 
       selfhost = {
-        users.ada = {
-          email = "ada@test.local";
-          firstName = "Ada";
-          lastName = "Lovelace";
-          groups = [ config.selfhost.groups.users ];
-          auth.oidc.enable = false;
-          storage.smb = {
-            enable = true;
-            passwordFile = "/etc/smb/ada";
-          };
-        };
+        users.ada = person [ "family" ] "/etc/smb/ada";
+        users.bob = person [ "family" ] "/etc/smb/bob";
 
         serviceAccounts.machine-backup = {
           description = "Backup principal";
@@ -65,14 +74,34 @@ pkgs.testers.runNixOSTest {
 
         storage.shares.smb = {
           enable = true;
-          shares.media = {
-            path = "/srv/storage/media";
-            owner = "ada";
-            gid = 990;
-            directories = [ "movies" ];
-            access = {
-              ada = "rw";
-              machine-backup = "ro";
+          shares = {
+            media = {
+              path = "/srv/storage/media";
+              owner = "ada";
+              gid = 990;
+              directories = [ "movies" ];
+              access = {
+                groups.family = "rw";
+                users.machine-backup = "ro";
+              };
+            };
+            photos = {
+              path = "/srv/storage/photos";
+              owner = "ada";
+              gid = 991;
+              access = {
+                groups.family = "rw";
+                users.bob = "ro";
+              };
+            };
+            vault = {
+              path = "/srv/storage/vault";
+              owner = "ada";
+              gid = 992;
+              access = {
+                groups.family = "rw";
+                users.bob = "none";
+              };
             };
           };
         };
@@ -131,5 +160,42 @@ pkgs.testers.runNixOSTest {
         machine.succeed("test -f /mnt/ro/movies/hello")
         machine.fail("touch /mnt/ro/denied")
         machine.succeed("umount /mnt/ro")
+
+    with subtest("a principal admitted only by a group grant writes"):
+        # bob holds no `users` entry on media; `groups.family = "rw"` is his whole claim to it.
+        assert "bob" in machine.succeed("getent group storage-media")
+        machine.succeed(
+            "mount -t cifs //localhost/media /mnt/rw"
+            " -o username=bob,password=${bobPassword},vers=3.1.1"
+        )
+        machine.succeed("touch /mnt/rw/movies/from-bob")
+        machine.succeed("umount /mnt/rw")
+
+    with subtest("a user grant downgrades the group grant"):
+        machine.succeed(
+            "mount -t cifs //localhost/photos /mnt/ro"
+            " -o username=bob,password=${bobPassword},vers=3.1.1"
+        )
+        machine.fail("touch /mnt/ro/denied")
+        machine.succeed("umount /mnt/ro")
+        # ada, same group, no `users` entry, keeps the rw the group gave.
+        machine.succeed(
+            "mount -t cifs //localhost/photos /mnt/rw"
+            " -o username=ada,password=${adaPassword},vers=3.1.1"
+        )
+        machine.succeed("touch /mnt/rw/from-ada")
+        machine.succeed("umount /mnt/rw")
+
+    with subtest("a `none` user grant revokes the group grant"):
+        assert "bob" not in machine.succeed("getent group storage-vault")
+        machine.fail(
+            "mount -t cifs //localhost/vault /mnt/ro"
+            " -o username=bob,password=${bobPassword},vers=3.1.1"
+        )
+        machine.succeed(
+            "mount -t cifs //localhost/vault /mnt/rw"
+            " -o username=ada,password=${adaPassword},vers=3.1.1"
+        )
+        machine.succeed("umount /mnt/rw")
   '';
 }

@@ -12,9 +12,12 @@ grant on it, which is what you want when its data is reached through an applicat
 
 ```nix
 selfhost = {
-  users.alice.storage.smb = {
-    enable = true;
-    passwordFile = config.sops.secrets."samba/alice-password".path;
+  users.alice = {
+    groups = [ "family" ];                    # the same group that gates services
+    storage.smb = {
+      enable = true;
+      passwordFile = config.sops.secrets."samba/alice-password".path;
+    };
   };
 
   serviceAccounts.machine-backup = {
@@ -34,22 +37,49 @@ selfhost = {
       gid = 990;
       directories = [ "movies" ];             # created, or ownership-fixed if the host mounted them
       access = {
-        alice = "rw";
-        machine-backup = "ro";
+        groups.family = "rw";
+        users.machine-backup = "ro";
       };
     };
   };
 };
 ```
 
+## Who gets in
+
+`access.groups` names groups from `selfhost.users.<name>.groups`, the same ones `access.allowedGroups`
+uses to gate services, so one group name drives both. It is additive: a principal holding several groups
+gets the most permissive grant among them.
+
+`access.users` names principals directly and **takes precedence** over whatever the groups produced for
+them, in either direction. `"ro"` downgrades a group's `"rw"`, and `"none"` revokes the grant outright:
+
+```nix
+access = {
+  groups.family = "rw";
+  users = {
+    machine-backup = "ro";                    # service accounts hold no groups, so they go here
+    teenager = "none";                        # in `family`, but not on this share
+  };
+};
+```
+
+There is deliberately no `"none"` under `groups`: a group grant is taken away per principal, not by a
+second group. The resolved list is what reaches samba, so `testparm` shows the expanded names rather than
+a group reference you would have to resolve by hand.
+
 ## What it asserts
 
-Samba fails open in two ways this module refuses to let you reach. A share with no `access` emits an
-empty `valid users`, which samba reads as *no restriction*, admitting every principal that can
-authenticate. And a share named `global` would replace the global section, dropping every hardening
+Samba fails open in two ways this module refuses to let you reach. A share whose `access` resolves to
+nobody emits an empty `valid users`, which samba reads as *no restriction*, admitting every principal that
+can authenticate. And a share named `global` would replace the global section, dropping every hardening
 line with it. Both are assertions, as are: a grant to a principal with no SMB account (samba silently
-never matches such a name), a principal or `owner` with no Unix user, and an enabled principal with no
-`passwordFile`.
+never matches such a name), a grant to a group nobody is in, a principal or `owner` with no Unix user,
+and an enabled principal with no `passwordFile`.
+
+A group that *is* known but that no SMB principal holds warns instead of failing, since it names the one
+way this indirection disappoints quietly: the members need `storage.smb.enable` before a group grant
+reaches them.
 
 The passdb is reconciled, not just appended: an account that is no longer a declared principal is deleted,
 so revoking access is a config change rather than a config change plus `pdbedit -x`.

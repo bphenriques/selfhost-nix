@@ -3,10 +3,7 @@ let
   cfg = config.selfhost;
   selfhostLib = import ./lib.nix { inherit lib; };
 
-  # Every group a policy may name: the canonical set plus any group a user actually holds. Keeps
-  # allowedGroups symmetric with the free-form user.groups (a custom group becomes nameable in policy
-  # once some user is in it) while still catching typos.
-  knownGroups = lib.unique (lib.attrValues cfg.groups ++ lib.concatMap (u: u.groups) (lib.attrValues cfg.users));
+  knownGroups = selfhostLib.knownGroups cfg;
 
   # A container's unit is named for its backend, not the service, so the default follows suit.
   ociContainers = config.virtualisation.oci-containers.containers or { };
