@@ -65,7 +65,7 @@ let
           filter-tags = [ (scopeTag name) ];
         };
         forget = {
-          prune = true;
+          inherit (t) prune;
           # Escape hatch: `rustic tag --add keep-forever <id>` pins a snapshot against any policy.
           keep-tags = [ "keep-forever" ];
           keep-within-daily = t.retention.daily;
@@ -296,6 +296,20 @@ in
               description = "Standalone pre-backup hooks not tied to a registry service (e.g. GitHub), run for this target.";
             };
 
+            prune = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = ''
+                Whether this target's `forget` also prunes, reclaiming space from unreferenced packs.
+
+                rustic takes no repository lock, and its delayed-delete only makes prune safe against a
+                concurrent *backup*, not against a concurrent *prune*: prune repacks by reading packs the
+                other run may be deleting. So in a repository shared by several hosts, exactly one may
+                prune. The others still forget, and the pruning host reclaims their space too, because
+                reachability is evaluated across the whole repository.
+              '';
+            };
+
             backupSchedule = lib.mkOption {
               type = lib.types.str;
               default = "*-*-* 03:00:00";
@@ -342,6 +356,15 @@ in
 
           referencedServices = lib.unique (lib.concatMap (t: t.services) (lib.attrValues activeTargets));
           orphanServices = lib.subtractLists referencedServices (lib.attrNames servicesWithBackup);
+
+          # Only catches the same-host case: a host cannot see another host's targets, so the fleet-wide
+          # form of this has to be asserted by whatever evaluates every host.
+          pruning = lib.filterAttrs (_: t: t.prune) activeTargets;
+          doublePruned = lib.attrNames (
+            lib.filterAttrs (_: names: lib.length names > 1) (
+              lib.groupBy (name: pruning.${name}.repository) (lib.attrNames pruning)
+            )
+          );
         in
         [
           {
@@ -355,6 +378,10 @@ in
           {
             assertion = orphanServices == [ ];
             message = "Services declare a backup.package but no target includes them (never backed up): ${toString orphanServices}";
+          }
+          {
+            assertion = doublePruned == [ ];
+            message = "More than one backup target prunes the same repository: ${toString doublePruned}. rustic takes no repository lock, so concurrent prunes can read a pack the other is deleting; leave prune on exactly one target.";
           }
         ];
 

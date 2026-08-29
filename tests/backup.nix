@@ -51,8 +51,10 @@ pkgs.testers.runNixOSTest {
               };
             };
             # A second pipeline in the same repository: neither target may age the other's snapshots.
+            # It does not prune, since only one target may prune a given repository.
             other = {
               inherit repository passwordFile retention;
+              prune = false;
               bindings."/data" = "/srv/other";
             };
             # Configured but switched off: keeps its settings, contributes no units.
