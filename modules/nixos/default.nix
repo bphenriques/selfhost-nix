@@ -4,6 +4,7 @@
     ./services-registry.nix
     ./tasks-registry.nix
     ./users.nix
+    ./service-accounts.nix
     ./runtime-secrets.nix
     ./inventory.nix
     ./dashboards/tiles.nix

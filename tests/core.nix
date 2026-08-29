@@ -15,6 +15,17 @@ pkgs.testers.runNixOSTest {
       # A publisher that runs on another host: provisioned here, its token carried across by hand.
       notify.ntfy.remotePublishers.offsite.topic = "probes";
 
+      # A non-human principal needing a Unix identity. Ids are pinned because they end up in the
+      # ownership of files that can outlive the root filesystem.
+      serviceAccounts.machine-probe = {
+        description = "Probe SMB principal";
+        systemUser = {
+          enable = true;
+          uid = 977;
+          gid = 977;
+        };
+      };
+
       # Guarded on a dir the test drives by hand, so the branches below are deterministic; the ordering
       # that makes a real service-owned guard safe is asserted separately.
       runtimeSecrets.test-guarded = {
@@ -60,6 +71,10 @@ pkgs.testers.runNixOSTest {
     # A remote publisher provisions identically. Its ACL is covered by the unit succeeding: `ntfy access`
     # runs in the same loop iteration, and a failure there fails the oneshot.
     machine.succeed("stat -c '%U:%G %a' /var/lib/homelab-secrets/notify-publishers/offsite | grep -qx 'root:root 400'")
+
+    # systemUser.enable creates a system user with its own primary group, at the declared ids.
+    machine.succeed("getent passwd machine-probe | cut -d: -f3,4 | grep -qx '977:977'")
+    machine.succeed("getent group machine-probe | cut -d: -f3 | grep -qx 977")
     machine.succeed("test -s /var/lib/homelab-secrets/notify-publishers/offsite")
 
     # A guard is only safe because restartUnits orders its owning service after the generator, so the

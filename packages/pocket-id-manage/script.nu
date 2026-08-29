@@ -184,16 +184,17 @@ def "main provision-client" [] {
   chown $"root:($client_group)" $client_dir
   write_credential $id_file ($client_id | into string) $client_group
 
-  # Rotate only when there's no cached secret (new client, first deploy, or a deliberate rotate). pocket-id
-  # can't return an existing one, so rotating every run would desync consumers that persist it (e.g. Gitea).
+  # Only when there's no cached secret (new client, first deploy, or a deliberate rotate). Since 2.13 this
+  # endpoint *adds* a secret rather than replacing one, so calling it every run would pile up live secrets,
+  # and the value is returned only here, so a lost one cannot be read back.
   if $is_new or (not ($secret_file | path exists)) {
-    # Empty *object*: pocket-id 2.12 binds this body into a DTO, and a bare "" is a JSON string to it.
-    let secret_r = http post $"($base_url)/api/oidc/clients/($client_id)/secret" {} --headers $headers --content-type application/json --full --allow-errors
-    if $secret_r.status != 200 {
+    # Empty *object*: the body binds into a DTO, and a bare "" would be a JSON string to it.
+    let secret_r = http post $"($base_url)/api/oidc/clients/($client_id)/secrets" {} --headers $headers --content-type application/json --full --allow-errors
+    if $secret_r.status != 201 {
       error make {msg: $"Failed to generate secret for OIDC client ($client.name): ($secret_r.status) - ($secret_r.body)"}
     }
     write_credential $secret_file $secret_r.body.secret $client_group
-    print $"  Rotated secret for: ($client.name)"
+    print $"  Provisioned secret for: ($client.name)"
   } else {
     print $"  Secret already provisioned: ($client.name)"
   }

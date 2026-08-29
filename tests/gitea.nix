@@ -41,6 +41,14 @@ pkgs.testers.runNixOSTest {
             admin = true; # override: gitea site-admin without being a fleet admin
           };
         };
+
+        # A non-human principal from the shared registry: gets a Gitea account, but no Unix identity,
+        # since systemUser.enable is off. No sshKeys: that path is broken independently of the registry
+        # (it assumes the keys endpoint needs no token, and gitea 1.27 answers 401).
+        serviceAccounts.ci = {
+          description = "CI bot";
+          services.gitea.enable = true;
+        };
       };
     };
 
@@ -61,6 +69,12 @@ pkgs.testers.runNixOSTest {
 
       # alice reconciled to site-admin from the fleet isAdmin — proves the admin-API PATCH works here.
       machine.succeed("runuser -u gitea -- ${gitea} admin user list --admin | grep -qw alice")
+
+      # The service account came from selfhost.serviceAccounts, not an app-scoped list, and is not an admin.
+      machine.succeed("runuser -u gitea -- ${gitea} admin user list | grep -qw ci")
+      machine.fail("runuser -u gitea -- ${gitea} admin user list --admin | grep -qw ci")
+      # posix.enable is off for it, so no Unix user was created alongside.
+      machine.fail("getent passwd ci")
 
       # the ephemeral admin token was minted (it can't be revoked here: gitea basic auth is disabled).
       machine.succeed("journalctl -u gitea-configure.service | grep -q 'Ephemeral admin token left in place'")

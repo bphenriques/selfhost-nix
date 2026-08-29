@@ -13,7 +13,7 @@ let
   oidcCfg = config.selfhost.auth.oidc;
 
   enabledUsers = lib.filterAttrs (_: u: u.services.gitea.enable) config.selfhost.users;
-  serviceAccounts = lib.filterAttrs (_: a: a.enable) app.serviceAccounts;
+  serviceAccounts = lib.filterAttrs (_: a: a.services.gitea.enable) config.selfhost.serviceAccounts;
 
   userListFile = pkgs.writeText "gitea-users.json" (
     builtins.toJSON (
@@ -33,7 +33,7 @@ let
         firstName = name;
         lastName = "Service";
         isAdmin = false;
-        sshKeys = map (k: { inherit (k) key readOnly; }) a.sshKeys;
+        sshKeys = map (k: { inherit (k) key readOnly; }) a.services.gitea.sshKeys;
       }) serviceAccounts)
     )
   );
@@ -52,7 +52,10 @@ let
   };
 in
 {
-  imports = [ ./user.nix ];
+  imports = [
+    ./user.nix
+    ./service-account.nix
+  ];
 
   options.selfhost = {
     apps.gitea.enable = lib.mkEnableOption "the first-party Gitea app (git server with OIDC login)";
@@ -65,39 +68,6 @@ in
         description = "Listen port for the built-in SSH server.";
       };
       openFirewall = lib.mkEnableOption "opening the SSH port in the firewall (all interfaces); leave off to scope it yourself";
-    };
-
-    apps.gitea.serviceAccounts = lib.mkOption {
-      type = lib.types.attrsOf (
-        lib.types.submodule {
-          options = {
-            enable = lib.mkEnableOption "this non-UI Gitea account" // {
-              default = true;
-            };
-            sshKeys = lib.mkOption {
-              type = lib.types.listOf (
-                lib.types.submodule {
-                  options = {
-                    key = lib.mkOption {
-                      type = lib.types.str;
-                      description = "Public key in authorized_keys format.";
-                    };
-                    readOnly = lib.mkOption {
-                      type = lib.types.bool;
-                      default = false;
-                      description = "Register as a read-only (deploy) key.";
-                    };
-                  };
-                }
-              );
-              default = [ ];
-              description = "SSH keys for git-over-SSH; registered via the admin API on account creation.";
-            };
-          };
-        }
-      );
-      default = { };
-      description = "Non-human Gitea accounts (CI/bots), provisioned via the gitea CLI.";
     };
   };
 
