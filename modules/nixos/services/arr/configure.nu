@@ -120,7 +120,6 @@ def ensure_delay_profile [] {
   print "  Updated default delay profile"
 }
 
-
 # GET/merge/PUT: the endpoint replaces the whole object.
 def ensure_media_management [] {
   let mm = $config | get -o mediaManagement

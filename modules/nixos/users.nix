@@ -88,12 +88,13 @@ in
     };
   };
 
-  # At least one admin (someone must reach admin-gated services); more is a consumer choice. The admin
-  # group's name stays configurable via selfhost.groups.admin.
+  # At least one admin (someone must reach admin-gated services); more is a consumer choice. A host that
+  # registers no services has nothing to gate, so it needs none: same shape as the ingress.domain
+  # assertion. The admin group's name stays configurable via selfhost.groups.admin.
   config = lib.mkIf cfg.enable {
     assertions = [
       {
-        assertion = adminUsers != { };
+        assertion = cfg.services == { } || adminUsers != { };
         message = "At least one user must be in the admin group (selfhost.groups.admin); none found.";
       }
     ];

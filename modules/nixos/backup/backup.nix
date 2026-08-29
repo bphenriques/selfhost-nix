@@ -33,6 +33,8 @@ let
 
   servicesWithBackup = lib.filterAttrs (_: svc: svc.backup.package != null) selfhostCfg.services;
 
+  activeTargets = lib.filterAttrs (_: t: t.enable) cfg.targets;
+
   resolveHooks =
     t:
     lib.genAttrs t.services (svcName: {
@@ -212,6 +214,11 @@ in
       type = lib.types.attrsOf (
         lib.types.submodule {
           options = {
+            enable = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = "Whether this target runs. Off keeps the configuration but drops the units, for pausing one destination without deleting how it is set up.";
+            };
             repository = lib.mkOption {
               type = lib.types.str;
               description = "rustic repository string (e.g. 'opendal:b2').";
@@ -305,80 +312,91 @@ in
     };
   };
 
-  config = lib.mkIf (cfg.targets != { }) {
-    assertions =
-      let
-        badBindingKeys = lib.filter (k: !(lib.hasPrefix "/" k) || k == "/extras" || lib.hasPrefix "/extras/" k) (
-          lib.concatMap (t: lib.attrNames t.bindings) (lib.attrValues cfg.targets)
-        );
+  config = lib.mkMerge [
+    {
+      # Gating on the framework toggle makes forgetting it a silent no-backup, so say so out loud.
+      warnings = lib.optional (
+        !selfhostCfg.enable && cfg.targets != { }
+      ) "selfhost.backup.targets are set but selfhost.enable is false, so no backup runs.";
+    }
+    # The task's identity, as opposed to its activation: a consumer that enables notify for the backup
+    # task still needs a topic when every target is paused, or it fails on a missing one.
+    (lib.mkIf (cfg.targets != { }) {
+      selfhost.notify.topics."homelab-backup".public = lib.mkDefault false;
+      selfhost.tasks.backup.integrations.notify.topic = lib.mkDefault "homelab-backup";
+      # Every host backing up publishes here, and the unit name is identical on each.
+      selfhost.tasks.backup.integrations.notify.titlePrefix = lib.mkDefault config.networking.hostName;
+    })
+    (lib.mkIf (selfhostCfg.enable && activeTargets != { }) {
+      assertions =
+        let
+          badBindingKeys = lib.filter (k: !(lib.hasPrefix "/" k) || k == "/extras" || lib.hasPrefix "/extras/" k) (
+            lib.concatMap (t: lib.attrNames t.bindings) (lib.attrValues activeTargets)
+          );
 
-        nameCollisions = lib.concatLists (
-          lib.mapAttrsToList (
-            name: t: map (n: "${name}.${n}") (lib.intersectLists t.services (lib.attrNames t.hooks))
-          ) cfg.targets
-        );
+          nameCollisions = lib.concatLists (
+            lib.mapAttrsToList (
+              name: t: map (n: "${name}.${n}") (lib.intersectLists t.services (lib.attrNames t.hooks))
+            ) activeTargets
+          );
 
-        referencedServices = lib.unique (lib.concatMap (t: t.services) (lib.attrValues cfg.targets));
-        orphanServices = lib.subtractLists referencedServices (lib.attrNames servicesWithBackup);
-      in
-      [
-        {
-          assertion = badBindingKeys == [ ];
-          message = "Backup binding keys must be absolute paths outside the reserved /extras namespace: ${toString badBindingKeys}";
-        }
-        {
-          assertion = nameCollisions == [ ];
-          message = "Backup service and standalone hooks share a name (same extras dir): ${toString nameCollisions}";
-        }
-        {
-          assertion = orphanServices == [ ];
-          message = "Services declare a backup.package but no target includes them (never backed up): ${toString orphanServices}";
-        }
-      ];
-
-    # A content-less target is allowed (e.g. a repo connectivity test) but usually a mistake.
-    warnings =
-      let
-        empty = lib.attrNames (lib.filterAttrs (_: t: t.bindings == { } && t.services == [ ] && t.hooks == { }) cfg.targets);
-      in
-      lib.optional (empty != [ ]) "Backup target(s) snapshot an empty tree (no bindings/services/hooks): ${toString empty}";
-
-    selfhost.notify.topics."homelab-backup".public = lib.mkDefault false;
-    selfhost.tasks.backup.integrations.notify.topic = lib.mkDefault "homelab-backup";
-    # Every host backing up publishes here, and the unit name is identical on each.
-    selfhost.tasks.backup.integrations.notify.titlePrefix = lib.mkDefault config.networking.hostName;
-
-    selfhost.tasks.backup.systemdServices = lib.concatMap (name: [
-      "homelab-backup-${name}"
-      "homelab-backup-${name}-verify"
-    ]) (lib.attrNames cfg.targets);
-
-    systemd.services = lib.listToAttrs (
-      lib.mapAttrsToList mkBackupService cfg.targets ++ lib.mapAttrsToList mkVerifyService cfg.targets
-    );
-
-    systemd.timers = lib.listToAttrs (
-      lib.mapAttrsToList (name: t: mkTimer name "" t.backupSchedule) cfg.targets
-      ++ lib.mapAttrsToList (name: t: mkTimer name "-verify" t.verifySchedule) cfg.targets
-    );
-
-    systemd.tmpfiles.rules = [
-      "d ${stateDir} 0750 root root -"
-      "d /etc/rustic 0755 root root -"
-    ]
-    ++ lib.concatLists (
-      lib.mapAttrsToList (
-        name: t:
+          referencedServices = lib.unique (lib.concatMap (t: t.services) (lib.attrValues activeTargets));
+          orphanServices = lib.subtractLists referencedServices (lib.attrNames servicesWithBackup);
+        in
         [
-          "d ${targetRoot name} 0750 root root -"
-          "d ${targetSrc name} 0750 root root -"
-          "d ${targetExtras name} 0750 root root -"
-          "L+ /etc/rustic/${name}.toml - - - - ${mkRusticProfile name t}"
-        ]
-        ++ lib.optional (
-          t.backendCredentialsFile != null
-        ) "L+ /etc/rustic/${name}-secrets.toml - - - - ${t.backendCredentialsFile}"
-      ) cfg.targets
-    );
-  };
+          {
+            assertion = badBindingKeys == [ ];
+            message = "Backup binding keys must be absolute paths outside the reserved /extras namespace: ${toString badBindingKeys}";
+          }
+          {
+            assertion = nameCollisions == [ ];
+            message = "Backup service and standalone hooks share a name (same extras dir): ${toString nameCollisions}";
+          }
+          {
+            assertion = orphanServices == [ ];
+            message = "Services declare a backup.package but no target includes them (never backed up): ${toString orphanServices}";
+          }
+        ];
+
+      # A content-less target is allowed (e.g. a repo connectivity test) but usually a mistake.
+      warnings =
+        let
+          empty = lib.attrNames (lib.filterAttrs (_: t: t.bindings == { } && t.services == [ ] && t.hooks == { }) activeTargets);
+        in
+        lib.optional (empty != [ ]) "Backup target(s) snapshot an empty tree (no bindings/services/hooks): ${toString empty}";
+
+      selfhost.tasks.backup.systemdServices = lib.concatMap (name: [
+        "homelab-backup-${name}"
+        "homelab-backup-${name}-verify"
+      ]) (lib.attrNames activeTargets);
+
+      systemd.services = lib.listToAttrs (
+        lib.mapAttrsToList mkBackupService activeTargets ++ lib.mapAttrsToList mkVerifyService activeTargets
+      );
+
+      systemd.timers = lib.listToAttrs (
+        lib.mapAttrsToList (name: t: mkTimer name "" t.backupSchedule) activeTargets
+        ++ lib.mapAttrsToList (name: t: mkTimer name "-verify" t.verifySchedule) activeTargets
+      );
+
+      systemd.tmpfiles.rules = [
+        "d ${stateDir} 0750 root root -"
+        "d /etc/rustic 0755 root root -"
+      ]
+      ++ lib.concatLists (
+        lib.mapAttrsToList (
+          name: t:
+          [
+            "d ${targetRoot name} 0750 root root -"
+            "d ${targetSrc name} 0750 root root -"
+            "d ${targetExtras name} 0750 root root -"
+            "L+ /etc/rustic/${name}.toml - - - - ${mkRusticProfile name t}"
+          ]
+          ++ lib.optional (
+            t.backendCredentialsFile != null
+          ) "L+ /etc/rustic/${name}-secrets.toml - - - - ${t.backendCredentialsFile}"
+        ) activeTargets
+      );
+    })
+  ];
 }

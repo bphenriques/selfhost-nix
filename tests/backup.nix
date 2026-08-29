@@ -55,6 +55,12 @@ pkgs.testers.runNixOSTest {
               inherit repository passwordFile retention;
               bindings."/data" = "/srv/other";
             };
+            # Configured but switched off: keeps its settings, contributes no units.
+            paused = {
+              enable = false;
+              inherit repository passwordFile retention;
+              bindings."/data" = "/srv/other";
+            };
           };
         };
       };
@@ -84,6 +90,10 @@ pkgs.testers.runNixOSTest {
     # The repo was initialized and holds a snapshot.
     machine.succeed(f"test -f {REPO}/config")
     machine.succeed(f"test -n \"$(ls -A {REPO}/snapshots)\"")
+
+    # A disabled target contributes neither a service nor a timer.
+    machine.fail("systemctl cat homelab-backup-paused.service")
+    machine.fail("systemctl cat homelab-backup-paused.timer")
 
     live = snapshots()
     assert any("target:test" in s["tags"] for s in live), "test target wrote no scope tag"
