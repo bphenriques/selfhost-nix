@@ -109,6 +109,7 @@ in
   vm-bazarr = runTest ./bazarr.nix;
   vm-immich = runTest ./immich.nix;
   vm-jellyfin = runTest ./jellyfin.nix;
+  vm-shares = runTest ./shares-vm.nix;
 
   # Eval-only: pure framework derivations/assignments against the live framework (no VM boot).
   template-default = import ./template.nix { inherit pkgs self nixpkgs; };
@@ -121,6 +122,7 @@ in
   homepage-eval = runEval ./homepage.nix;
   arr-eval = runEval ./arr.nix;
   smb-eval = runEval ./smb.nix;
+  shares-eval = runEval ./shares.nix;
   ports-eval = runEval ./ports.nix;
   oidc-rotation-eval = runEval ./oidc-rotation.nix;
 }

@@ -17,6 +17,7 @@
     ./auth/oidc-rotation.nix
     ./auth/tinyauth.nix
     ./storage/smb.nix
+    ./storage/shares.nix
     ./mail/mail.nix
     ./monitoring/monitoring.nix
     ./monitoring/alertmanager.nix

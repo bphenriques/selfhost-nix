@@ -77,6 +77,7 @@ in
         lib.types.submodule [
           baseUserModule
           ./schemas/user-oidc.nix
+          ./schemas/principal-storage-smb.nix
         ]
       );
       default = { };

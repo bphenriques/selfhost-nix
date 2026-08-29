@@ -5,6 +5,7 @@
 - [Getting started](getting-started.md)
 - [Concepts](concepts.md)
 - [Users](users.md)
+- [Shares](shares.md)
 - [Recipes](recipes.md)
 - [Media automation](media.md)
 - [Immich](immich.md)

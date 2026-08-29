@@ -9,6 +9,8 @@ attributes **mirror the framework's registry**, so where an option lives tells y
   is a deploy shortcut with no per-user surface; per-user always belongs to the service.)
 - A cross-cutting concern's per-user options sit at `selfhost.users.<name>.<concern>`, mirroring
   `selfhost.<concern>`, e.g. `auth.oidc.enable`.
+- The same per-principal options are declared on `selfhost.serviceAccounts.<name>`, so a machine and a
+  person are configured the same way. See [Shares](shares.md) for `storage.smb`.
 
 ```nix
 selfhost.users.alice = {
@@ -16,6 +18,7 @@ selfhost.users.alice = {
   services.filebrowser = { enable = true; storage = { … }; };  # per-user config for the filebrowser service
   services.wireguard.devices = [ … ];                          # per-user config for the wireguard service
   auth.oidc.enable = true;                                      # mirrors selfhost.auth.oidc
+  storage.smb.enable = true;                                    # mirrors selfhost.storage.shares.smb
 };
 ```
 

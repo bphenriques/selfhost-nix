@@ -57,7 +57,7 @@ The `selfhost.services.miniflux` block **registers** a Traefik route at `miniflu
 
 ## What it wires vs what you set
 
-This flake wires the cross-cutting concerns (ingress, auth, monitoring, backups, notifications) and each service's selfhost-specific glue. It does **not** wrap the `services.<name>` options nixpkgs already exposes. You still set paths, storage, and tuning on the upstream service yourself.
+This flake wires the cross-cutting concerns (ingress, auth, monitoring, backups, notifications) and each service's selfhost-specific glue. It does **not** wrap the `services.<name>` options nixpkgs already exposes for services you register: you still set paths, storage, and tuning on the upstream service yourself. Bundled apps and the providers a concern brings with it (Traefik, Prometheus, Pocket ID, ntfy, the SMB server) are the exception, and own their upstream module.
 
 ## Security
 

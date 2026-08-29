@@ -259,72 +259,84 @@ in
     };
   };
 
-  config = lib.mkIf mon.enable {
-    assertions = [
-      {
-        assertion = dupExporterNames == [ ];
-        message = "Duplicate Prometheus exporter names across scopes: ${toString dupExporterNames}";
-      }
-    ];
+  config = lib.mkMerge [
+    {
+      # Scopes render only where Prometheus runs; a host scraped by another declares them into the void.
+      warnings =
+        let
+          stranded = lib.attrNames (lib.filterAttrs (_: s: s.enable) cfg.monitoring.scopes);
+        in
+        lib.optional (cfg.enable && !mon.enable && stranded != [ ])
+          "Monitoring scopes declared while `selfhost.monitoring.enable` is off: ${toString stranded}. Their exporters, scrape configs and alert rules render nowhere. Declare them on the host running Prometheus instead.";
+    }
 
-    selfhost.internal.listeningPorts = exporterPorts;
-
-    selfhost.services.prometheus = {
-      displayName = "Prometheus";
-      meta.homepage = "https://prometheus.io";
-      meta.description = "Metrics";
-      meta.category = lib.mkDefault "monitoring";
-      port = mon.prometheusPort;
-      healthcheck.path = "/-/healthy";
-      access.model = "forwardAuth"; # Prometheus authenticates nobody
-      access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
-      integrations.homepage.group = "Admin";
-      integrations.monitoring = {
-        scrapeConfigs = [
-          {
-            job_name = "prometheus";
-            scrape_interval = "300s";
-            static_configs = [ { targets = [ "127.0.0.1:${toString prometheusCfg.port}" ]; } ];
-          }
-        ];
-        rules = [
-          {
-            name = "prometheus";
-            rules = [
-              {
-                alert = "PrometheusTargetDown";
-                expr = "up == 0";
-                "for" = "10m";
-                labels.severity = "warning";
-                annotations.summary = "{{ $labels.job }}/{{ $labels.instance }} down";
-              }
-            ];
-          }
-        ];
-      };
-    };
-
-    # Writes directly to NVMe; SSD wear is negligible at 60s with a small alert set.
-    services.prometheus = {
-      enable = true;
-      listenAddress = prometheusCfg.host;
-      inherit (prometheusCfg) port;
-      retentionTime = lib.mkDefault mon.retentionTime;
-      extraFlags = [
-        "--storage.tsdb.retention.size=${mon.retentionSize}"
-        "--storage.tsdb.wal-compression"
+    (lib.mkIf mon.enable {
+      assertions = [
+        {
+          assertion = dupExporterNames == [ ];
+          message = "Duplicate Prometheus exporter names across scopes: ${toString dupExporterNames}";
+        }
       ];
-      globalConfig = lib.mkDefault {
-        scrape_interval = mon.scrapeInterval;
-        evaluation_interval = mon.scrapeInterval;
-      };
-      exporters = allExporters;
-      scrapeConfigs = allScrapeConfigs;
-      ruleFiles = lib.optional (allRules != [ ]) (yaml.generate "alerts.yml" { groups = allRules; });
-    };
 
-    # mkMerge, not recursiveUpdate: two scopes touching the same unit must combine their lists rather
-    # than the last one silently winning.
-    systemd.services = lib.mkMerge allSystemdOverrides;
-  };
+      selfhost.internal.listeningPorts = exporterPorts;
+
+      selfhost.services.prometheus = {
+        displayName = "Prometheus";
+        meta.homepage = "https://prometheus.io";
+        meta.description = "Metrics";
+        meta.category = lib.mkDefault "monitoring";
+        port = mon.prometheusPort;
+        healthcheck.path = "/-/healthy";
+        access.model = "forwardAuth"; # Prometheus authenticates nobody
+        access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
+        integrations.homepage.group = "Admin";
+        integrations.monitoring = {
+          scrapeConfigs = [
+            {
+              job_name = "prometheus";
+              scrape_interval = "300s";
+              static_configs = [ { targets = [ "127.0.0.1:${toString prometheusCfg.port}" ]; } ];
+            }
+          ];
+          rules = [
+            {
+              name = "prometheus";
+              rules = [
+                {
+                  alert = "PrometheusTargetDown";
+                  expr = "up == 0";
+                  "for" = "10m";
+                  labels.severity = "warning";
+                  annotations.summary = "{{ $labels.job }}/{{ $labels.instance }} down";
+                }
+              ];
+            }
+          ];
+        };
+      };
+
+      # Writes directly to NVMe; SSD wear is negligible at 60s with a small alert set.
+      services.prometheus = {
+        enable = true;
+        listenAddress = prometheusCfg.host;
+        inherit (prometheusCfg) port;
+        retentionTime = lib.mkDefault mon.retentionTime;
+        extraFlags = [
+          "--storage.tsdb.retention.size=${mon.retentionSize}"
+          "--storage.tsdb.wal-compression"
+        ];
+        globalConfig = lib.mkDefault {
+          scrape_interval = mon.scrapeInterval;
+          evaluation_interval = mon.scrapeInterval;
+        };
+        exporters = allExporters;
+        scrapeConfigs = allScrapeConfigs;
+        ruleFiles = lib.optional (allRules != [ ]) (yaml.generate "alerts.yml" { groups = allRules; });
+      };
+
+      # mkMerge, not recursiveUpdate: two scopes touching the same unit must combine their lists rather
+      # than the last one silently winning.
+      systemd.services = lib.mkMerge allSystemdOverrides;
+    })
+  ];
 }

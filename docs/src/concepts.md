@@ -23,6 +23,11 @@ You enable the upstream `services.<name>` and wire the values and secret files i
   notify provider globally and every service opts in (a tile follows having a route).
 - `backup.package`: a pre-backup hook a target picks up.
 
+That split holds for services you register. It does **not** hold for bundled apps (`selfhost.apps.<name>`)
+or for the providers a concern brings with it: Traefik, Prometheus, Pocket ID, tinyauth, ntfy and the SMB
+server each own their upstream `services.<name>` outright. You can still **add** keys alongside what they
+set, but **replacing** one needs `lib.mkForce`, since both are definitions of the same option.
+
 Not every entry owns a backend. Leave `port` unset for something that serves no HTTP at all — WireGuard
 registers for its metadata and metrics, nothing more. Set `backend` to another entry's name to put a
 second hostname onto one process, with its own access model and middlewares: that is how Radicale serves
