@@ -62,7 +62,7 @@ let
   blackboxExporters = lib.optionalAttrs hasHealthchecks {
     blackbox = {
       enable = true;
-      listenAddress = "127.0.0.1";
+      listenAddress = lib.mkDefault "127.0.0.1";
       port = mon.blackboxPort;
       configFile = yaml.generate "blackbox.yml" {
         modules = {
@@ -203,7 +203,7 @@ let
     ++ lib.optionals hasHealthchecks [
       {
         name = "healthcheck/blackbox";
-        host = "127.0.0.1";
+        host = config.services.prometheus.exporters.blackbox.listenAddress;
         port = mon.blackboxPort;
       }
     ];
@@ -291,7 +291,10 @@ in
         access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
         integrations.homepage.group = "Admin";
         integrations.monitoring = {
-          scrapeConfigs = [
+          # mkDefault because scrape configs cannot be appended to: a second definition of this job
+          # name merges into a duplicate, which promtool rejects. Replacing the whole job is the only
+          # way for a consumer to filter what this scrape keeps.
+          scrapeConfigs = lib.mkDefault [
             {
               job_name = "prometheus";
               scrape_interval = "300s";

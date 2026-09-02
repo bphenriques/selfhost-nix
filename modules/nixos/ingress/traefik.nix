@@ -146,8 +146,8 @@ in
         entryPoints.metrics.address = "127.0.0.1:${toString ingressCfg.traefik.metricsPort}";
         metrics.prometheus = {
           entryPoint = "metrics";
-          addRoutersLabels = true;
-          addServicesLabels = true;
+          addRoutersLabels = lib.mkDefault true;
+          addServicesLabels = lib.mkDefault true;
         };
 
         certificatesResolvers.default.acme = {

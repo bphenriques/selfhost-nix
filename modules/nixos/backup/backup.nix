@@ -392,6 +392,9 @@ in
         in
         lib.optional (empty != [ ]) "Backup target(s) snapshot an empty tree (no bindings/services/hooks): ${toString empty}";
 
+      # Manual restores and `rustic tag` run against the same generated profile as the timer.
+      environment.systemPackages = [ pkgs.rustic ];
+
       selfhost.tasks.backup.systemdServices = lib.concatMap (name: [
         "homelab-backup-${name}"
         "homelab-backup-${name}-verify"
