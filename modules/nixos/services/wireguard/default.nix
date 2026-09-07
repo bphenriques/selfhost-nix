@@ -105,6 +105,7 @@ in
         description = "LAN subnet full-access clients may reach; added to their AllowedIPs and used as the masquerade destination. Required when lanAccess.enable.";
       };
       masquerade = lib.mkEnableOption "srcnat masquerade of client traffic into the LAN (enable only if the LAN lacks routes back to the client subnet)";
+      broadcastForwarding = lib.mkEnableOption "forwarding of directed broadcasts from the tunnel into the LAN, so clients can reach broadcast-addressed services such as Wake-on-LAN (clients must target the LAN broadcast address, as 255.255.255.255 is outside their AllowedIPs)";
     };
 
     peers = lib.mkOption {
@@ -243,7 +244,15 @@ in
           '';
         in
         {
-          boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
+          boot.kernel.sysctl = {
+            "net.ipv4.ip_forward" = 1;
+          }
+          // lib.optionalAttrs wg.lanAccess.broadcastForwarding {
+            # The kernel drops a forwarded directed broadcast unless both `all` and the ingress
+            # interface opt in; the interface entry is applied by udev once the interface appears.
+            "net.ipv4.conf.all.bc_forwarding" = 1;
+            "net.ipv4.conf.${wg.interface}.bc_forwarding" = 1;
+          };
           networking.nftables.enable = true;
           networking.nftables.tables.wireguard-access = {
             family = "inet";
