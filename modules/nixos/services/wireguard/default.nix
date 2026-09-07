@@ -105,7 +105,7 @@ in
         description = "LAN subnet full-access clients may reach; added to their AllowedIPs and used as the masquerade destination. Required when lanAccess.enable.";
       };
       masquerade = lib.mkEnableOption "srcnat masquerade of client traffic into the LAN (enable only if the LAN lacks routes back to the client subnet)";
-      broadcastForwarding = lib.mkEnableOption "forwarding of directed broadcasts from the tunnel into the LAN, so clients can reach broadcast-addressed services such as Wake-on-LAN (clients must target the LAN broadcast address, as 255.255.255.255 is outside their AllowedIPs)";
+      wakeOnLan = lib.mkEnableOption "forwarding Wake-on-LAN magic packets (UDP 7 and 9) from full-access clients to the LAN broadcast address; every other directed broadcast stays in the tunnel";
     };
 
     peers = lib.mkOption {
@@ -223,12 +223,26 @@ in
         let
           fullAccessPeers = builtins.filter (c: c.fullAccess) wg.peers;
 
+          # A magic packet is only useful as a broadcast (a powered-off host answers no ARP), so WoL
+          # is the one directed broadcast let through, on the magic-packet ports and from full-access
+          # clients only. `fib daddr type` classifies the destination without deriving the broadcast
+          # address from the subnet.
+          wolRules = lib.optionals (wg.lanAccess.wakeOnLan && fullAccessPeers != [ ]) [
+            ''iifname "${wg.interface}" ip saddr { ${
+              lib.concatMapStringsSep ", " (c: c.ip) fullAccessPeers
+            } } fib daddr type broadcast udp dport { 7, 9 } accept comment "Wake-on-LAN"''
+            ''iifname "${wg.interface}" fib daddr type broadcast drop''
+          ];
+
           # Govern only WireGuard clients: fullAccess devices forward to the LAN, the rest reach just
           # the server. Other forwarding (containers, bridges) is left to whatever manages it, so this
           # never has to know about podman/microvm/etc.
-          forwardRules = map (c: ''iifname "${wg.interface}" ip saddr ${c.ip} accept'') fullAccessPeers ++ [
-            ''iifname "${wg.interface}" drop''
-          ];
+          forwardRules =
+            wolRules
+            ++ map (c: ''iifname "${wg.interface}" ip saddr ${c.ip} accept'') fullAccessPeers
+            ++ [
+              ''iifname "${wg.interface}" drop''
+            ];
 
           nftablesContent = ''
             chain forward {
@@ -247,9 +261,10 @@ in
           boot.kernel.sysctl = {
             "net.ipv4.ip_forward" = 1;
           }
-          // lib.optionalAttrs wg.lanAccess.broadcastForwarding {
-            # The kernel drops a forwarded directed broadcast unless both `all` and the ingress
-            # interface opt in; the interface entry is applied by udev once the interface appears.
+          // lib.optionalAttrs wg.lanAccess.wakeOnLan {
+            # Routing drops a forwarded directed broadcast before the filter ever sees it, unless both
+            # `all` and the ingress interface opt in (AND, not OR, so no other interface is affected);
+            # the interface entry is applied by udev once the interface appears.
             "net.ipv4.conf.all.bc_forwarding" = 1;
             "net.ipv4.conf.${wg.interface}.bc_forwarding" = 1;
           };
