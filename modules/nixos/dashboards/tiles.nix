@@ -13,7 +13,9 @@ let
     }
     // lib.optionalAttrs service.ingress.enable {
       href = service.publicUrl;
-      siteMonitor = "${service.publicUrl}${service.healthcheck.path}";
+      # Probe the service directly: the public URL goes through forward-auth, which answers 401 to
+      # the dashboard and paints every gated tile as down.
+      siteMonitor = service.healthcheck.url;
     }
     // lib.optionalAttrs (service.integrations.homepage.icon != null) {
       inherit (service.integrations.homepage) icon;
