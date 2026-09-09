@@ -36,7 +36,7 @@ pkgs.testers.runNixOSTest {
     # user (the bootstrap admin), so the change reflects back through /v1/users.
     pw = machine.succeed("cat /var/lib/homelab-secrets/miniflux-admin-password").strip()
     machine.wait_until_succeeds(
-        f"curl -sf -u admin:{pw} http://127.0.0.1:8081/v1/users | grep -q dark_serif",
+        f"curl -sf -u admin:{pw} http://127.0.0.1:8081/v1/users | grep dark_serif >/dev/null",
         timeout=60,
     )
   '';

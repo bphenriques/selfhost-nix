@@ -16,6 +16,10 @@ let
   usersConfigFile = pkgs.writeText "oidc-provision-users-config.json" (
     builtins.toJSON {
       inherit (oidcCfg.provisionConfig) users groups;
+      # The declared client set, so base provisioning can name what Pocket-ID still holds and Nix no
+      # longer asks for. Per-client units only ever see their own config, so this is the one place that
+      # knows the whole set.
+      clients = lib.attrNames oidcCfg.clients;
     }
   );
 
@@ -111,8 +115,7 @@ in
         # lost key over a surviving DB stays absent (restore, don't brick). The API key regenerates harmlessly.
         pocket-id-encryption-key = {
           owner = config.services.pocket-id.user;
-          generateOnce = true;
-          generateOnceGuard = config.services.pocket-id.dataDir;
+          generateOnce = config.services.pocket-id.dataDir;
           restartUnits = [ "pocket-id.service" ];
         };
         pocket-id-api-key = {

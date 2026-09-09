@@ -104,6 +104,6 @@ pkgs.testers.runNixOSTest {
           "profile ids changed on re-reconcile"
 
       machine.wait_for_unit("prometheus-exportarr-bazarr-exporter.service")
-      machine.wait_until_succeeds("curl -sf http://127.0.0.1:${exporterPort}/metrics | grep -q '^bazarr_'", timeout=60)
+      machine.wait_until_succeeds("curl -sf http://127.0.0.1:${exporterPort}/metrics | grep '^bazarr_' >/dev/null", timeout=60)
     '';
 }

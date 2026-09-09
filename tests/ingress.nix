@@ -30,11 +30,11 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_open_port(443)
 
     # http is redirected to https
-    machine.succeed("curl -s -o /dev/null -w '%{http_code}' http://localhost/ | grep -qE '30[18]'")
+    machine.succeed("curl -s -o /dev/null -w '%{http_code}' http://localhost/ | grep -E '30[18]' >/dev/null")
 
     # the service is reachable through Traefik's router
     machine.wait_until_succeeds(
-        "curl -sk --resolve hello.test.local:443:127.0.0.1 https://hello.test.local/ | grep -q 'hello from selfhost'",
+        "curl -sk --resolve hello.test.local:443:127.0.0.1 https://hello.test.local/ | grep 'hello from selfhost' >/dev/null",
         timeout=60,
     )
   '';

@@ -20,7 +20,10 @@ let
     else
       item.owner;
 
-  mkPlaceholder = key: "<HOMELAB:${builtins.hashString "sha256" key}:PLACEHOLDER>";
+  # Readable, not hashed: the key is an option name, which is already public, and hashing it only meant
+  # the unresolved-placeholder check below could say *that* something failed to substitute but never
+  # *what*. The delimiters are what keep it from colliding with real config content.
+  mkPlaceholder = key: "<HOMELAB:${key}:PLACEHOLDER>";
 
   secretPlaceholderMap = lib.mapAttrs (name: _: mkPlaceholder "secret:${name}") cfg.runtimeSecrets;
 
@@ -30,15 +33,17 @@ let
     secret = mkPlaceholder "oidc:${name}:secret";
   }) oidcClients;
 
-  # Substitution table: placeholder string -> file path containing the value.
+  # Substitution table: placeholder string -> file path containing the value. Derived from the maps
+  # above rather than rebuilding the placeholder from its key a second time: two constructions of the
+  # same string can drift, and the failure is silent — the template renders with nothing substituted.
   secretSubstitutions = lib.mapAttrs' (
-    name: s: lib.nameValuePair (mkPlaceholder "secret:${name}") s.path
-  ) cfg.runtimeSecrets;
+    name: placeholder: lib.nameValuePair placeholder cfg.runtimeSecrets.${name}.path
+  ) secretPlaceholderMap;
 
-  oidcSubstitutions = lib.concatMapAttrs (name: client: {
-    "${mkPlaceholder "oidc:${name}:id"}" = client.id.file;
-    "${mkPlaceholder "oidc:${name}:secret"}" = client.secret.file;
-  }) oidcClients;
+  oidcSubstitutions = lib.concatMapAttrs (name: placeholder: {
+    ${placeholder.id} = oidcClients.${name}.id.file;
+    ${placeholder.secret} = oidcClients.${name}.secret.file;
+  }) oidcPlaceholderMap;
 
   allSubstitutions = secretSubstitutions // oidcSubstitutions;
 
@@ -58,16 +63,15 @@ let
   '';
 
   # Missing-file policy: generate-once, always-regenerate, or never (warn). Generate-once protects a
-  # data-bound secret (e.g. an encryption key) — once created it is never silently replaced. Whether the
-  # data still exists is read (read-only) from generateOnceGuard (required when generateOnce): a lost
-  # secret over surviving data is left absent (restore, don't brick), else it regenerates.
+  # data-bound secret (e.g. an encryption key) — once created it is never silently replaced. Its option
+  # value *is* the guard path, so a lost secret over surviving data is left absent (restore, don't
+  # brick), and regenerates once that data is gone.
   genBranch =
     name: s:
-    if s.generateOnce then
-      # generateOnceGuard is required when generateOnce (asserted below).
+    if s.generateOnce != null then
       ''
-        if [ -n "$(ls -A ${lib.escapeShellArg s.generateOnceGuard} 2>/dev/null)" ]; then
-          echo "WARNING: ${name} is missing but ${s.generateOnceGuard} still holds data it protects; leaving absent." >&2
+        if [ -n "$(ls -A ${lib.escapeShellArg s.generateOnce} 2>/dev/null)" ]; then
+          echo "WARNING: ${name} is missing but ${s.generateOnce} still holds data it protects; leaving absent." >&2
           echo "  Restore ${name} from backup; a new value would not decrypt the existing data." >&2
         else
           ${generateBranch name s}
@@ -109,18 +113,19 @@ let
           replace-secret ${lib.escapeShellArg placeholder} ${lib.escapeShellArg filePath} "$path"
         '') relevant
       )}
-      if grep -qE '<HOMELAB:[a-f0-9]+:PLACEHOLDER>' "$path"; then
-        echo "FATAL: unresolved placeholders in $path" >&2
+      if grep -qE '<HOMELAB:[^>]*:PLACEHOLDER>' "$path"; then
+        echo "FATAL: unresolved placeholders in $path:" >&2
+        grep -oE '<HOMELAB:[^>]*:PLACEHOLDER>' "$path" | sort -u >&2
         exit 1
       fi
     '';
 
-  # OIDC credential files are written (and the secret rotated) at runtime by the provider's
-  # per-client provisioning units, which run *after* the provider — which in turn depends on the
-  # secrets pass. A template embedding those creds therefore cannot render in the secrets pass
-  # (cycle) and must re-render whenever its client re-provisions. Such templates are split into
-  # per-client render units bound (after/requires/partOf) to their provisioning unit; everything
-  # else renders in the secrets pass, which stays ahead of the provider.
+  # Every template renders in a unit named after it, whether or not it embeds OIDC credentials. Those
+  # credentials are written at runtime by the provider's per-client provisioning units, which run after
+  # the provider, which depends on the secrets pass — so a template embedding them cannot render in the
+  # secrets pass (cycle) and must re-render on each re-provision. Giving *all* templates that shape
+  # rather than only the ones that need it keeps one render path: which unit renders a template follows
+  # from its name, not from whether its content happens to mention a client.
   clientProvisionUnitPrefix = cfg.auth.oidc.systemd.clientProvisionUnitPrefix;
   templateOidcClients =
     t:
@@ -134,15 +139,10 @@ let
       map (name: "${clientProvisionUnitPrefix}${name}.service") (templateOidcClients t)
     );
 
-  oidcTemplates = lib.filterAttrs (_: t: templateOidcClients t != [ ]) cfg.runtimeTemplates;
-  plainTemplates = lib.filterAttrs (_: t: templateOidcClients t == [ ]) cfg.runtimeTemplates;
-
   renderUnitName = name: "homelab-runtime-template-${lib.replaceStrings [ "." "/" ] [ "-" "-" ] name}";
 
-  parentDirsOf = templates: lib.unique (map (t: builtins.dirOf t.path) (lib.attrValues templates));
-
   # pocket-id (and other secret consumers) depend on this; it must not depend on any OIDC creds.
-  mainServiceExists = cfg.runtimeSecrets != { } || plainTemplates != { };
+  mainServiceExists = cfg.runtimeSecrets != { };
   mainServiceDep = lib.optional mainServiceExists "homelab-runtime-secrets.service";
 
   # Order a secret/template's consumer units behind whatever renders it.
@@ -174,24 +174,22 @@ let
         description = "Generate a new random value if the file is missing. When false (externally-synced secrets), the file is left absent and logged rather than aborting secret generation; consumers fail until it is restored.";
       };
       generateOnce = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        description = ''
-          Generate once, then never regenerate (supersedes regenerateIfMissing): a later loss is left absent
-          and logged, not silently replaced — for data-bound secrets (e.g. an encryption key). To rotate
-          deliberately, remove the secret together with the protected data.
-        '';
-      };
-      generateOnceGuard = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
+        example = "/var/lib/pocket-id";
         description = ''
-          Path to the data a generate-once secret protects (e.g. a service's data dir). While it exists and is
-          non-empty, a missing secret is left absent rather than regenerated. Required when generateOnce = true.
+          Path to the data this secret protects (e.g. a service's data dir), which makes it generate-once:
+          created if absent, then never silently replaced (this supersedes `regenerateIfMissing`). For
+          data-bound secrets such as an encryption key, where a fresh value would orphan what it opened.
 
-          The unit that creates this path must be listed in `restartUnits`, which is what orders it after the
-          generator. Without that ordering it can populate the path first, and the guard then suppresses the
-          very first generation, permanently and silently.
+          The path is the guard. While it exists and is non-empty, a missing secret is left absent and
+          logged — restore it rather than letting a rebuild manufacture a new one. A wiped host with no
+          data to orphan generates cleanly. To rotate deliberately, remove the secret together with the
+          data. `null` means this is an ordinary regenerable secret.
+
+          The unit that creates this path must be listed in `restartUnits`, which is what orders it after
+          the generator. Without that ordering it can populate the path first, and the guard then
+          suppresses the very first generation, permanently and silently.
         '';
       };
       owner = lib.mkOption {
@@ -323,24 +321,16 @@ in
   };
 
   config = lib.mkIf (cfg.runtimeSecrets != { } || cfg.runtimeTemplates != { }) {
-    assertions = [
-      {
-        assertion = oidcTemplates == { } || clientProvisionUnitPrefix != null;
-        message = "selfhost.runtimeTemplates referencing oidcPlaceholder require an OIDC provider with selfhost.auth.oidc.systemd.clientProvisionUnitPrefix set (so rendering can be ordered after client provisioning): ${toString (lib.attrNames oidcTemplates)}";
-      }
-      {
-        assertion = lib.all (s: s.generateOnceGuard == null || s.generateOnce) (lib.attrValues cfg.runtimeSecrets);
-        message = "selfhost.runtimeSecrets: generateOnceGuard is only consulted when generateOnce = true: ${
-          toString (lib.attrNames (lib.filterAttrs (_: s: s.generateOnceGuard != null && !s.generateOnce) cfg.runtimeSecrets))
-        }";
-      }
-      {
-        assertion = lib.all (s: !s.generateOnce || s.generateOnceGuard != null) (lib.attrValues cfg.runtimeSecrets);
-        message = "selfhost.runtimeSecrets: generateOnce requires generateOnceGuard (the data path it protects): ${
-          toString (lib.attrNames (lib.filterAttrs (_: s: s.generateOnce && s.generateOnceGuard == null) cfg.runtimeSecrets))
-        }";
-      }
-    ];
+    assertions =
+      let
+        needProvider = lib.attrNames (lib.filterAttrs (_: t: templateOidcClients t != [ ]) cfg.runtimeTemplates);
+      in
+      [
+        {
+          assertion = needProvider == [ ] || clientProvisionUnitPrefix != null;
+          message = "selfhost.runtimeTemplates referencing oidcPlaceholder require an OIDC provider with selfhost.auth.oidc.systemd.clientProvisionUnitPrefix set (so rendering can be ordered after client provisioning): ${toString needProvider}";
+        }
+      ];
 
     systemd.tmpfiles.rules = [
       "d ${secretsDir} 0755 root root -"
@@ -351,24 +341,23 @@ in
       [
         (lib.optionalAttrs mainServiceExists {
           homelab-runtime-secrets = {
-            description = "Generate runtime secrets and render templates";
+            description = "Generate runtime secrets";
             wantedBy = [ "multi-user.target" ];
             path = renderPath;
             serviceConfig = hardening // {
-              ReadWritePaths = [ secretsDir ] ++ parentDirsOf plainTemplates;
+              ReadWritePaths = [ secretsDir ];
             };
             script = ''
               set -euo pipefail
               ${lib.concatStringsSep "\n" (lib.mapAttrsToList mkSecretScript cfg.runtimeSecrets)}
-              ${lib.concatStringsSep "\n" (lib.mapAttrsToList mkTemplateScript plainTemplates)}
             '';
           };
         })
       ]
-      # Per-client render units for OIDC-templated env files: bound (partOf) to their provisioning
-      # unit so they render after creds exist and re-render on each secret rotation. Consumers are
-      # restarted by oidc.nix's dependentServices wiring (also partOf the provisioning unit); this
-      # unit only guarantees the re-render lands before that restart.
+      # One render unit per template. It waits on the secrets pass, and additionally on the provisioning
+      # units of any OIDC client it embeds — `partOf` those, so a re-provision re-renders it. `wantedBy`
+      # multi-user.target so it renders at boot even when nothing lists it in `restartUnits`, which is
+      # what keeps a consumer from ever starting against an unrendered file.
       ++ (lib.mapAttrsToList (
         name: t:
         let
@@ -376,8 +365,8 @@ in
         in
         {
           ${renderUnitName name} = {
-            description = "Render runtime template ${name} (OIDC)";
-            wantedBy = provisionUnits;
+            description = "Render runtime template ${name}";
+            wantedBy = [ "multi-user.target" ] ++ provisionUnits;
             after = mainServiceDep ++ provisionUnits;
             requires = mainServiceDep ++ provisionUnits;
             partOf = provisionUnits;
@@ -393,16 +382,13 @@ in
             '';
           };
         }
-      ) oidcTemplates)
-      # Consumers order behind their generator: secrets/plain templates behind the secrets pass,
-      # OIDC templates behind their per-client render unit (templates also restart on body changes).
+      ) cfg.runtimeTemplates)
+      # Consumers order behind whatever produces what they read: a secret behind the secrets pass, a
+      # template behind its own render unit (and restarting when the body changes between deploys).
       ++ (lib.mapAttrsToList (_: s: mkConsumerDeps "homelab-runtime-secrets.service" { } s.restartUnits) cfg.runtimeSecrets)
       ++ (lib.mapAttrsToList (
-        _: t: mkConsumerDeps "homelab-runtime-secrets.service" { restartTriggers = [ t.content ]; } t.restartUnits
-      ) plainTemplates)
-      ++ (lib.mapAttrsToList (
         name: t: mkConsumerDeps "${renderUnitName name}.service" { restartTriggers = [ t.content ]; } t.restartUnits
-      ) oidcTemplates)
+      ) cfg.runtimeTemplates)
     );
   };
 }

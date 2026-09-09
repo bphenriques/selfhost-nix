@@ -262,6 +262,8 @@ in
   config = lib.mkMerge [
     {
       # Scopes render only where Prometheus runs; a host scraped by another declares them into the void.
+      # Only consumer-declared scopes reach here: a framework module gates its own on `monitoring.enable`,
+      # so it contributes nothing to warn about rather than needing to be excused from the warning.
       warnings =
         let
           stranded = lib.attrNames (lib.filterAttrs (_: s: s.enable) cfg.monitoring.scopes);

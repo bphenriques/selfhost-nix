@@ -5,9 +5,15 @@
   nixpkgs,
 }:
 let
-  # nixosTest runs nixpkgs read-only, so apply the overlay here and import the module dir directly:
-  # nixosModules.default would set nixpkgs.overlays, which read-only mode rejects.
-  pkgs' = pkgs.extend self.overlays.default;
+  # nixosTest runs nixpkgs read-only, so the overlay and `allowUnfree` (which `apps.open-webui` needs)
+  # are applied here rather than by a node: a node setting `nixpkgs.*` is what read-only mode rejects,
+  # and that is also why tests import the module dir directly instead of nixosModules.default.
+  pkgs' =
+    (import nixpkgs {
+      inherit (pkgs.stdenv.hostPlatform) system;
+      config.allowUnfree = true;
+    }).extend
+      self.overlays.default;
 
   # Minimal valid selfhost base shared by every test (framework + one required admin user).
   common =
@@ -73,6 +79,7 @@ let
         {
           boot.isContainer = true;
           system.stateVersion = "25.11";
+          nixpkgs.config.allowUnfree = true;
           selfhost = {
             enable = true;
             ingress.domain = "test.local";
@@ -84,6 +91,21 @@ let
               auth.oidc.enable = false;
             };
           };
+        }
+        module
+      ];
+    }).config;
+
+  # Plain nixpkgs with no framework, for checks that compare against what upstream does on its own.
+  bareConfig =
+    module:
+    (nixpkgs.lib.nixosSystem {
+      system = pkgs.stdenv.hostPlatform.system;
+      modules = [
+        {
+          boot.isContainer = true;
+          system.stateVersion = "25.11";
+          nixpkgs.config.allowUnfree = true;
         }
         module
       ];
@@ -103,6 +125,10 @@ in
   vm-bentopdf = runTest ./bentopdf.nix;
   vm-gitea = runTest ./gitea.nix;
   vm-forwardauth = runTest ./forwardauth.nix;
+  vm-forwardauth-headers = runTest ./forwardauth-headers.nix;
+  vm-runtime-templates = runTest ./runtime-templates.nix;
+  vm-open-webui = runTest ./open-webui.nix;
+  vm-oidc-provision = runTest ./oidc-provision.nix;
   vm-backup = runTest ./backup.nix;
   vm-miniflux = runTest ./miniflux.nix;
   vm-arr = runTest ./arr-vm.nix;
@@ -113,7 +139,7 @@ in
 
   # Eval-only: pure framework derivations/assignments against the live framework (no VM boot).
   template-default = import ./template.nix { inherit pkgs self nixpkgs; };
-  everything-eval = runEval ./everything.nix;
+  cross-service-eval = runEval ./cross-service.nix;
 }
 # One `app-<name>-eval` per first-party app, so a broken app names itself.
 // import ./apps.nix { inherit pkgs evalConfig; }
@@ -124,5 +150,8 @@ in
   smb-eval = runEval ./smb.nix;
   shares-eval = runEval ./shares.nix;
   ports-eval = runEval ./ports.nix;
+  entry-defaults-eval = runEval ./entry-defaults.nix;
+  upstream-defaults-eval = import ./upstream-defaults.nix { inherit pkgs evalConfig bareConfig; };
+  listening-ports-eval = runEval ./listening-ports.nix;
   oidc-rotation-eval = runEval ./oidc-rotation.nix;
 }

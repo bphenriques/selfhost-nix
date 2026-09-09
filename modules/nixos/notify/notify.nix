@@ -34,6 +34,13 @@ let
             --title ${lib.escapeShellArg title} --message "%i failed" --priority high --tags x
         '';
         LoadCredential = [ "notify-token:${task.integrations.notify.tokenFile}" ];
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        ProtectKernelTunables = true;
+        ProtectControlGroups = true;
+        RestrictSUIDSGID = true;
       };
       environment = {
         NOTIFY_URL = notifyCfg.url;

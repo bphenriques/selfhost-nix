@@ -152,6 +152,13 @@ in
         RemainAfterExit = true;
         User = config.services.filebrowser.user;
         Group = config.services.filebrowser.group;
+        # No filesystem sandbox: it rebuilds the DB at upstream's path. See notify/ntfy.nix.
+        ProtectHome = true;
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        ProtectKernelTunables = true;
+        ProtectControlGroups = true;
+        RestrictSUIDSGID = true;
       };
       environment = {
         FILEBROWSER_CONFIG_FILE = fbConfig;

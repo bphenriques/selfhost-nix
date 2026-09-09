@@ -131,7 +131,6 @@ in
           name = "radicale-password-${uname}";
           value = {
             bytes = 24;
-            generateOnce = false;
             restartUnits = [ "radicale-configure.service" ];
           };
         }) enabledUsernames
@@ -148,6 +147,14 @@ in
           Restart = "on-failure";
           RestartSec = 10;
           UMask = "0027";
+          # No filesystem sandbox: it writes the htpasswd next to Radicale's state, which upstream may
+          # relocate. See notify/ntfy.nix for the reasoning.
+          ProtectHome = true;
+          PrivateTmp = true;
+          NoNewPrivileges = true;
+          ProtectKernelTunables = true;
+          ProtectControlGroups = true;
+          RestrictSUIDSGID = true;
         };
         startLimitIntervalSec = 300;
         startLimitBurst = 3;

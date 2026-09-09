@@ -24,11 +24,11 @@ pkgs.testers.runNixOSTest {
 
     # blackbox can actually probe the backend
     machine.wait_until_succeeds(
-        "curl -s 'http://127.0.0.1:9116/probe?target=http://127.0.0.1:8080/&module=http_2xx' | grep -q '^probe_success 1'",
+        "curl -s 'http://127.0.0.1:9116/probe?target=http://127.0.0.1:8080/&module=http_2xx' | grep '^probe_success 1' >/dev/null",
         timeout=60,
     )
 
     # prometheus loaded the auto-generated healthcheck scrape job
-    machine.wait_until_succeeds("curl -s localhost:9090/api/v1/targets | grep -q healthcheck-http_2xx", timeout=60)
+    machine.wait_until_succeeds("curl -s localhost:9090/api/v1/targets | grep healthcheck-http_2xx >/dev/null", timeout=60)
   '';
 }

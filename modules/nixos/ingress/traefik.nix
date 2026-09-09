@@ -3,6 +3,11 @@ let
   cfg = config.selfhost;
   ingressCfg = cfg.ingress;
 
+  edgePorts = [
+    80
+    443
+  ];
+
   mkRouterConfig = service: host: {
     rule = "Host(`${host}`)";
     entryPoints = [ "websecure" ];
@@ -34,16 +39,27 @@ in
   };
 
   config = lib.mkIf cfg.ingress.traefik.enable {
-    # Register the localhost metrics endpoint so it's part of the port-collision check.
+    # Every socket Traefik binds, so the collision check covers the edge too.
     selfhost.internal.listeningPorts = [
       {
         name = "traefik/metrics";
         port = ingressCfg.traefik.metricsPort;
       }
+      {
+        name = "traefik/web";
+        host = "0.0.0.0";
+        port = 80;
+      }
+      {
+        name = "traefik/websecure";
+        host = "0.0.0.0";
+        port = 443;
+      }
     ];
 
-    selfhost.monitoring.scopes.traefik = {
-      scrapeConfigs = [
+    # Gated on the concern: with Prometheus off this renders nowhere, so declare nothing.
+    selfhost.monitoring.scopes = lib.mkIf cfg.monitoring.enable {
+      traefik.scrapeConfigs = [
         {
           job_name = "traefik";
           scrape_interval = "120s";
@@ -78,23 +94,16 @@ in
         }
       ];
 
-    networking.firewall =
+    networking.firewall = lib.mkIf ingressCfg.openFirewall (
       if ingressCfg.allowedInterfaces == [ ] then
-        {
-          allowedTCPPorts = [
-            80
-            443
-          ];
-        }
+        { allowedTCPPorts = edgePorts; }
       else
         {
           interfaces = lib.genAttrs ingressCfg.allowedInterfaces (_: {
-            allowedTCPPorts = [
-              80
-              443
-            ];
+            allowedTCPPorts = edgePorts;
           });
-        };
+        }
+    );
 
     systemd.services.traefik = {
       serviceConfig = {

@@ -33,13 +33,13 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_unit("romm-scheduler.service")
     machine.wait_for_open_port(8095)
 
-    machine.succeed("curl -fsS http://127.0.0.1:8095/ | grep -qi '<title>'")            # frontend
+    machine.succeed("curl -fsS http://127.0.0.1:8095/ | grep -i '<title>' >/dev/null")            # frontend
     machine.wait_until_succeeds(
-        "curl -fsS http://127.0.0.1:8095/api/heartbeat | grep -q '\"ENABLED\":true'",   # …API, with OIDC parsed
+        "curl -fsS http://127.0.0.1:8095/api/heartbeat | grep '\"ENABLED\":true' >/dev/null",   # …API, with OIDC parsed
         timeout=120,
     )
 
-    machine.succeed("ss -tlnH 'sport = :8080' | grep -q '127.0.0.1:8080'")              # API on its own socket
-    machine.fail("ss -tlnH 'sport = :80' | grep -q LISTEN")                             # :80 stays with the gateway
+    machine.succeed("ss -tlnH 'sport = :8080' | grep '127.0.0.1:8080'")              # API on its own socket
+    machine.fail("ss -tlnH 'sport = :80' | grep LISTEN")                             # :80 stays with the gateway
   '';
 }

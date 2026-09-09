@@ -58,6 +58,27 @@ def write_credential [path: string, content: string, group: string] {
   mv --force $tmp $path # atomic rename
 }
 
+# Provisioning is one-way: renaming or removing a service leaves its client behind in Pocket-ID with a
+# live secret, and its credential dir on disk. Report both rather than delete — a client may have been
+# created by hand, and this runs unattended on every boot.
+def report_stale_clients [declared: list<string>, credentials_dir: string] {
+  let remote = get_all "oidc/clients" | get name | where {|n| $n not-in $declared }
+  let local = (
+    ls --short-names $credentials_dir
+    | where type == dir
+    | get name
+    | where {|n| $n not-in $declared }
+  )
+  if ($remote | is-not-empty) {
+    print --stderr $"WARNING: OIDC clients in Pocket-ID that Nix does not declare: ($remote | str join ', ')"
+    print --stderr "  A renamed or removed service leaves its client behind, secret still valid. Delete it in Pocket-ID, or ignore if you created it by hand."
+  }
+  if ($local | is-not-empty) {
+    print --stderr $"WARNING: credential directories with no declared client: ($local | str join ', ')"
+    print --stderr $"  Stale id/secret files under ($credentials_dir). Remove them once the client is gone."
+  }
+}
+
 def resolve_group_ids [group_names: list<string>] {
   let existing = get_all "user-groups"
   $group_names | each { |g|
@@ -130,9 +151,12 @@ def "main provision-users" [] {
   let users_file = $"($credentials_dir)/oidc-users.json"
   let users_tmp = $"($users_file).tmp"
   $provisioned_users | to json | save --force $users_tmp
+  # 0644 on purpose, unlike the 0400/0640 credential files beside it: this holds username -> provider-id
+  # pairs, no secret, and `auth.oidc.credentials.usersFile` publishes it for consumers to read.
   chmod 0644 $users_tmp
   mv --force $users_tmp $users_file # atomic rename
   print $"Wrote users mapping to ($users_file)"
+  report_stale_clients ($config.clients? | default []) $credentials_dir
   print "Pocket ID base provisioning complete"
 }
 

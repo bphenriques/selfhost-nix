@@ -37,6 +37,7 @@
     ./services/immich
     ./services/jellyfin
     ./services/miniflux
+    ./services/open-webui
     ./services/radicale
     ./services/romm
     ./services/transmission

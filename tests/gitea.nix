@@ -73,7 +73,7 @@ pkgs.testers.runNixOSTest {
       # non-fatal, so the cert-race that blocked first boot no longer does.
       machine.wait_for_unit("gitea.service")
       machine.wait_for_unit("gitea-configure.service")
-      machine.succeed("journalctl -u gitea.service | grep -q 'OIDC provider unreachable'")
+      machine.succeed("journalctl -u gitea.service | grep 'OIDC provider unreachable'")
 
       # alice reconciled to site-admin from the fleet isAdmin — proves the admin-API PATCH works here.
       machine.succeed("runuser -u gitea -- ${gitea} admin user list --admin | grep -qw alice")
@@ -85,13 +85,13 @@ pkgs.testers.runNixOSTest {
       machine.fail("getent passwd ci")
 
       # Its key registered, read back through the same unauthenticated view the reconcile uses.
-      machine.succeed("${pkgs.curl}/bin/curl -sf ${giteaUrl}/ci.keys | grep -q AAAAC3NzaC1lZDI1NTE5AAAAIMdeA2")
+      machine.succeed("${pkgs.curl}/bin/curl -sf ${giteaUrl}/ci.keys | grep AAAAC3NzaC1lZDI1NTE5AAAAIMdeA2 >/dev/null")
 
       # the ephemeral admin token was minted (it can't be revoked here: gitea basic auth is disabled).
-      machine.succeed("journalctl -u gitea-configure.service | grep -q 'Ephemeral admin token left in place'")
+      machine.succeed("journalctl -u gitea-configure.service | grep 'Ephemeral admin token left in place'")
 
       # the built-in SSH server is off by default — nothing listening on 2222.
-      machine.fail("ss -tlnH 'sport = :2222' | grep -q ':2222'")
+      machine.fail("ss -tlnH 'sport = :2222' | grep ':2222'")
 
       # OIDC-linked edge: a non-local account must keep its auth source through an admin change. Add a real
       # source, mark alice as linked to it (login_type 3) and not-admin, then re-run the reconcile — it must

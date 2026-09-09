@@ -131,6 +131,15 @@ in
         Restart = "on-failure";
         RestartSec = 10;
         UMask = "0077";
+        # No filesystem sandbox: `ntfy user`/`token add` writes the server's auth DB, whose path is
+        # upstream's to move, and a ReadWritePaths that misses it fails at provisioning rather than at
+        # start. The rest costs nothing to keep correct.
+        ProtectHome = true;
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        ProtectKernelTunables = true;
+        ProtectControlGroups = true;
+        RestrictSUIDSGID = true;
       };
       environment = {
         NTFY_ADMIN_PASSWORD_FILE = cfg.runtimeSecrets.ntfy-admin-password.path;

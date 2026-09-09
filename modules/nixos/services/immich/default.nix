@@ -128,6 +128,14 @@ in
         Group = config.services.immich.group;
         Restart = "on-failure";
         RestartSec = 10;
+        # No filesystem sandbox: this runs as the immich user, whose home and caches are upstream's to
+        # place. See notify/ntfy.nix.
+        ProtectHome = true;
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        ProtectKernelTunables = true;
+        ProtectControlGroups = true;
+        RestrictSUIDSGID = true;
       };
       environment = {
         IMMICH_URL = serviceCfg.url;

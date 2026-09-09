@@ -28,9 +28,9 @@ let
         && (config.access.model != "forwardAuth" || cfg.auth.forwardAuth.active)
       );
 
-      # The probe targets the backend, so an entry borrowing one would only re-probe what its owner
-      # already does — same URL, second alert on one outage.
-      config.integrations.monitoring.healthcheck = lib.mkDefault (config.backend == null);
+      # Probe only the socket this entry owns: a borrowed one would re-probe what its owner already
+      # does (same URL, second alert on one outage), and an entry with no HTTP backend has no URL.
+      config.integrations.monitoring.healthcheck = lib.mkDefault config.ownsBackend;
 
       # `backend` first so a borrowed entry short-circuits: it has no port definition of its own.
       config.ownsBackend = config.backend == null && options.port.isDefined;
@@ -113,33 +113,6 @@ let
           description = "Blackbox exporter module for health probes. Use http_any for services that require authentication on all endpoints.";
         };
 
-        # Routing (public)
-        subdomain = lib.mkOption {
-          type = lib.types.str;
-          default = name;
-          description = "Subdomain prefix (combined with domain for publicHost)";
-        };
-
-        publicHost = lib.mkOption {
-          type = lib.types.str;
-          # Thrown rather than nullOr: keeping the type `str` spares every reader a null branch for a
-          # case that cannot happen on a host that routes anything.
-          default =
-            if cfg.ingress.domain == null then
-              throw "selfhost.services.${name}.publicHost needs selfhost.ingress.domain, which is unset."
-            else
-              "${config.subdomain}.${cfg.ingress.domain}";
-          defaultText = lib.literalMD "`<subdomain>.<ingress.domain>`";
-          description = "Public hostname (derived from subdomain and ingress.domain)";
-        };
-
-        publicUrl = lib.mkOption {
-          type = lib.types.str;
-          default = "https://${config.publicHost}";
-          defaultText = lib.literalMD "`https://<publicHost>`";
-          description = "Full public URL (derived from publicHost)";
-        };
-
         systemdServices = lib.mkOption {
           type = lib.types.coercedTo lib.types.str (s: [ s ]) (lib.types.listOf lib.types.str);
           default =
@@ -158,10 +131,6 @@ let
             that matches nothing yields a stub carrying only the attachment rather than an error. Set this
             when the unit is not named after the service.
           '';
-        };
-
-        ingress.enable = lib.mkEnableOption "HTTP ingress route for this service" // {
-          default = true;
         };
 
         access.model = lib.mkOption {
@@ -228,7 +197,8 @@ in
           modules = [
             ./schemas/metadata.nix
             baseServiceModule
-            ./schemas/ingress.nix
+            ./schemas/ingress
+            ./schemas/ingress/traefik.nix
             ./schemas/oidc.nix
             ./schemas/storage.nix
             ./schemas/homepage.nix

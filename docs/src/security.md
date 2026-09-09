@@ -6,18 +6,26 @@ the split.
 ## What the framework does
 
 - **Secrets off the store.** `runtimeSecrets` are generated with `openssl` into `/var/lib/homelab-secrets`
-  (root-owned, tight modes), never in the world-readable Nix store. Templates render on tmpfs, and generation
-  runs sandboxed (`ProtectSystem = strict`, write scoped to the secrets dir).
+  (root-owned, tight modes), never in the world-readable Nix store. Generation runs sandboxed
+  (`ProtectSystem = strict`, write scoped to the secrets dir). Each template renders in its own unit, onto
+  tmpfs unless you point its `path` somewhere else.
 - **Durable secret lifecycle.** `regenerateIfMissing` handles disposable random secrets. `generateOnce`
-  (+ `generateOnceGuard`) handles data-bound keys, where a key lost while its data survives is left *absent
-  and logged*, never silently replaced.
-- **The edge is the only public surface.** Services bind `127.0.0.1`, and the reverse proxy fronts them.
+  names the data path a key protects, and a key lost while that data survives is left *absent and logged*,
+  never silently replaced.
+- **The edge is the only public surface for HTTP.** Services bind `127.0.0.1`, and the reverse proxy fronts them.
+  The non-HTTP exceptions each carry their own opt-in and are visible as such: the WireGuard tunnel, Gitea's
+  SSH server, and the SMB server. Every socket the framework binds is registered, and one assertion checks
+  the whole set for collisions.
   Each service declares `access.model`, and the framework gates it accordingly: a per-service OIDC client
   (group-scoped), or `forwardAuth`, whose middleware sets the identity headers from the auth response. A
   service that authenticates nobody itself is not routed at all until a forward-auth provider exists, so
   the failure mode is an unreachable service rather than an unguarded one.
-- **Hardened service units.** Bundled reconcilers and backups run with `ProtectSystem = strict`,
-  `NoNewPrivileges`, etc. The notify token reaches non-root consumers via systemd `LoadCredential`.
+- **Hardened service units.** Every unit the framework defines runs with `NoNewPrivileges`, `PrivateTmp`,
+  `ProtectHome` and the kernel/cgroup protections. A filesystem sandbox (`ProtectSystem = strict`) is added
+  only where the unit runs as root and writes nothing, or writes solely to paths this project owns — a
+  reconciler writing into an upstream-owned data dir gets none, because a `ReadWritePaths` that misses a
+  path fails at the write rather than at start. Nothing is added to units nixpkgs owns. The notify token
+  reaches non-root consumers via systemd `LoadCredential`.
 - **WireGuard, not public exposure.** That is the way in.
 
 ## What it will NOT do: your responsibility
@@ -40,7 +48,7 @@ the split.
 |---|---|
 | OIDC client secrets | Framework-managed: `oidc-rotate [<client>]` (always available) or the opt-in `rotation` timer. It removes the secret and the provider re-mints it. |
 | Random per-service secrets (`regenerateIfMissing`) | Delete the file. Regenerated on next activation. |
-| Data-bound keys (`generateOnce`) | **Manual and deliberate.** Rotating means re-keying the data it protects, so the framework refuses to auto-rotate (that would brick the data). Remove the secret *together with* the data its `generateOnceGuard` watches to re-key. |
+| Data-bound keys (`generateOnce`) | **Manual and deliberate.** Rotating means re-keying the data it protects, so the framework refuses to auto-rotate (that would brick the data). Remove the secret *together with* the data at the path `generateOnce` names. |
 | Externally-synced secrets (`regenerateIfMissing = false`) | Rotate in your own store. The framework leaves them untouched. |
 
 ## Restore & disaster recovery

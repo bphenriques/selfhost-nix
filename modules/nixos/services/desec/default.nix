@@ -66,9 +66,29 @@ in
       '';
     };
 
-    # Without this the timer fails silently: a stale A record is only noticed when something can't
-    # resolve the domain.
+    # Registered so a consumer can attach notify or storage. No topic default: this timer runs every
+    # 30 minutes, and an OnFailure hook fires per tick, so a deSEC outage would page on every one.
     selfhost.tasks.desec-ddns.systemdServices = [ "desec-ddns" ];
+
+    # A stale A record is only noticed when something cannot resolve the domain, so it does need an
+    # alert — one that rides out a blip. Needs node_exporter's systemd collector, as in smb-shares.
+    # `for` spans a retry: the unit stays failed between ticks, so this fires only after one lapsed.
+    selfhost.monitoring.scopes = lib.mkIf config.selfhost.monitoring.enable {
+      desec-ddns.rules = [
+        {
+          name = "desec-ddns";
+          rules = [
+            {
+              alert = "DynamicDnsStale";
+              expr = ''node_systemd_unit_state{name="desec-ddns.service",state="failed"} == 1'';
+              "for" = "45m";
+              labels.severity = "critical";
+              annotations.summary = "deSEC updates are failing; {{ $labels.instance }}'s hostnames are going stale";
+            }
+          ];
+        }
+      ];
+    };
 
     systemd.timers.desec-ddns = {
       description = "Periodic deSEC dynamic DNS update";

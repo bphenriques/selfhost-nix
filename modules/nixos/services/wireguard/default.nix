@@ -117,17 +117,17 @@ in
     };
   };
 
-  config = lib.mkIf wg.enable (
+  config = lib.mkIf (cfg.enable && wg.enable) (
     lib.mkMerge [
       {
         selfhost.services.wireguard = {
           displayName = lib.mkDefault "WireGuard";
           meta.description = lib.mkDefault "VPN";
-          # No port: WireGuard is a UDP daemon with no HTTP backend, so it is neither routed nor part
-          # of the loopback port-collision check. The entry exists for its metadata and metrics.
+          # No port: WireGuard is a UDP daemon with no HTTP backend, so it is neither routed nor
+          # healthchecked. The entry exists for its metadata and metrics; the tunnel socket is
+          # registered below.
 
           integrations.monitoring = {
-            healthcheck = false;
             exporters.wireguard = {
               enable = true;
               listenAddress = "127.0.0.1";
@@ -148,6 +148,15 @@ in
           };
         };
 
+        selfhost.internal.listeningPorts = [
+          {
+            name = "wireguard/tunnel";
+            host = "0.0.0.0";
+            port = wg.listenPort;
+            protocol = "udp";
+          }
+        ];
+
         systemd.tmpfiles.rules = [
           "d ${dataDir} 0700 root root -"
           "d ${dataDir}/server 0700 root root -"
@@ -159,7 +168,17 @@ in
           wantedBy = [ ifaceBackend ];
           before = [ ifaceBackend ];
           after = [ "systemd-tmpfiles-setup.service" ];
-          serviceConfig.Type = "oneshot";
+          serviceConfig = {
+            Type = "oneshot";
+            ProtectSystem = "strict";
+            ProtectHome = true;
+            PrivateTmp = true;
+            NoNewPrivileges = true;
+            ProtectKernelTunables = true;
+            ProtectControlGroups = true;
+            RestrictSUIDSGID = true;
+            ReadWritePaths = [ dataDir ];
+          };
           path = [ pkgs.wireguard-tools ];
           script = ''
             if [ ! -f "${serverKeyFile}" ]; then

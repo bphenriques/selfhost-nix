@@ -160,20 +160,23 @@ in
     # node_exporter reports a hung mount as device_error="mountpoint timeout" (needs its filesystem
     # collector). The automount retries on its own, so `for` outlasts a NAS reboot: this fires only
     # once a share has failed to come back, not on every blip.
-    selfhost.monitoring.scopes.smb-storage.rules = [
-      {
-        name = "smb-storage";
-        rules = [
-          {
-            alert = "StorageMountUnavailable";
-            expr = ''node_filesystem_device_error{fstype="cifs"} == 1'';
-            "for" = "10m";
-            labels.severity = "critical";
-            annotations.summary = "{{ $labels.mountpoint }} not responding";
-          }
-        ];
-      }
-    ];
+    # Gated on the concern: with Prometheus off this renders nowhere, so declare nothing.
+    selfhost.monitoring.scopes = lib.mkIf selfhostCfg.monitoring.enable {
+      smb-storage.rules = [
+        {
+          name = "smb-storage";
+          rules = [
+            {
+              alert = "StorageMountUnavailable";
+              expr = ''node_filesystem_device_error{fstype="cifs"} == 1'';
+              "for" = "10m";
+              labels.severity = "critical";
+              annotations.summary = "{{ $labels.mountpoint }} not responding";
+            }
+          ];
+        }
+      ];
+    };
 
     systemd.services = lib.mkMerge (
       lib.mapAttrsToList (

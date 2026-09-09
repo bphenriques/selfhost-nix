@@ -230,7 +230,7 @@ in
         unknownGroups = lib.subtractLists knownGroups grantedGroups;
         needUnixUser = lib.unique (lib.attrNames principals ++ lib.mapAttrsToList (_: s: s.owner) cfg.shares);
         missingUnixUser = lib.filter (n: !(config.users.users ? ${n})) needUnixUser;
-        missingPassword = lib.attrNames (lib.filterAttrs (_: p: p.storage.smb.passwordFile == null) principals);
+        missingPassword = lib.attrNames (lib.filterAttrs (_: p: !p.storage.smb.hasPassword) principals);
       in
       [
         {
@@ -288,22 +288,36 @@ in
 
     networking.firewall.allowedTCPPorts = lib.mkIf cfg.openFirewall [ 445 ];
 
-    # Needs node_exporter's systemd collector; without it the series is absent and this never fires.
-    selfhost.monitoring.scopes.smb-shares.rules = [
+    selfhost.internal.listeningPorts = [
       {
-        name = "smb-shares";
-        rules = [
-          {
-            alert = "SmbSharesUnserved";
-            expr = ''node_systemd_unit_state{name=~"samba-smbd.service|selfhost-smb-permissions.service",state="failed"} == 1'';
-            "for" = "5m";
-            labels.severity = "critical";
-            annotations.summary = "{{ $labels.name }} failed; SMB shares are not being served";
-          }
-        ];
+        name = "samba/smbd";
+        host = "0.0.0.0";
+        port = 445;
       }
     ];
 
+    # Needs node_exporter's systemd collector; without it the series is absent and this never fires.
+    # Gated on the concern: with Prometheus off this renders nowhere, so declare nothing.
+    selfhost.monitoring.scopes = lib.mkIf selfhostCfg.monitoring.enable {
+      smb-shares.rules = [
+        {
+          name = "smb-shares";
+          rules = [
+            {
+              alert = "SmbSharesUnserved";
+              expr = ''node_systemd_unit_state{name=~"samba-smbd.service|selfhost-smb-permissions.service",state="failed"} == 1'';
+              "for" = "5m";
+              labels.severity = "critical";
+              annotations.summary = "{{ $labels.name }} failed; SMB shares are not being served";
+            }
+          ];
+        }
+      ];
+    };
+
+    # These two carry every hardening line except the filesystem sandbox: they write into share paths
+    # and samba's passdb, both consumer-relocatable, and a ReadWritePaths that misses one fails at
+    # ownership rather than at start, which is harder to diagnose than no sandbox at all.
     systemd.services.selfhost-smb-permissions = {
       description = "Prepare SMB share ownership";
       wantedBy = [ "multi-user.target" ];
@@ -314,6 +328,12 @@ in
         Type = "oneshot";
         RemainAfterExit = true;
         ExecStart = lib.getExe setPermissions;
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        ProtectKernelTunables = true;
+        ProtectControlGroups = true;
+        # No RestrictSUIDSGID: the share roots are 2770, and setting that setgid bit is the whole point
+        # of this unit — it is what makes everything written into a share inherit its group.
       };
     };
 
@@ -327,6 +347,11 @@ in
         UMask = "0077";
         LoadCredential = lib.mapAttrsToList (name: p: "${name}:${toString p.storage.smb.passwordFile}") principals;
         ExecStart = lib.getExe provisionPasswords;
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        ProtectKernelTunables = true;
+        ProtectControlGroups = true;
+        RestrictSUIDSGID = true;
       };
     };
 

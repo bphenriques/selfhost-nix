@@ -60,6 +60,14 @@ in
         serviceConfig = {
           Type = "oneshot";
           ExecStart = lib.getExe oidc-rotate;
+          ProtectSystem = "strict";
+          ProtectHome = true;
+          PrivateTmp = true;
+          NoNewPrivileges = true;
+          ProtectKernelTunables = true;
+          ProtectControlGroups = true;
+          RestrictSUIDSGID = true;
+          ReadWritePaths = [ oidcCfg.credentials.dir ]; # removes the secret it wants re-minted
         };
       };
 

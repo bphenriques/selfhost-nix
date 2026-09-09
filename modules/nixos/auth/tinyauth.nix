@@ -4,6 +4,13 @@ let
   cfg = config.selfhost;
   oidcCfg = cfg.auth.oidc;
   serviceCfg = cfg.services.tinyauth;
+  selfhostLib = import ../lib.nix { inherit lib; };
+
+  # tinyauth keys an app's settings by its subdomain, uppercased. Two subdomains can normalize to one
+  # key ("my-app" and "my_app"), and listToAttrs keeps the first, so the later service would silently
+  # lose its group restriction — open, not closed. Asserted rather than worked around.
+  gatedServices = lib.filterAttrs (_: s: s.access.model == "forwardAuth" && s.access.allowedGroups != [ ]) cfg.services;
+  appKey = subdomain: lib.toUpper (lib.replaceStrings [ "-" ] [ "_" ] subdomain);
 in
 {
   options.selfhost.auth.forwardAuth.tinyauth = {
@@ -69,13 +76,28 @@ in
       }
       // lib.listToAttrs (
         lib.mapAttrsToList (_: svc: {
-          name = "APPS_${lib.toUpper (lib.replaceStrings [ "-" ] [ "_" ] svc.subdomain)}_OAUTH_GROUPS";
+          name = "APPS_${appKey svc.subdomain}_OAUTH_GROUPS";
           value = lib.concatStringsSep "," svc.access.allowedGroups;
           # Empty allowedGroups means unrestricted, which is the absent key — emitting "" would ask
           # tinyauth to match a group nobody has.
-        }) (lib.filterAttrs (_: s: s.access.model == "forwardAuth" && s.access.allowedGroups != [ ]) cfg.services)
+        }) gatedServices
       );
     };
+
+    assertions =
+      let
+        collisions = selfhostLib.collisions (builtins.groupBy (s: appKey s.subdomain) (lib.attrValues gatedServices));
+      in
+      [
+        {
+          assertion = collisions == { };
+          message = "Gated services whose subdomains collapse to one tinyauth app key, so only the first keeps its allowedGroups: ${
+            lib.concatStringsSep "; " (
+              lib.mapAttrsToList (key: group: "${key} ← ${lib.concatMapStringsSep ", " (s: s.subdomain) group}") collisions
+            )
+          }";
+        }
+      ];
 
     systemd.services.tinyauth.serviceConfig.SupplementaryGroups = serviceCfg.access.oidc.systemd.supplementaryGroups;
   };

@@ -139,7 +139,7 @@ pkgs.testers.runNixOSTest {
       # appears once the health collector has talked to the API with the generated key.
       machine.wait_for_unit("prometheus-exportarr-radarr-exporter.service")
       machine.wait_for_open_port(${exporterPort})
-      machine.wait_until_succeeds("curl -sf http://127.0.0.1:${exporterPort}/metrics | grep -q '^radarr_system_health_issues'", timeout=60)
+      machine.wait_until_succeeds("curl -sf http://127.0.0.1:${exporterPort}/metrics | grep '^radarr_system_health_issues' >/dev/null", timeout=60)
 
       # exportarr degrades rather than failing the scrape, so a broken collector shows up only here.
       metrics = machine.succeed("curl -sf http://127.0.0.1:${exporterPort}/metrics")

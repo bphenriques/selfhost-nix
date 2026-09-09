@@ -25,6 +25,7 @@ let
     immich = { };
     jellyfin = { };
     miniflux = { };
+    open-webui = { };
     prowlarr = { };
     radarr = { };
     radicale = { };

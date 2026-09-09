@@ -1,6 +1,6 @@
 # Core smoke test: registry + runtime-secrets + the ntfy provider provision cleanly — the publisher token
 # lands root-owned 0400 (non-root consumers read it via LoadCredential) — and a generate-once secret whose
-# regeneration is gated on the presence of the data it protects (generateOnceGuard).
+# regeneration is gated on the presence of the data it protects (the generateOnce path).
 { pkgs, common, ... }:
 pkgs.testers.runNixOSTest {
   name = "selfhost-core";
@@ -29,8 +29,7 @@ pkgs.testers.runNixOSTest {
       # Guarded on a dir the test drives by hand, so the branches below are deterministic; the ordering
       # that makes a real service-owned guard safe is asserted separately.
       runtimeSecrets.test-guarded = {
-        generateOnce = true;
-        generateOnceGuard = "/var/lib/guard-data";
+        generateOnce = "/var/lib/guard-data";
       };
 
       # A task publisher (not a system user) — its token is still provisioned root-owned, no chown gymnastics.
@@ -82,7 +81,7 @@ pkgs.testers.runNixOSTest {
     before = machine.succeed("systemctl show homelab-runtime-secrets.service -p Before --value")
     assert "ntfy-sh.service" in before, before
 
-    # generateOnceGuard — first boot has no guarded data, so the secret is generated.
+    # generateOnce — first boot has no guarded data, so the secret is generated.
     machine.succeed("test -e /var/lib/homelab-secrets/test-guarded")
 
     # Data present + secret lost: leave it absent (a new value would orphan the data) and log why.

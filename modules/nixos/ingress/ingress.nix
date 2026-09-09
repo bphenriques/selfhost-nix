@@ -24,10 +24,17 @@
       };
     };
 
+    openFirewall = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Whether the ingress implementation opens 80/443. Enabling ingress means wanting it reachable, so this follows. Turn it off to place the rules yourself.";
+    };
+
     allowedInterfaces = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
-      description = "Network interfaces to allow HTTP/HTTPS traffic on. If empty, allows on all interfaces (not recommended).";
+      example = [ "eth0" ];
+      description = "Interfaces to scope the opened ports to. Empty opens them on all interfaces. To open nothing at all, set `openFirewall = false` rather than clearing this.";
     };
   };
 }

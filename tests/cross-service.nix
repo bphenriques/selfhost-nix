@@ -1,7 +1,12 @@
-# Composition: every app and provider enabled together. Deliberately narrow — whether an app evaluates
-# at all is `tests/apps.nix`, one check per app, because that feedback should name the app. What is left
-# here is only what needs the whole surface at once: cross-service uniqueness (hosts, ports), and the
-# consumer-facing derivations that fold every entry into one value and so cannot be checked per app.
+# Properties that exist *between* registry entries, never within one, so they need every app and
+# provider enabled at once to have anything to compare:
+#   - public hosts and listening ports are unique across the whole set
+#   - `inventory` and `dashboards.generatedTiles` fold every entry into one value and still evaluate
+#
+# Not a "does everything work" check, and enabling every app together is not a realistic deployment.
+# Whether an app evaluates at all is `tests/apps.nix`, one check per app, so a broken app names itself.
+# Per-entry derived defaults are `tests/entry-defaults.nix`. Anything that does not need two entries to
+# mean something belongs in one of those, not here.
 { pkgs, evalConfig }:
 let
   inherit (pkgs) lib;
@@ -81,9 +86,11 @@ let
           immich.enable = true;
           jellyfin.enable = true;
           miniflux.enable = true;
+          open-webui.enable = true;
           prowlarr.enable = true;
           radarr.enable = true;
           radicale.enable = true;
+          romm.enable = true;
           sonarr.enable = true;
           transmission.enable = true;
           wireguard = {
@@ -129,4 +136,4 @@ assert lib.assertMsg (cfg.system.build.toplevel.drvPath != null) "the full surfa
 # Read only by consumers, and each folds every registry entry into one value, so nothing per-app forces them.
 assert lib.assertMsg (builtins.deepSeq cfg.selfhost.inventory true) "inventory must evaluate";
 assert lib.assertMsg (builtins.deepSeq cfg.selfhost.dashboards.generatedTiles true) "tiles must evaluate";
-pkgs.runCommand "selfhost-everything-eval" { } "touch $out"
+pkgs.runCommand "selfhost-cross-service-eval" { } "touch $out"

@@ -14,7 +14,8 @@ lives under `selfhost.`.
 You enable the upstream `services.<name>` and wire the values and secret files it derives (see
 [Recipes](recipes.md)). That one entry is what capabilities attach to:
 
-- `ingress.enable`: a reverse-proxy route at the public URL (on by default).
+- `ingress.enable`: a reverse-proxy route at the public URL. On once the entry has a backend to route to
+  and its `access.model` is satisfied (see below), so it is not simply "on by default".
 - `access.model`: who authenticates this service's users (see below).
 - `systemdServices`: the units concerns attach to, such as storage automount guards. Defaults to the
   service's own name, or its container's unit.
@@ -95,16 +96,16 @@ headless DDNS timer. The catalog and each app's options are in the [reference](o
 
 `runtimeSecrets` generates values at boot into a persistent directory, never the Nix store or your secrets
 backend. Each takes a missing-file policy: regenerate, leave absent, or generate-once for data-bound keys
-(see the options). `runtimeTemplates` render config that must embed a secret into tmpfs via opaque
-placeholders, so the value never reaches the store. Rotation is deliberate: remove the value and restart
+(see the options). `runtimeTemplates` render config that must embed a secret into tmpfs, standing the value
+in as a named placeholder so it never reaches the store. Rotation is deliberate: remove the value and restart
 its generator (`oidc-rotate` wraps this for OIDC clients).
 
 Which policy a secret wants follows from what it protects. A value the host can re-apply at will — an API
 key a reconciler pushes back into its app — may regenerate whenever it goes missing. A value that encrypts
-data at rest may not: a fresh key orphans the data it was meant to open. Those declare `generateOnce` with
-a `generateOnceGuard` pointing at the data they protect, and if the key is gone while that data is still
-there, the secret is left **absent** with a log line saying why. Restore the key rather than letting a
-rebuild manufacture a new one. A wiped host with no data to orphan generates cleanly on the next boot.
+data at rest may not: a fresh key orphans the data it was meant to open. Those set `generateOnce` to the
+path of the data they protect, and if the key is gone while that data is still there, the secret is left
+**absent** with a log line saying why. Restore the key rather than letting a rebuild manufacture a new one.
+A wiped host with no data to orphan generates cleanly on the next boot.
 
 ## Storage & dashboard tiles
 
@@ -119,7 +120,8 @@ read-only `dashboards.generatedTiles` into your own. The framework supplies the 
 
 ## Exposure
 
-HTTP is opened only on `ingress.allowedInterfaces` (LAN, VPN), keeping services off the public internet. A
-single wildcard cert (`*.<domain>`) comes over ACME DNS-01, so issuance needs no inbound port. Putting
-services on the **public internet is out of scope**. There is no bundled hardening, and it is a
-security-sensitive decision you own.
+Enabling an ingress implementation opens 80/443, since a proxy nobody can reach serves no purpose. Narrow
+that to your LAN and VPN links with `ingress.allowedInterfaces`, or set `ingress.openFirewall = false` and
+place the rules yourself. A single wildcard cert (`*.<domain>`) comes over ACME DNS-01, so issuance needs
+no inbound port. Putting services on the **public internet is out of scope**. There is no bundled
+hardening, and it is a security-sensitive decision you own.

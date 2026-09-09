@@ -54,6 +54,6 @@ pkgs.testers.runNixOSTest {
         "curl -sk -o /dev/null -w '%{http_code}' " + url, timeout=60
     ).strip()
     assert status != "200", f"forwardAuth did not gate the route (got {status})"
-    machine.fail("curl -sk " + url + " | grep -q 'hello from selfhost'")
+    machine.fail("curl -sk " + url + " | grep 'hello from selfhost' >/dev/null")
   '';
 }

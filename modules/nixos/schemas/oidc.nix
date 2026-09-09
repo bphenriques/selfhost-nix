@@ -7,43 +7,26 @@
 let
   serviceConfig = config;
   credentialsBaseDir = "/var/lib/homelab-oidc"; # persistent; see auth/oidc.nix for the rationale
-  mkPlaceholder = field: "@HOMELAB_OIDC_${name}_${field}@";
 in
 {
   options.access.oidc = lib.mkOption {
     type = lib.types.submodule (
       { config, ... }: {
         options = {
-          id = {
-            file = lib.mkOption {
-              type = lib.types.str;
-              default = "${credentialsBaseDir}/${name}/id";
-              readOnly = true;
-              description = "Path to the file containing the client ID";
-            };
-
-            placeholder = lib.mkOption {
-              type = lib.types.str;
-              default = mkPlaceholder "ID";
-              readOnly = true;
-              description = "Placeholder for client ID (use in config files, substituted at runtime)";
-            };
+          # Only the file paths live here. A template embedding these values uses
+          # `selfhost.oidcPlaceholder.<client>.{id,secret}`, which is the scheme the renderer substitutes.
+          id.file = lib.mkOption {
+            type = lib.types.str;
+            default = "${credentialsBaseDir}/${name}/id";
+            readOnly = true;
+            description = "Path to the file containing the client ID";
           };
 
-          secret = {
-            file = lib.mkOption {
-              type = lib.types.str;
-              default = "${credentialsBaseDir}/${name}/secret";
-              readOnly = true;
-              description = "Path to the file containing the client secret";
-            };
-
-            placeholder = lib.mkOption {
-              type = lib.types.str;
-              default = mkPlaceholder "SECRET";
-              readOnly = true;
-              description = "Placeholder for client secret (use in config files, substituted at runtime)";
-            };
+          secret.file = lib.mkOption {
+            type = lib.types.str;
+            default = "${credentialsBaseDir}/${name}/secret";
+            readOnly = true;
+            description = "Path to the file containing the client secret";
           };
 
           name = lib.mkOption {

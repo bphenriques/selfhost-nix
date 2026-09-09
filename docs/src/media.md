@@ -25,13 +25,10 @@ forward-auth following the active provider), generate the API key out of the sto
 the forward-auth identity, add a library-list backup hook, and run an **idempotent reconcile** that applies
 only what you declare:
 
-- `rootFolders`: library paths (storage-agnostic, and the path must exist).
-- `downloadClients`: registered generically via the app's own schema. You name the implementation and
-  protocol, so it's never assumed to be torrent (or Transmission). The app connection-tests a client on
-  save, so order the reconcile after the client's unit with `configureAfter`.
-- `delayProfile`: optional, carrying the protocol preference, so it stays your call with no default.
-
-All three default to empty/none: enabling an app configures nothing you didn't ask for.
+What it reconciles — root folders, download clients, an optional delay profile — is in the
+[options reference](options.md). Every one defaults to empty, so enabling an app configures nothing you
+did not ask for. The framework ships no acquisition config and assumes no protocol: you name a download
+client's implementation rather than having torrent, or Transmission, presumed for you.
 
 Because the app is set to trust the identity header, it serves no login of its own, so it is routed only
 once a forward-auth provider is active. Without one it stays on localhost rather than going up unguarded.

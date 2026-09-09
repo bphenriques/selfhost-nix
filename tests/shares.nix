@@ -138,8 +138,15 @@ let
 
   noUnixUser = fires { selfhost = base; } "need a Unix user";
 
+  # Omitted, not nulled: `passwordFile` has no default, so absence is the signal the assertion reads.
   noPassword = fires {
-    selfhost = lib.recursiveUpdate base { users.ada.storage.smb.passwordFile = null; };
+    selfhost = base // {
+      users = base.users // {
+        ada = lib.removeAttrs (person [ "family" ]) [ "storage" ] // {
+          storage.smb.enable = true;
+        };
+      };
+    };
     imports = [ unixUsers ];
   } "no `storage.smb.passwordFile`";
 

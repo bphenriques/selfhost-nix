@@ -337,6 +337,13 @@ in
         TimeoutStartSec = 600;
         Restart = "on-failure";
         RestartSec = 10;
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        ProtectKernelTunables = true;
+        ProtectControlGroups = true;
+        RestrictSUIDSGID = true;
       };
       environment = {
         BAZARR_URL = serviceCfg.url;

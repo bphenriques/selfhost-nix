@@ -101,6 +101,12 @@ in
         };
       };
 
+      internal.listeningPorts = lib.optional app.ssh.enable {
+        name = "gitea/ssh";
+        host = "0.0.0.0";
+        port = app.ssh.port;
+      };
+
       # Break-glass local admin (routine login is OIDC); reconciled each configure run, so the default
       # regenerateIfMissing is safe (a lost file self-heals rather than drifting from the DB).
       runtimeSecrets.gitea-admin-password = {
@@ -201,6 +207,14 @@ in
         SupplementaryGroups = lib.optionals (
           serviceCfg.access.model == "oidc"
         ) serviceCfg.access.oidc.systemd.supplementaryGroups;
+        # No filesystem sandbox: the gitea CLI writes the DB and app.ini under upstream's stateDir.
+        # See notify/ntfy.nix for the reasoning.
+        ProtectHome = true;
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        ProtectKernelTunables = true;
+        ProtectControlGroups = true;
+        RestrictSUIDSGID = true;
       };
       environment = {
         GITEA_URL = serviceCfg.url;
