@@ -324,11 +324,26 @@ in
     assertions =
       let
         needProvider = lib.attrNames (lib.filterAttrs (_: t: templateOidcClients t != [ ]) cfg.runtimeTemplates);
+
+        # `renderUnitName` folds `.` and `/` to `-`, so distinct template names can land on one unit
+        # ("a.env" and "a-env"). Without this the module system reports a conflicting `description`,
+        # which says nothing about which two templates are at fault.
+        unitCollisions = lib.filterAttrs (_: names: lib.length names > 1) (
+          builtins.groupBy renderUnitName (lib.attrNames cfg.runtimeTemplates)
+        );
       in
       [
         {
           assertion = needProvider == [ ] || clientProvisionUnitPrefix != null;
           message = "selfhost.runtimeTemplates referencing oidcPlaceholder require an OIDC provider with selfhost.auth.oidc.systemd.clientProvisionUnitPrefix set (so rendering can be ordered after client provisioning): ${toString needProvider}";
+        }
+        {
+          assertion = unitCollisions == { };
+          message = "Templates whose names collapse to one render unit: ${
+            lib.concatStringsSep "; " (
+              lib.mapAttrsToList (unit: names: "${unit} ← ${lib.concatStringsSep ", " names}") unitCollisions
+            )
+          }. Rename one, since a unit can only render a single template.";
         }
       ];
 

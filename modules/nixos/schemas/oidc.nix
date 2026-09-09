@@ -7,26 +7,48 @@
 let
   serviceConfig = config;
   credentialsBaseDir = "/var/lib/homelab-oidc"; # persistent; see auth/oidc.nix for the rationale
+  mkPlaceholder = field: "@HOMELAB_OIDC_${name}_${field}@";
 in
 {
   options.access.oidc = lib.mkOption {
     type = lib.types.submodule (
       { config, ... }: {
         options = {
-          # Only the file paths live here. A template embedding these values uses
-          # `selfhost.oidcPlaceholder.<client>.{id,secret}`, which is the scheme the renderer substitutes.
-          id.file = lib.mkOption {
-            type = lib.types.str;
-            default = "${credentialsBaseDir}/${name}/id";
-            readOnly = true;
-            description = "Path to the file containing the client ID";
+          id = {
+            file = lib.mkOption {
+              type = lib.types.str;
+              default = "${credentialsBaseDir}/${name}/id";
+              readOnly = true;
+              description = "Path to the file containing the client ID";
+            };
+
+            placeholder = lib.mkOption {
+              type = lib.types.str;
+              default = mkPlaceholder "ID";
+              readOnly = true;
+              description = ''
+                Stable opaque stand-in for the client ID, for a service whose config the framework does
+                not render. Embed it, then substitute it yourself from `id.file` (a `preStart`
+                `replace-secret`, say). Distinct from `selfhost.oidcPlaceholder.<client>.id`, which is
+                the scheme `runtimeTemplates` substitutes for you and is what an env-file service wants.
+              '';
+            };
           };
 
-          secret.file = lib.mkOption {
-            type = lib.types.str;
-            default = "${credentialsBaseDir}/${name}/secret";
-            readOnly = true;
-            description = "Path to the file containing the client secret";
+          secret = {
+            file = lib.mkOption {
+              type = lib.types.str;
+              default = "${credentialsBaseDir}/${name}/secret";
+              readOnly = true;
+              description = "Path to the file containing the client secret";
+            };
+
+            placeholder = lib.mkOption {
+              type = lib.types.str;
+              default = mkPlaceholder "SECRET";
+              readOnly = true;
+              description = "Stable opaque stand-in for the client secret, substituted by the consumer. See `id.placeholder`.";
+            };
           };
 
           name = lib.mkOption {
