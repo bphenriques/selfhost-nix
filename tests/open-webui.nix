@@ -25,7 +25,7 @@ pkgs.testers.runNixOSTest {
   testScript = ''
     machine.wait_for_unit("pocket-id.service")
     machine.wait_for_unit("pocket-id-provision-client-open-webui.service")
-    machine.wait_for_unit("homelab-runtime-template-open-webui-env.service")
+    machine.wait_for_unit("homelab-runtime-template-open-webui.env.service")
     machine.wait_for_unit("open-webui.service")
 
     # The template carries the id Pocket-ID actually minted, not the placeholder it was written with.

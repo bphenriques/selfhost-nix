@@ -139,7 +139,10 @@ let
       map (name: "${clientProvisionUnitPrefix}${name}.service") (templateOidcClients t)
     );
 
-  renderUnitName = name: "homelab-runtime-template-${lib.replaceStrings [ "." "/" ] [ "-" "-" ] name}";
+  # Only `/` needs folding: systemd allows `.` in a unit name prefix, and mangling it was what let
+  # "foo.env" and "foo-env" land on one unit. `/` has no legal spelling, so a name containing one can
+  # still collide with a literal `-`, which the assertion below catches.
+  renderUnitName = name: "homelab-runtime-template-${lib.replaceStrings [ "/" ] [ "-" ] name}";
 
   # pocket-id (and other secret consumers) depend on this; it must not depend on any OIDC creds.
   mainServiceExists = cfg.runtimeSecrets != { };
