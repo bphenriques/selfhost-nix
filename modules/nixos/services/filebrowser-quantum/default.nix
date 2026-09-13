@@ -67,6 +67,42 @@ let
     exec ${lib.getExe cfg.package} -c ${configFile}
   '';
 
+  # Beyond the repo baseline: this unit serves the most sensitive tree on its host and, behind a
+  # public edge, is the reachable one. It needs no capabilities and only ordinary sockets, so the
+  # cheap confinement is worth taking. No filesystem sandbox: it writes where the consumer points it.
+  hardened = {
+    CapabilityBoundingSet = "";
+    AmbientCapabilities = "";
+    RestrictAddressFamilies = [
+      "AF_INET"
+      "AF_INET6"
+      "AF_UNIX"
+    ];
+    SystemCallArchitectures = "native";
+    SystemCallFilter = [
+      "@system-service"
+      "~@privileged"
+      "~@resources"
+    ];
+    RestrictNamespaces = true;
+    LockPersonality = true;
+    RestrictRealtime = true;
+    PrivateDevices = true;
+    ProtectHostname = true;
+    ProtectClock = true;
+    ProtectKernelLogs = true;
+    ProtectKernelModules = true;
+    ProtectProc = "invisible";
+    ProcSubset = "pid";
+    UMask = "0077"; # uploads default to 0644 otherwise, readable by anyone on the host
+    ProtectHome = true;
+    PrivateTmp = true;
+    NoNewPrivileges = true;
+    ProtectKernelTunables = true;
+    ProtectControlGroups = true;
+    RestrictSUIDSGID = true;
+  };
+
   configure = (import ../../builders.nix { inherit pkgs lib; }).writeNushellApplication {
     name = "filebrowser-quantum-configure";
     script = ./configure.nu;
@@ -107,6 +143,12 @@ in
         type = lib.types.str;
         default = "files";
         description = "Display name for the source; the API addresses scopes by it.";
+      };
+      rules = lib.mkOption {
+        type = lib.types.listOf (lib.types.attrsOf lib.types.anything);
+        default = [ ];
+        example = lib.literalExpression ''[ { folderPath = "/lost+found"; } ]'';
+        description = "Indexing rules for the source; a filesystem root needs one for `lost+found`, which the indexer cannot read.";
       };
     };
 
@@ -203,6 +245,12 @@ in
         # can leave it. On only where nothing else claims that header.
         disableWebDAV = lib.mkDefault true;
         disableUpdateCheck = lib.mkDefault true;
+        # Quantum chmods new files after creating them, so UMask cannot reach them. Group-readable
+        # keeps share-backed setups working; world-readable is not a default worth shipping.
+        filesystem = {
+          createFilePermission = lib.mkDefault "640";
+          createDirectoryPermission = lib.mkDefault "750";
+        };
         sources = [
           {
             inherit (cfg.source) path name;
@@ -211,6 +259,7 @@ in
               defaultUserScope = cfg.unlistedScope;
               defaultEnabled = true;
               createUserDir = false;
+              inherit (cfg.source) rules;
             };
           }
         ];
@@ -257,7 +306,10 @@ in
       description = "FileBrowser Quantum";
       wantedBy = [ "multi-user.target" ];
       after = [ "network.target" ];
-      unitConfig.RequiresMountsFor = [ cfg.source.path ];
+      unitConfig.RequiresMountsFor = [
+        cfg.source.path
+        cfg.stateDir
+      ];
       serviceConfig = {
         User = cfg.user;
         Group = cfg.group;
@@ -266,13 +318,8 @@ in
         LoadCredential = [ "admin-password:${cfg.adminPasswordFile}" ];
         Restart = "on-failure";
         RestartSec = 5;
-        ProtectHome = true;
-        PrivateTmp = true;
-        NoNewPrivileges = true;
-        ProtectKernelTunables = true;
-        ProtectControlGroups = true;
-        RestrictSUIDSGID = true;
-      };
+      }
+      // hardened;
     };
 
     # Reconciles against the running server: the CLI only creates password accounts, so a proxy user
@@ -298,13 +345,8 @@ in
         LoadCredential = [ "admin-password:${cfg.adminPasswordFile}" ];
         Restart = "on-failure";
         RestartSec = 10;
-        ProtectHome = true;
-        PrivateTmp = true;
-        NoNewPrivileges = true;
-        ProtectKernelTunables = true;
-        ProtectControlGroups = true;
-        RestrictSUIDSGID = true;
-      };
+      }
+      // hardened;
       environment = {
         FILEBROWSER_URL = "http://${cfg.settings.server.listen or "127.0.0.1"}:${toString cfg.settings.server.port}";
         FILEBROWSER_CONFIG_FILE = "${reconcileFile}";
