@@ -11,6 +11,6 @@
 - [Immich](immich.md)
 - [Jellyfin](jellyfin.md)
 - [Security](security.md)
-- [FileBrowser (standalone module)](filebrowser.md)
+- [FileBrowser Quantum](filebrowser-quantum.md)
 
 [Options reference](options.md)

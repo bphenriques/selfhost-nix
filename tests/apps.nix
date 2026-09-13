@@ -19,7 +19,7 @@ let
       tokenFile = stub;
       domains = [ "test.local" ];
     };
-    filebrowser = { };
+    filebrowser-quantum = { };
     gitea = { };
     homepage = { };
     immich = { };

@@ -1,0 +1,12 @@
+{
+  "_comment": "Request payloads configure.nu sends, asserted against the server's own /swagger/doc.json by the vm-filebrowser-quantum test. Renamed routes and newly required fields already fail loudly when the reconciler runs, so they are not listed here. Keep in sync when editing configure.nu.",
+  "sends": {
+    "post /auth/login": [],
+    "get /users": [],
+    "post /users": ["which", "data"],
+    "put /users": ["which", "data"],
+    "delete /users": []
+  },
+  "userFields": ["username", "loginMethod", "scopes", "permissions"],
+  "permissionFields": ["admin", "api", "create", "delete", "download", "modify", "realtime", "share"]
+}

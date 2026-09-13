@@ -35,7 +35,7 @@ Opinionated NixOS modules for a single-admin selfhost. See [README.md](./README.
   - **Vendor-specific.** It must not leak into the neutral contract, so it sits beside the facet it extends: `schemas/ingress/traefik.nix` next to `schemas/ingress/default.nix`. Keep this surface minimal — ideally empty. A second implementation adds a sibling rather than growing an existing one.
   - Nothing else. `extra.nix` is one services-only option that will not grow, and only stays a file because moving it is not worth the churn.
 - **Derived defaults stay together**, in the `config.*` block at the top of `baseServiceModule`, even when the option they default is declared in another file (`integrations.homepage.enable`, `integrations.monitoring.healthcheck`, `ingress.enable`). Reading that block is how you see the composition. A facet file declares its options, it does not compose them.
-- **Apps also usable standalone** (e.g. filebrowser, consumed by a non-selfhost host) keep a base module under `services.<name>` exported via `nixosModules.<name>`, and the `selfhost.apps.<name>` wrapper drives that base. Pure apps with no standalone use (e.g. bentopdf) need only the `selfhost.apps.<name>` module and aren't exported.
+- **Apps also usable standalone** (e.g. filebrowser-quantum, consumed by a non-selfhost host) keep a base module under `services.<name>` exported via `nixosModules.<name>`, and the `selfhost.apps.<name>` wrapper drives that base. Pure apps with no standalone use (e.g. bentopdf) need only the `selfhost.apps.<name>` module and aren't exported.
 
 ## Options
 

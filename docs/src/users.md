@@ -16,7 +16,7 @@ attributes **mirror the framework's registry**, so where an option lives tells y
 ```nix
 selfhost.users.alice = {
   groups = [ "admin" ];
-  services.filebrowser = { enable = true; storage = { … }; };  # per-user config for the filebrowser service
+  services.filebrowser-quantum = { enable = true; storage = { … }; }; # per-user config for that service
   services.wireguard.devices = [ … ];                          # per-user config for the wireguard service
   auth.oidc.enable = true;                                      # mirrors selfhost.auth.oidc
   storage.smb.enable = true;                                    # mirrors selfhost.storage.shares.smb

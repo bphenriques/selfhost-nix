@@ -80,7 +80,7 @@ let
             tokenFile = stub;
             domains = [ "test.local" ];
           };
-          filebrowser.enable = true;
+          filebrowser-quantum.enable = true;
           gitea.enable = true;
           homepage.enable = true;
           immich.enable = true;
@@ -104,7 +104,7 @@ let
         };
 
         users.admin.services = {
-          filebrowser = {
+          filebrowser-quantum = {
             enable = true;
             storage.media = "rw";
           };

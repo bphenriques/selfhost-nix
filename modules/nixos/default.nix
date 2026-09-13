@@ -30,8 +30,8 @@
     ./services/bazarr
     ./services/bentopdf
     ./services/desec
-    ./services/filebrowser
-    ./services/filebrowser/selfhost.nix
+    ./services/filebrowser-quantum
+    ./services/filebrowser-quantum/selfhost.nix
     ./services/gitea
     ./services/homepage
     ./services/immich

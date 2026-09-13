@@ -117,8 +117,8 @@ in
   vm-core = runTest ./core.nix;
   vm-ingress = runTest ./ingress.nix;
   vm-monitoring = runTest ./monitoring.nix;
-  vm-filebrowser = runTest ./filebrowser.nix;
-  vm-filebrowser-selfhost = runTest ./filebrowser-selfhost.nix;
+  vm-filebrowser-quantum = runTest ./filebrowser-quantum.nix;
+  vm-filebrowser-quantum-selfhost = runTest ./filebrowser-quantum-selfhost.nix;
   vm-radicale = runTest ./radicale.nix;
   vm-romm = runTest ./romm.nix;
   vm-transmission = runTest ./transmission.nix;
@@ -154,4 +154,5 @@ in
   upstream-defaults-eval = import ./upstream-defaults.nix { inherit pkgs evalConfig bareConfig; };
   listening-ports-eval = runEval ./listening-ports.nix;
   oidc-rotation-eval = runEval ./oidc-rotation.nix;
+  filebrowser-quantum-oidc-eval = runEval ./filebrowser-quantum-oidc.nix;
 }
