@@ -6,7 +6,5 @@
     "post /users": ["which", "data"],
     "put /users": ["which", "data"],
     "delete /users": []
-  },
-  "userFields": ["username", "loginMethod", "scopes", "permissions"],
-  "permissionFields": ["admin", "api", "create", "delete", "download", "modify", "realtime", "share"]
+  }
 }

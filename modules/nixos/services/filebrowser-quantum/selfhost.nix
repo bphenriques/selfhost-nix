@@ -110,13 +110,11 @@ in
     (lib.mkIf (cfg.enable && app.enable && federated) {
       services.filebrowser-quantum.settings.auth.methods.oidc = {
         issuerUrl = oidcCfg.provider.issuerUrl;
+        # Upstream asks for "openid email profile", which carries no groups claim for userGroups to read.
         scopes = "openid email profile groups";
-        userIdentifier = "preferred_username";
-        groupsClaim = "groups";
-        # Enforced in the app too, so a valid token from outside the groups is still refused.
-        # Empty means any authenticated principal, which is upstream's default.
+        # Under `oidc` the framework leaves enforcement to the service, so without this the declared
+        # groups do nothing and any authenticated principal is admitted.
         userGroups = serviceCfg.access.allowedGroups;
-        logoutRedirectUrl = lib.mkDefault "${serviceCfg.publicUrl}/";
       };
     })
 

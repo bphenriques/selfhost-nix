@@ -8,6 +8,7 @@
 }:
 let
   cfg = config.services.filebrowser-quantum;
+  sourceName = "files"; # the API addresses scopes by the source's display name
   format = pkgs.formats.yaml { };
 
   permKeys = [
@@ -46,7 +47,7 @@ let
 
   reconcileFile = pkgs.writeText "filebrowser-quantum-users.json" (
     builtins.toJSON {
-      sourceName = cfg.source.name;
+      inherit sourceName;
       inherit (cfg) loginMethod;
       users = userList;
     }
@@ -67,9 +68,9 @@ let
     exec ${lib.getExe cfg.package} -c ${configFile}
   '';
 
-  # Beyond the repo baseline: this unit serves the most sensitive tree on its host and, behind a
-  # public edge, is the reachable one. It needs no capabilities and only ordinary sockets, so the
-  # cheap confinement is worth taking. No filesystem sandbox: it writes where the consumer points it.
+  # Beyond the repo baseline: this unit serves the host's most sensitive tree, and behind a public
+  # edge it is the reachable one. It needs no capabilities and only ordinary sockets. No filesystem
+  # sandbox: it writes where the consumer points it.
   hardened = {
     CapabilityBoundingSet = "";
     AmbientCapabilities = "";
@@ -94,7 +95,7 @@ let
     ProtectKernelModules = true;
     ProtectProc = "invisible";
     ProcSubset = "pid";
-    UMask = "0077"; # uploads default to 0644 otherwise, readable by anyone on the host
+    UMask = "0077"; # the database and cache; uploads are chmod'd by Quantum, see createFilePermission
     ProtectHome = true;
     PrivateTmp = true;
     NoNewPrivileges = true;
@@ -139,11 +140,6 @@ in
         defaultText = lib.literalMD "`<stateDir>/root`";
         description = "Filesystem root served by this instance; every scope is a path under it.";
       };
-      name = lib.mkOption {
-        type = lib.types.str;
-        default = "files";
-        description = "Display name for the source; the API addresses scopes by it.";
-      };
       rules = lib.mkOption {
         type = lib.types.listOf (lib.types.attrsOf lib.types.anything);
         default = [ ];
@@ -183,15 +179,9 @@ in
       description = "Scope for an authenticated user not in `users` (FileBrowser auto-creates them); point at an empty dir for no access.";
     };
 
-    unlistedPermissions = lib.mkOption {
-      type = permsType true;
-      default = { };
-      description = "Permissions for those auto-created users; read-only unless set.";
-    };
-
     users = lib.mkOption {
       default = { };
-      description = "Proxy-auth users and what each may access.";
+      description = "Declared users and what each may access; they log in by `loginMethod`.";
       type = lib.types.attrsOf (
         lib.types.submodule (
           { config, ... }:
@@ -239,10 +229,13 @@ in
 
     services.filebrowser-quantum.settings = {
       server = {
+        # Upstream binds 0.0.0.0; this service is always meant to sit behind an edge.
+        listen = lib.mkDefault "127.0.0.1";
+        port = lib.mkDefault 8085;
         database = lib.mkDefault "${cfg.stateDir}/database.db";
         cacheDir = lib.mkDefault "${cfg.stateDir}/cache";
-        # WebDAV wants a JWT in the password field, which no edge owning the Authorization header
-        # can leave it. On only where nothing else claims that header.
+        # WebDAV authenticates with a JWT in the password field, so it cannot coexist with an edge
+        # that owns the Authorization header. Enable it only where nothing else claims that header.
         disableWebDAV = lib.mkDefault true;
         disableUpdateCheck = lib.mkDefault true;
         # Quantum chmods new files after creating them, so UMask cannot reach them. Group-readable
@@ -253,7 +246,8 @@ in
         };
         sources = [
           {
-            inherit (cfg.source) path name;
+            inherit (cfg.source) path;
+            name = sourceName;
             config = {
               # The unlisted scope is a property of the source, not of userDefaults.
               defaultUserScope = cfg.unlistedScope;
@@ -275,7 +269,8 @@ in
           oidc.enabled = lib.mkDefault (cfg.loginMethod == "oidc");
         };
       };
-      userDefaults.account.permissions = cfg.unlistedPermissions;
+      # Auto-created users (proxy and OIDC alike) land here; override via settings if ever needed.
+      userDefaults.account.permissions = lib.mkDefault (permDefaults true);
     };
 
     users.users = lib.mkIf (cfg.user == "filebrowser-quantum") {
@@ -322,8 +317,8 @@ in
       // hardened;
     };
 
-    # Reconciles against the running server: the CLI only creates password accounts, so a proxy user
-    # cannot be seeded offline. Users dropped from the config are deleted, not just rescoped.
+    # Reconciles against the running server: the CLI only creates password accounts, so users of any
+    # other login method cannot be seeded offline. Users dropped from the config are deleted.
     systemd.services.filebrowser-quantum-configure = {
       description = "Reconcile FileBrowser Quantum users";
       wantedBy = [ "filebrowser-quantum.service" ];
@@ -348,7 +343,7 @@ in
       }
       // hardened;
       environment = {
-        FILEBROWSER_URL = "http://${cfg.settings.server.listen or "127.0.0.1"}:${toString cfg.settings.server.port}";
+        FILEBROWSER_URL = "http://${cfg.settings.server.listen}:${toString cfg.settings.server.port}";
         FILEBROWSER_CONFIG_FILE = "${reconcileFile}";
         FILEBROWSER_ADMIN_USERNAME = cfg.adminUsername;
       };
