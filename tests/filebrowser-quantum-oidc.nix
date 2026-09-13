@@ -31,6 +31,9 @@ assert check "federates when a provider is active" (entry.access.model == "oidc"
 assert check "does not trust the proxy header" (!fb.settings.auth.methods.proxy.enabled);
 assert check "reconciles oidc accounts" (fb.loginMethod == "oidc");
 assert check "oidc method is enabled" oidc.enabled;
+assert check "registers the callback Quantum actually serves" (
+  entry.access.oidc.callbackURLs == [ "${entry.publicUrl}/api/auth/oidc/callback" ]
+);
 assert check "points at the active provider" (oidc.issuerUrl == cfg.selfhost.auth.oidc.provider.issuerUrl);
 # Without this the declared groups are decorative: under `oidc` the framework leaves enforcement to
 # the service, so a valid token from outside them would otherwise be admitted.

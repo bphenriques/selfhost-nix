@@ -69,6 +69,8 @@ in
           healthcheck.path = "/health";
           # Quantum can federate, so it only falls back to the gateway where no provider exists.
           access.model = lib.mkDefault (if oidcCfg.active then "oidc" else "forwardAuth");
+          # Quantum serves the callback under its API, not the framework default path.
+          access.oidc.callbackURLs = [ "${serviceCfg.publicUrl}/api/auth/oidc/callback" ];
           access.oidc.systemd.dependentServices = [ "filebrowser-quantum" ];
         };
 
