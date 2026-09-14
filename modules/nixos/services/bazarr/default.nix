@@ -219,6 +219,7 @@ in
           exporters."exportarr-bazarr" = {
             enable = true;
             listenAddress = "127.0.0.1";
+            environment.INTERFACE = "127.0.0.1"; # nixpkgs drops listenAddress; INTERFACE is what exportarr reads
             port = app.exporterPort;
             inherit (serviceCfg) url;
             apiKeyFile = cfg.runtimeSecrets.${apiKeySecret}.path;

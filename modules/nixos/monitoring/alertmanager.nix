@@ -63,6 +63,8 @@ in
         enable = true;
         listenAddress = alertmanagerCfg.host;
         inherit (alertmanagerCfg) port;
+        # Single node, so the HA cluster listener would sit unused on 0.0.0.0:9094. Empty disables it.
+        extraFlags = [ "--cluster.listen-address=" ];
         configuration = {
           route = {
             receiver = "notify";

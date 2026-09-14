@@ -50,6 +50,7 @@ in
           exporters."exportarr-prowlarr" = {
             enable = true;
             listenAddress = "127.0.0.1";
+            environment.INTERFACE = "127.0.0.1"; # nixpkgs drops listenAddress; INTERFACE is what exportarr reads
             port = app.exporterPort;
             url = cfg.services.prowlarr.url;
             apiKeyFile = cfg.runtimeSecrets.${apiKeySecret}.path;
