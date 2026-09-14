@@ -15,6 +15,7 @@ let
   apps = {
     bazarr.apiKeyFile = stub;
     bentopdf = { };
+    couchdb = { };
     desec = {
       tokenFile = stub;
       domains = [ "test.local" ];

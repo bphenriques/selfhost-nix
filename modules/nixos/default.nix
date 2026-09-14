@@ -29,6 +29,7 @@
     ./services/arr
     ./services/bazarr
     ./services/bentopdf
+    ./services/couchdb
     ./services/desec
     ./services/filebrowser-quantum
     ./services/filebrowser-quantum/selfhost.nix
