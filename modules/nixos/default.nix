@@ -33,6 +33,7 @@
     ./services/desec
     ./services/filebrowser-quantum
     ./services/filebrowser-quantum/selfhost.nix
+    ./services/garage
     ./services/gitea
     ./services/homepage
     ./services/immich

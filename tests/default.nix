@@ -124,6 +124,7 @@ in
   vm-romm = runTest ./romm.nix;
   vm-transmission = runTest ./transmission.nix;
   vm-bentopdf = runTest ./bentopdf.nix;
+  vm-garage = runTest ./garage.nix;
   vm-gitea = runTest ./gitea.nix;
   vm-forwardauth = runTest ./forwardauth.nix;
   vm-forwardauth-headers = runTest ./forwardauth-headers.nix;
