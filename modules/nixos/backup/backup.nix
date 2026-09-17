@@ -418,12 +418,6 @@ in
         "homelab-backup-${name}-verify"
       ]) (lib.attrNames activeTargets);
 
-      # Recreated each boot so an application that clears the directory cannot silently re-enrol its
-      # derived data into the off-site copy.
-      systemd.tmpfiles.rules = map (dir: "f ${dir}/.nobackup 0444 root root -") (
-        lib.unique (lib.concatMap (t: t.excludeDirs) (lib.attrValues activeTargets))
-      );
-
       systemd.services = lib.listToAttrs (
         lib.mapAttrsToList mkBackupService activeTargets ++ lib.mapAttrsToList mkVerifyService activeTargets
       );
@@ -437,6 +431,11 @@ in
         "d ${stateDir} 0750 root root -"
         "d /etc/rustic 0755 root root -"
       ]
+      # Recreated each boot so an application that clears the directory cannot silently re-enrol its
+      # derived data into the off-site copy.
+      ++ map (dir: "f ${dir}/.nobackup 0444 root root -") (
+        lib.unique (lib.concatMap (t: t.excludeDirs) (lib.attrValues activeTargets))
+      )
       ++ lib.concatLists (
         lib.mapAttrsToList (
           name: t:
