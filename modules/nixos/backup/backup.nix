@@ -277,6 +277,24 @@ in
               description = "rustic include/exclude globs ('!' = exclude). Default excludes common NAS/sync/OS metadata.";
             };
 
+            excludeDirs = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [ ];
+              example = [ "/srv/storage/photos/encoded-video" ];
+              description = ''
+                Directories to drop from this target by placing the `.nobackup` marker
+                `exclude-if-present` already looks for. For derived data that the owning application
+                rebuilds on demand, where paying to store it off-site buys nothing.
+
+                Preferred over a `globs` entry for a specific directory: globs match either a bare
+                name, which hits every directory sharing it, or a full path, which would have to spell
+                out this module's staging directory.
+
+                The marker is root-owned and read-only, and recreated on each boot so it cannot drift.
+                Write access to the parent still allows unlinking it; the rule is what holds the line.
+              '';
+            };
+
             bindings = lib.mkOption {
               type = lib.types.attrsOf lib.types.str;
               default = { };
@@ -399,6 +417,12 @@ in
         "homelab-backup-${name}"
         "homelab-backup-${name}-verify"
       ]) (lib.attrNames activeTargets);
+
+      # Recreated each boot so an application that clears the directory cannot silently re-enrol its
+      # derived data into the off-site copy.
+      systemd.tmpfiles.rules = map (dir: "f ${dir}/.nobackup 0444 root root -") (
+        lib.unique (lib.concatMap (t: t.excludeDirs) (lib.attrValues activeTargets))
+      );
 
       systemd.services = lib.listToAttrs (
         lib.mapAttrsToList mkBackupService activeTargets ++ lib.mapAttrsToList mkVerifyService activeTargets

@@ -6,9 +6,12 @@ let
   serviceCfg = cfg.services.tinyauth;
   selfhostLib = import ../lib.nix { inherit lib; };
 
-  # tinyauth keys an app's settings by its subdomain, uppercased. Two subdomains can normalize to one
-  # key ("my-app" and "my_app"), and listToAttrs keeps the first, so the later service would silently
-  # lose its group restriction — open, not closed. Asserted rather than worked around.
+  # tinyauth keys an app's settings by its subdomain, uppercased, and reads that config from the
+  # environment where "_" separates nesting levels. Two ways that bites, both asserted below:
+  # a hyphen makes the key undecodable ("my-app" → APPS_MY_APP_*, parsed as APPS.MY.APP), which takes
+  # the gateway down for every gated service; and two subdomains can normalize to one key ("my-app"
+  # and "my_app"), where listToAttrs keeps the first and the later service silently loses its group
+  # restriction — open, not closed.
   gatedServices = lib.filterAttrs (_: s: s.access.model == "forwardAuth" && s.access.allowedGroups != [ ]) cfg.services;
   appKey = subdomain: lib.toUpper (lib.replaceStrings [ "-" ] [ "_" ] subdomain);
 in
@@ -87,8 +90,15 @@ in
     assertions =
       let
         collisions = selfhostLib.collisions (builtins.groupBy (s: appKey s.subdomain) (lib.attrValues gatedServices));
+        hyphenated = lib.filter (s: lib.hasInfix "-" s.subdomain) (lib.attrValues gatedServices);
       in
       [
+        {
+          assertion = hyphenated == [ ];
+          message = "Gated services whose subdomain contains a hyphen, which tinyauth cannot decode (it reads `_` as nesting, so `a-b` becomes APPS_A_B_* and the whole config fails at startup, taking the gateway down for every gated service): ${
+            lib.concatMapStringsSep ", " (s: "${s.name} (${s.subdomain})") hyphenated
+          }";
+        }
         {
           assertion = collisions == { };
           message = "Gated services whose subdomains collapse to one tinyauth app key, so only the first keeps its allowedGroups: ${
