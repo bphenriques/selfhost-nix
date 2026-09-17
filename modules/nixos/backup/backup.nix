@@ -35,6 +35,9 @@ let
 
   activeTargets = lib.filterAttrs (_: t: t.enable) cfg.targets;
 
+  excludeDirs = lib.unique (lib.concatMap (t: t.excludeDirs) (lib.attrValues activeTargets));
+  backupUnits = map (n: "homelab-backup-${n}.service") (lib.attrNames activeTargets);
+
   resolveHooks =
     t:
     lib.genAttrs t.services (svcName: {
@@ -418,9 +421,30 @@ in
         "homelab-backup-${name}-verify"
       ]) (lib.attrNames activeTargets);
 
-      systemd.services = lib.listToAttrs (
-        lib.mapAttrsToList mkBackupService activeTargets ++ lib.mapAttrsToList mkVerifyService activeTargets
-      );
+      systemd.services =
+        lib.listToAttrs (lib.mapAttrsToList mkBackupService activeTargets ++ lib.mapAttrsToList mkVerifyService activeTargets)
+        // lib.optionalAttrs (excludeDirs != [ ]) {
+          # Not tmpfiles: it refuses a path whose ownership changes along the way ("unsafe path
+          # transition"), which is the normal shape of a share whose subdirectories were created by
+          # whoever wrote them. Not ExecStartPre on the backup either, whose namespace binds the sources
+          # read-only. A plain root oneshot, required by each run so the markers cannot go stale.
+          homelab-backup-markers = {
+            description = "Place .nobackup markers in excluded directories";
+            wantedBy = [ "multi-user.target" ];
+            before = backupUnits;
+            requiredBy = backupUnits;
+            unitConfig.RequiresMountsFor = excludeDirs;
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+            };
+            # Absent directories are skipped, not an error: the owning application may not have created
+            # them yet, and the next run picks them up.
+            script = lib.concatMapStringsSep "\n" (dir: ''
+              [ -d ${lib.escapeShellArg dir} ] && install -m 0444 /dev/null ${lib.escapeShellArg "${dir}/.nobackup"}
+            '') excludeDirs;
+          };
+        };
 
       systemd.timers = lib.listToAttrs (
         lib.mapAttrsToList (name: t: mkTimer name "" t.backupSchedule) activeTargets
@@ -431,11 +455,6 @@ in
         "d ${stateDir} 0750 root root -"
         "d /etc/rustic 0755 root root -"
       ]
-      # Recreated each boot so an application that clears the directory cannot silently re-enrol its
-      # derived data into the off-site copy.
-      ++ map (dir: "f ${dir}/.nobackup 0444 root root -") (
-        lib.unique (lib.concatMap (t: t.excludeDirs) (lib.attrValues activeTargets))
-      )
       ++ lib.concatLists (
         lib.mapAttrsToList (
           name: t:
