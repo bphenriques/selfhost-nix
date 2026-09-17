@@ -3,7 +3,7 @@
 # rather than by standing up a provider.
 { pkgs, common, ... }:
 let
-  contract = ../modules/nixos/services/immich/api-contract.json;
+  contract = ../packages/immich-configure/api-contract.json;
 
   check-contract = pkgs.writeShellApplication {
     name = "immich-check-contract";

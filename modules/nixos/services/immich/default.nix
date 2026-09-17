@@ -38,10 +38,6 @@ let
     }
   );
 
-  immich-configure = (import ../../builders.nix { inherit pkgs lib; }).writeNushellApplication {
-    name = "immich-configure";
-    script = ./configure.nu;
-  };
 in
 {
   imports = [ ./user.nix ];
@@ -116,7 +112,7 @@ in
       partOf = [ "immich-server.service" ];
       restartTriggers = [
         configFile
-        immich-configure
+        pkgs.selfhost.immich-configure
       ];
       startLimitIntervalSec = 300;
       startLimitBurst = 3;
@@ -141,7 +137,7 @@ in
         IMMICH_URL = serviceCfg.url;
         IMMICH_CONFIG_FILE = configFile;
       };
-      script = lib.getExe immich-configure;
+      script = lib.getExe pkgs.selfhost.immich-configure;
     };
   };
 }

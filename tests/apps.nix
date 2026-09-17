@@ -21,7 +21,6 @@ let
       domains = [ "test.local" ];
     };
     filebrowser-quantum = { };
-    garage = { };
     gitea = { };
     homepage = { };
     immich = { };

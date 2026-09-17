@@ -29,6 +29,7 @@
         rustic-manage = pkgs.callPackage ./packages/rustic-manage { };
         pocket-id-manage = pkgs.callPackage ./packages/pocket-id-manage { };
         wg-manage = pkgs.callPackage ./packages/wg-manage { };
+        immich-configure = pkgs.callPackage ./packages/immich-configure { };
       };
     in
     {

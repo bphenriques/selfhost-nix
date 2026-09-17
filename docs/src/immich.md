@@ -73,7 +73,7 @@ favourites that a re-scan cannot rebuild.
 
 ## Keeping up with Immich
 
-Immich moves API routes across major releases. `api-contract.json` beside the module declares the request
+Immich moves API routes across major releases. `api-contract.json` beside the script declares the request
 payloads `configure.nu` sends, and the `vm-immich` test asserts them against the server's own
 `/api/spec.json`. Immich validates with zod, which strips unknown keys rather than rejecting them, so a
 renamed field would otherwise stop being applied with nothing to show for it. Bumping nixpkgs and running
