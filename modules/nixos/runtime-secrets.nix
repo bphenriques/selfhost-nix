@@ -272,6 +272,9 @@ let
     ProtectHome = true;
     PrivateTmp = true;
     NoNewPrivileges = true;
+    ProtectKernelTunables = true;
+    ProtectControlGroups = true;
+    RestrictSUIDSGID = true;
   };
 in
 {
@@ -328,8 +331,8 @@ in
       let
         needProvider = lib.attrNames (lib.filterAttrs (_: t: templateOidcClients t != [ ]) cfg.runtimeTemplates);
 
-        # `renderUnitName` folds `.` and `/` to `-`, so distinct template names can land on one unit
-        # ("a.env" and "a-env"). Without this the module system reports a conflicting `description`,
+        # `renderUnitName` folds `/` to `-`, so distinct template names can land on one unit
+        # ("a/env" and "a-env"). Without this the module system reports a conflicting `description`,
         # which says nothing about which two templates are at fault.
         unitCollisions = lib.filterAttrs (_: names: lib.length names > 1) (
           builtins.groupBy renderUnitName (lib.attrNames cfg.runtimeTemplates)

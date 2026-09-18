@@ -31,7 +31,10 @@ let
     ];
   };
 in
-# Interpolating the drvPath forces full evaluation of the template host without building its closure.
-pkgs.runCommand "template-default-evaluates" { } ''
-  echo "${host.config.system.build.toplevel.drvPath}" > "$out"
-''
+# Comparing the drvPath forces full evaluation of the template host. Do not interpolate it into the
+# output: that carries a string context which makes Nix realise the whole input graph (~11 GiB of
+# sources) to build a file holding a path. The other eval checks compare the same way.
+assert pkgs.lib.assertMsg (
+  host.config.system.build.toplevel.drvPath != null
+) "templates/default must evaluate against the live framework";
+pkgs.runCommand "template-default-evaluates" { } "touch $out"

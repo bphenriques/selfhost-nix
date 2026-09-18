@@ -27,10 +27,12 @@ let
       };
       name = lib.mkOption {
         type = lib.types.str;
-        default = lib.concatStringsSep " " (lib.filter (s: s != "") [
-          config.firstName
-          config.lastName
-        ]);
+        default = lib.concatStringsSep " " (
+          lib.filter (s: s != "") [
+            config.firstName
+            config.lastName
+          ]
+        );
         defaultText = lib.literalMD "`<firstName> <lastName>`, and just `<firstName>` when `lastName` is empty";
         description = "Display name shown by services that take a single full name.";
       };
@@ -95,9 +97,9 @@ in
   };
 
   # At least one admin (someone must reach admin-gated services); more is a consumer choice. A host that
-  # registers no services has nothing to gate, so it needs none: same shape as the ingress.domain
-  # assertion. The admin group's name stays configurable via selfhost.groups.admin.
-  config = lib.mkIf cfg.enable {
+  # registers no services has nothing to gate, so it needs none. The admin group's name stays
+  # configurable via selfhost.groups.admin.
+  config = {
     assertions = [
       {
         assertion = cfg.services == { } || adminUsers != { };

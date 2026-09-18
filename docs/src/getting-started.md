@@ -18,14 +18,16 @@ Import the module into a host:
 imports = [ inputs.selfhost-nix.nixosModules.default ];
 ```
 
-## Enable it
+## Turn things on
 
-Set `selfhost.enable` and, if you route anything publicly, `selfhost.ingress.domain`. Then turn on the providers you want:
+Set `selfhost.ingress.domain` if you route anything publicly, then enable the providers you want:
 `ingress.traefik.enable`, `auth.oidc.pocket-id.enable`, `notify.ntfy.enable`, `monitoring.enable`. Now
 register services with `selfhost.services.<name>`. Registering wires the cross-cutting parts (route,
 auth, dashboard tile, healthcheck, secrets). It does **not** run the service. You enable the upstream
-`services.<name>` and connect the values it derives. [Recipes](recipes.md) wires one end to end, and
-[Concepts](concepts.md) explains the model.
+`services.<name>` and connect the values it derives.
+
+[Recipes](recipes.md) wires one end to end, [Concepts](concepts.md) explains the model, and
+[Bundled apps](apps.md) covers the ones that come ready-wired.
 
 ## Prerequisites
 

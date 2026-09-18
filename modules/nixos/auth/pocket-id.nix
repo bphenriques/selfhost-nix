@@ -137,19 +137,23 @@ in
         STATIC_API_KEY_FILE = cfg.runtimeSecrets.pocket-id-api-key.path;
         UI_CONFIG_DISABLED = true;
 
-        SMTP_HOST = smtpCfg.host;
-        SMTP_PORT = toString smtpCfg.port;
-        SMTP_FROM = smtpCfg.from;
-        SMTP_USER = smtpCfg.user;
-        SMTP_TLS = smtpCfg.tls;
-        SMTP_PASSWORD_FILE = cfg.mail.passwordFile;
-
         # Invite only
         ALLOW_USER_SIGNUPS = "withToken";
         EMAILS_VERIFIED = true;
         EMAIL_VERIFICATION_ENABLED = false;
         EMAIL_ONE_TIME_ACCESS_AS_ADMIN_ENABLED = true;
         EMAIL_ONE_TIME_ACCESS_AS_UNAUTHENTICATED_ENABLED = false;
+      }
+      # SMTP is optional. Enrolment works without it — `pocket-id one-time-access-token <user>` mints the
+      # link, which is the default path anyway (users.auth.oidc.inviteByEmail is off, and auth/oidc.nix
+      # asserts mail is present for anyone who turns it on).
+      // lib.optionalAttrs smtpCfg.active {
+        SMTP_HOST = smtpCfg.host;
+        SMTP_PORT = toString smtpCfg.port;
+        SMTP_FROM = smtpCfg.from;
+        SMTP_USER = smtpCfg.user;
+        SMTP_TLS = smtpCfg.tls;
+        SMTP_PASSWORD_FILE = smtpCfg.passwordFile;
       };
     };
 

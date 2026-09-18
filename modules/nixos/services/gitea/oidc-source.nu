@@ -1,5 +1,8 @@
 #!/usr/bin/env nu
 # Writes Gitea's OIDC auth source into the DB; runs in gitea's preStart, before the server registers providers.
+# The client secret goes on `gitea admin auth`'s command line, so it is briefly readable in /proc by any
+# local user. The CLI takes no file or env for it, and the DB it writes is the only place gitea reads a
+# source from, so there is no path that avoids this short of patching gitea.
 let source_name = $env.OIDC_PROVIDER_NAME
 let client_id = open $env.OIDC_CLIENT_ID_FILE | str trim
 let client_secret = open $env.OIDC_CLIENT_SECRET_FILE | str trim

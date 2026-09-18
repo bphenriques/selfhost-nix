@@ -11,7 +11,7 @@ in
     enable = lib.mkEnableOption "the first-party homepage dashboard app (gethomepage)";
   };
 
-  config = lib.mkIf (config.selfhost.enable && app.enable) {
+  config = lib.mkIf app.enable {
     selfhost.services.homepage = {
       displayName = lib.mkDefault "Homepage";
       meta.description = lib.mkDefault "Dashboard";

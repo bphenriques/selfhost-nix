@@ -44,7 +44,7 @@ in
 
   options.selfhost.apps.immich.enable = lib.mkEnableOption "the first-party Immich app (photo and video library)";
 
-  config = lib.mkIf (config.selfhost.enable && app.enable) {
+  config = lib.mkIf app.enable {
     selfhost = {
       services.immich = {
         displayName = lib.mkDefault "Immich";

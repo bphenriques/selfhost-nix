@@ -152,7 +152,7 @@ in
     };
   };
 
-  config = lib.mkIf (config.selfhost.enable && app.enable) {
+  config = lib.mkIf app.enable {
     selfhost = {
       services.jellyfin = {
         displayName = lib.mkDefault "Jellyfin";

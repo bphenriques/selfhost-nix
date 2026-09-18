@@ -1,4 +1,4 @@
-# Radicale: enableSelfhostIntegration derives the htpasswd from selfhost.users (enabled user in, others out).
+# Radicale: the htpasswd derives from selfhost.users (enabled user in, others out).
 { pkgs, common, ... }:
 pkgs.testers.runNixOSTest {
   name = "selfhost-radicale";

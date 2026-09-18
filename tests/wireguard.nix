@@ -9,7 +9,7 @@ let
     address = "10.100.0.1/24";
     clientSubnet = "10.100.0.0/24";
     endpoint = "vpn.test.local";
-    dns = "10.100.0.1";
+    dns = "1.1.1.1";
   };
   mkUser = groups: devices: {
     inherit groups;

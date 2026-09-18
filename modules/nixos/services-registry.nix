@@ -186,8 +186,6 @@ let
 in
 {
   options.selfhost = {
-    enable = lib.mkEnableOption "home-server services";
-
     services = lib.mkOption {
       type = lib.types.attrsOf (
         lib.types.submoduleWith {
@@ -269,7 +267,9 @@ in
 
   };
 
-  config = lib.mkIf cfg.enable {
+  # Ungated: every module carries its own `enable`, and each assertion below is vacuously true on a host
+  # that registered nothing.
+  config = {
     # Only sockets this host actually listens on can collide: a remote proxy target binds nothing here,
     # an entry routing to another's backend binds nothing of its own, and an entry with no HTTP backend
     # has no socket to speak of.

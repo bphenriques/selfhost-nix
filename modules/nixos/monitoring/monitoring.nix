@@ -268,7 +268,7 @@ in
         let
           stranded = lib.attrNames (lib.filterAttrs (_: s: s.enable) cfg.monitoring.scopes);
         in
-        lib.optional (cfg.enable && !mon.enable && stranded != [ ])
+        lib.optional (!mon.enable && stranded != [ ])
           "Monitoring scopes declared while `selfhost.monitoring.enable` is off: ${toString stranded}. Their exporters, scrape configs and alert rules render nowhere. Declare them on the host running Prometheus instead.";
     }
 

@@ -7,7 +7,7 @@ attributes **mirror the framework's registry**, so where an option lives tells y
 
 - A user's per-service config sits at `selfhost.users.<name>.services.<service>` — for *any* service,
   bundled app or one you registered yourself — mirroring `selfhost.services.<service>`. (`selfhost.apps.<name>`
-  is a deploy shortcut with no per-user surface; per-user always belongs to the service.)
+  is a deploy shortcut with no per-user surface, so per-user always belongs to the service.)
 - A cross-cutting concern's per-user options sit at `selfhost.users.<name>.<concern>`, mirroring
   `selfhost.<concern>`, e.g. `auth.oidc.enable`.
 - The same per-principal options are declared on `selfhost.serviceAccounts.<name>`, so a machine and a
@@ -61,9 +61,16 @@ selfhost.users.alice.services.wireguard.devices = [
 ```
 
 `fullAccess = true` reaches the whole LAN. `false` reaches the server only, on
-`apps.wireguard.restrictedPeerPorts` (80 and 443 by default) and nothing else, and its config routes just
-`lanAccess.serverAddress` instead of the whole subnet, so a client whose home network overlaps yours keeps
-its own devices reachable.
+`apps.wireguard.restrictedPeers` (TCP 80 and 443 by default, no UDP) and nothing else, and its config
+routes just `lanAccess.serverAddress` instead of the whole subnet, so a client whose home network overlaps
+yours keeps its own devices reachable.
+
+Empty lists there allow nothing. They do not lift the restriction: a device meant to reach everything
+carries `fullAccess`.
+
+"Nothing else" includes DNS, so `apps.wireguard.dns` normally names a resolver the device reaches over its
+own connection. That resolver has to answer for your domain, since it maps `<subdomain>.<domain>` to the
+address the tunnel then carries traffic to. Naming this host instead takes `restrictedPeers.udpPorts = [ 53 ]`.
 
 `wg-manage status` lists declared peers and their last handshake. **To revoke, delete the device from the
 registry and rebuild.** systemd-networkd never removes a peer it no longer declares, so

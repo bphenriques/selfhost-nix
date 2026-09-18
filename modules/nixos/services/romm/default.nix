@@ -26,7 +26,7 @@ in
 {
   options.selfhost.apps.romm.enable = lib.mkEnableOption "the first-party RomM app (ROM library manager)";
 
-  config = lib.mkIf (cfg.enable && app.enable) {
+  config = lib.mkIf app.enable {
     selfhost = {
       services.romm = {
         displayName = lib.mkDefault "RomM";

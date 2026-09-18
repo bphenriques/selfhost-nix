@@ -26,7 +26,7 @@ in
 {
   options.selfhost.apps.transmission.enable = lib.mkEnableOption "the first-party Transmission app (torrent client)";
 
-  config = lib.mkIf (config.selfhost.enable && app.enable) {
+  config = lib.mkIf app.enable {
     selfhost.services.transmission = {
       displayName = lib.mkDefault "Transmission";
       meta.homepage = lib.mkDefault "https://transmissionbt.com";

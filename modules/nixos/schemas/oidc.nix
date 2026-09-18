@@ -70,12 +70,6 @@ in
             description = "Enable PKCE for this client";
           };
 
-          gid = lib.mkOption {
-            type = lib.types.nullOr lib.types.int;
-            default = null;
-            description = "Fixed GID for the credentials group (null = auto-assign)";
-          };
-
           group = lib.mkOption {
             type = lib.types.str;
             default = "homelab-oidc-${name}";

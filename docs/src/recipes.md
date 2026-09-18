@@ -65,8 +65,26 @@ Same shape (register, run, wire) with small deltas:
   `access.model = "forwardAuth"`. The edge authenticates, and the route waits for a gateway to exist.
 - **Native auth** (the app logs users in itself, e.g. Jellyfin): `access.model = "native"` (the default) —
   register for the route and tile, and let the app do the rest.
-- **A container**: bind it to `127.0.0.1:<port>` and register that port. It's proxied and monitored like
-  any native service, and its database, volumes, and env stay yours.
+
+## Containers
+
+A container registers like any native service. `systemdServices` resolves to `<backend>-<name>` on its own,
+so failure notifications and storage guards attach without you naming the unit.
+
+The one rule is the publish address. Podman and docker DNAT published ports themselves, ahead of the
+firewall's input rules, so a port on `0.0.0.0` is reachable from the LAN whatever
+`networking.firewall.allowedTCPPorts` says. Publish to loopback and that stops mattering:
+
+```nix
+virtualisation.oci-containers.containers.papra.ports = [ "127.0.0.1:${toString svc.port}:8080" ];
+```
+
+`--network=host` is the alternative when the container has to reach other services on the host. It uses the
+host's stack directly, so the app's own bind address is the only thing holding the line. Set that to
+`127.0.0.1` (`BIND_ADDRESS`, `server_host`, whatever the app calls it) and register the same port.
+
+Container networks, inter-container DNS, and volumes stay yours. Rootless publishing also rewrites the
+client source address, so anything IP-shaped you wire yourself sees the proxy and not the peer.
 
 ## Resource limits
 

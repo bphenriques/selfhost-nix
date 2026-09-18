@@ -17,7 +17,7 @@ def next_ip [] {
   let prefix = ($cfg.clientSubnet | split row "/" | get 0 | split row "." | slice 0..2 | str join ".")
   let used = ($cfg.peers | get -o ip | default [] | each {|ip| $ip | split row "." | get 3 | into int })
   let free = (2..254 | where {|n| not ($n in $used) } | get -o 0)
-  if $free == null { error make {msg: "No free addresses in ($cfg.clientSubnet)"} }
+  if $free == null { error make {msg: $"No free addresses in ($cfg.clientSubnet)"} }
   $"($prefix).($free)"
 }
 

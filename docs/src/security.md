@@ -41,6 +41,20 @@ the split.
   deliberate out-of-scope choice. Nothing here lightens it.
 - **Guard a misconfigured edge.** Backends bind localhost so the proxy is the only path in. Keep it that way.
   Any custom edge or proxy-auth you wire must strip client-supplied identity headers, or they are spoofable.
+  A container published on `0.0.0.0` breaks the invariant quietly, since podman and docker DNAT ahead of the
+  firewall's input rules. See [Containers](recipes.md#containers).
+
+## Handing out a generated account password
+
+Radicale's DAV endpoint and CouchDB authenticate people directly, because their clients cannot do SSO. The
+framework generates a password per enabled user instead of asking you for one, root-owned `0400` under
+`runtimeSecretsDir`:
+
+```console
+$ sudo cat /var/lib/homelab-secrets/radicale-password-alice
+```
+
+Read it once and hand it over out of band. Nothing mails it. To roll one, delete the file and rebuild.
 
 ## Key rotation
 

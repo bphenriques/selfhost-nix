@@ -1,4 +1,4 @@
-# CouchDB: enableSelfhostIntegration derives accounts and their databases from selfhost.users, and the
+# CouchDB: accounts and their databases derive from selfhost.users, and the
 # `_up` healthcheck stays answerable without credentials while everything else requires them.
 #
 # The node also defines `services.couchdb.extraConfig.chttpd`, which is the regression: that option is

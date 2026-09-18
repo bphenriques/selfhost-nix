@@ -6,7 +6,6 @@
     ./users.nix
     ./service-accounts.nix
     ./runtime-secrets.nix
-    ./inventory.nix
     ./dashboards/tiles.nix
 
     ./ingress/ingress.nix

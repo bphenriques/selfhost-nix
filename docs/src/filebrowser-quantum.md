@@ -37,10 +37,14 @@ Proxy users cannot be seeded offline, so the reconciler drives the running serve
 deletes: an account the config no longer declares is removed, which also sweeps up the ones unlisted
 logins auto-created.
 
-The reconciler authenticates as `adminUsername` through the same proxy header. Quantum grants admin to
-whichever name matches it, and never asks a proxy-authenticated actor to confirm a password, so the module
-needs no admin credential. That name must never be one the edge can authenticate. An assertion checks it
-against the declared users.
+The reconciler authenticates as `adminUsername` with a **password**, from `adminPasswordFile`. That is
+what makes the account unreachable through the edge: a password login cannot be assumed by a proxy header,
+so no name the gateway can authenticate becomes admin. An assertion keeps `adminUsername` out of the
+declared users. Quantum re-confirms the password on every user mutation, so the reconciler sends it
+alongside the token it got back.
+
+The reconciler touches only accounts whose `loginMethod` matches the configured one. The admin's password
+account is therefore never a candidate for deletion, even though the config does not declare it.
 
 Config holds no secrets. Quantum reads every one of them from the environment.
 
@@ -54,8 +58,9 @@ disables WebDAV by default. Turn it on only where nothing else claims the header
 
 With an OIDC provider active the app federates instead of leaning on the gateway, and proxy auth is
 switched off entirely, so no header is trusted under that model. The declared `access.allowedGroups`
-are passed to Quantum as `userGroups`, which it enforces itself: under `oidc` the framework leaves
-enforcement to the service, so without that the groups would be decorative.
+are also passed to Quantum as `userGroups`. That is a second check behind the provider's: Pocket-ID
+already refuses a user outside the client's allowed groups, but the OIDC contract does not oblige a
+provider to, so the service repeats it.
 
 Quantum resolves the issuer at start-up and exits when it cannot reach it. The service therefore
 depends on the provider being up at boot, not just at login, and recovers through its restart backoff

@@ -196,7 +196,7 @@ in
     };
   };
 
-  config = lib.mkIf (cfg.enable && app.enable) {
+  config = lib.mkIf app.enable {
     assertions = [
       {
         assertion = app.defaultProfile == null || lib.any (p: p.name == app.defaultProfile) app.languageProfiles;

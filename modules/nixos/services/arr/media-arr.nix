@@ -203,7 +203,7 @@ in
     };
   };
 
-  config = lib.mkIf (cfg.enable && app.enable) {
+  config = lib.mkIf app.enable {
     selfhost = {
       services.${name} = {
         displayName = lib.mkDefault displayName;
@@ -212,7 +212,7 @@ in
         meta.category = lib.mkDefault "downloads";
         port = lib.mkDefault defaultPort;
         healthcheck.path = "/ping";
-        # The reconcile sets AUTH__METHOD=External, so ${displayName} serves no login of its own.
+        # The unit below sets AUTH__METHOD=External, so ${displayName} serves no login of its own.
         access.model = "forwardAuth";
         access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
         integrations.homepage.icon = lib.mkDefault icon;

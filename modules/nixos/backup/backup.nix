@@ -35,9 +35,6 @@ let
 
   activeTargets = lib.filterAttrs (_: t: t.enable) cfg.targets;
 
-  excludeDirs = lib.unique (lib.concatMap (t: t.excludeDirs) (lib.attrValues activeTargets));
-  backupUnits = map (n: "homelab-backup-${n}.service") (lib.attrNames activeTargets);
-
   resolveHooks =
     t:
     lib.genAttrs t.services (svcName: {
@@ -277,24 +274,13 @@ in
                 "!#recycle"
                 "!.zfs"
               ];
-              description = "rustic include/exclude globs ('!' = exclude). Default excludes common NAS/sync/OS metadata.";
-            };
-
-            excludeDirs = lib.mkOption {
-              type = lib.types.listOf lib.types.str;
-              default = [ ];
-              example = [ "/srv/storage/photos/encoded-video" ];
               description = ''
-                Directories to drop from this target by placing the `.nobackup` marker
-                `exclude-if-present` already looks for. For derived data that the owning application
-                rebuilds on demand, where paying to store it off-site buys nothing.
+                rustic include/exclude globs ('!' = exclude). Default excludes common NAS/sync/OS metadata.
 
-                Preferred over a `globs` entry for a specific directory: globs match either a bare
-                name, which hits every directory sharing it, or a full path, which would have to spell
-                out this module's staging directory.
-
-                The marker is root-owned and read-only, and recreated on each boot so it cannot drift.
-                Write access to the parent still allows unlinking it; the rule is what holds the line.
+                A bare name matches every directory carrying it. One specific directory takes its absolute
+                path inside this target's staging tree, `/var/lib/homelab-backup/<target>/src` plus the
+                `bindings` key it sits under. Dropping a whole source is better done by leaving it out of
+                `bindings`, and a `.nobackup` file excludes its directory whoever puts it there.
               '';
             };
 
@@ -348,12 +334,6 @@ in
   };
 
   config = lib.mkMerge [
-    {
-      # Gating on the framework toggle makes forgetting it a silent no-backup, so say so out loud.
-      warnings = lib.optional (
-        !selfhostCfg.enable && cfg.targets != { }
-      ) "selfhost.backup.targets are set but selfhost.enable is false, so no backup runs.";
-    }
     # The task's identity, as opposed to its activation: a consumer that enables notify for the backup
     # task still needs a topic when every target is paused, or it fails on a missing one.
     (lib.mkIf (cfg.targets != { }) {
@@ -362,7 +342,7 @@ in
       # Every host backing up publishes here, and the unit name is identical on each.
       selfhost.tasks.backup.integrations.notify.titlePrefix = lib.mkDefault config.networking.hostName;
     })
-    (lib.mkIf (selfhostCfg.enable && activeTargets != { }) {
+    (lib.mkIf (activeTargets != { }) {
       assertions =
         let
           badBindingKeys = lib.filter (k: !(lib.hasPrefix "/" k) || k == "/extras" || lib.hasPrefix "/extras/" k) (
@@ -421,30 +401,9 @@ in
         "homelab-backup-${name}-verify"
       ]) (lib.attrNames activeTargets);
 
-      systemd.services =
-        lib.listToAttrs (lib.mapAttrsToList mkBackupService activeTargets ++ lib.mapAttrsToList mkVerifyService activeTargets)
-        // lib.optionalAttrs (excludeDirs != [ ]) {
-          # Not tmpfiles: it refuses a path whose ownership changes along the way ("unsafe path
-          # transition"), which is the normal shape of a share whose subdirectories were created by
-          # whoever wrote them. Not ExecStartPre on the backup either, whose namespace binds the sources
-          # read-only. A plain root oneshot, required by each run so the markers cannot go stale.
-          homelab-backup-markers = {
-            description = "Place .nobackup markers in excluded directories";
-            wantedBy = [ "multi-user.target" ];
-            before = backupUnits;
-            requiredBy = backupUnits;
-            unitConfig.RequiresMountsFor = excludeDirs;
-            serviceConfig = {
-              Type = "oneshot";
-              RemainAfterExit = true;
-            };
-            # Absent directories are skipped, not an error: the owning application may not have created
-            # them yet, and the next run picks them up.
-            script = lib.concatMapStringsSep "\n" (dir: ''
-              [ -d ${lib.escapeShellArg dir} ] && install -m 0444 /dev/null ${lib.escapeShellArg "${dir}/.nobackup"}
-            '') excludeDirs;
-          };
-        };
+      systemd.services = lib.listToAttrs (
+        lib.mapAttrsToList mkBackupService activeTargets ++ lib.mapAttrsToList mkVerifyService activeTargets
+      );
 
       systemd.timers = lib.listToAttrs (
         lib.mapAttrsToList (name: t: mkTimer name "" t.backupSchedule) activeTargets

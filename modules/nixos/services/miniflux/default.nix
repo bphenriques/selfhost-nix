@@ -34,7 +34,7 @@ in
 
   options.selfhost.apps.miniflux.enable = lib.mkEnableOption "the first-party Miniflux app (RSS reader with OIDC login)";
 
-  config = lib.mkIf (config.selfhost.enable && app.enable) {
+  config = lib.mkIf app.enable {
     selfhost = {
       services.miniflux = {
         displayName = lib.mkDefault "Miniflux";

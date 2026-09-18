@@ -27,11 +27,6 @@ in
   options.selfhost = {
     apps.filebrowser-quantum = {
       enable = lib.mkEnableOption "the first-party FileBrowser Quantum app (per-user file sharing)";
-      enableSelfhostIntegration = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        description = "Derive users and per-user SMB binds from selfhost.users grants and register behind the active gateway. Turn off to wire users, storage and auth yourself.";
-      };
     };
 
     users = lib.mkOption {
@@ -57,7 +52,7 @@ in
   };
 
   config = lib.mkMerge [
-    (lib.mkIf (cfg.enable && app.enable) {
+    (lib.mkIf app.enable {
       selfhost = {
         services.filebrowser-quantum = {
           displayName = lib.mkDefault "File Browser";
@@ -107,18 +102,18 @@ in
       };
     })
 
-    (lib.mkIf (cfg.enable && app.enable && federated) {
+    (lib.mkIf (app.enable && federated) {
       services.filebrowser-quantum.settings.auth.methods.oidc = {
         issuerUrl = oidcCfg.provider.issuerUrl;
         # Upstream asks for "openid email profile", which carries no groups claim for userGroups to read.
         scopes = "openid email profile groups";
-        # Under `oidc` the framework leaves enforcement to the service, so without this the declared
-        # groups do nothing and any authenticated principal is admitted.
+        # Second check behind the provider's own. Pocket-ID already refuses a user outside the client's
+        # allowed groups, but the OIDC contract does not oblige a provider to, so the service repeats it.
         userGroups = serviceCfg.access.allowedGroups;
       };
     })
 
-    (lib.mkIf (cfg.enable && app.enable && app.enableSelfhostIntegration) {
+    (lib.mkIf app.enable {
       warnings = lib.mapAttrsToList (
         name: _: "selfhost.users.${name}.services.filebrowser-quantum is enabled with no storage grants — empty FileBrowser."
       ) (lib.filterAttrs (_: u: u.services.filebrowser-quantum.storage == { }) enabledUsers);

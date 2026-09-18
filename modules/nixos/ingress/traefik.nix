@@ -175,7 +175,9 @@ in
           ++ lib.optional cfg.auth.forwardAuth.active {
             http.middlewares.forwardAuth.forwardAuth = {
               address = "${cfg.auth.forwardAuth.url}${cfg.auth.forwardAuth.path}";
-              trustForwardHeader = true;
+              # No `trustForwardHeader`. Inert today, since the entrypoint already drops client
+              # `X-Forwarded-*` while `forwardedHeaders.trustedIPs` is empty, but it is deprecated
+              # upstream and would go live the moment someone trusts an upstream proxy there.
               authResponseHeaders = [
                 "Remote-User"
                 "Remote-Email"

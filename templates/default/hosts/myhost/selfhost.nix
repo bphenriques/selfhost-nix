@@ -2,8 +2,6 @@
 { private, ... }:
 {
   selfhost = {
-    enable = true;
-
     # OIDC provider (Pocket-ID) for app logins, plus a forward-auth gate for apps without native OIDC.
     auth.oidc.pocket-id.enable = true;
     auth.forwardAuth.tinyauth.enable = true;

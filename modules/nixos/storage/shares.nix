@@ -209,7 +209,7 @@ in
     };
   };
 
-  config = lib.mkIf (selfhostCfg.enable && cfg.enable) {
+  config = lib.mkIf cfg.enable {
     warnings =
       let
         # A rebuilt root reallocates gids, and the data keeps the numbers already written into it.
@@ -317,7 +317,9 @@ in
 
     # These two carry every hardening line except the filesystem sandbox: they write into share paths
     # and samba's passdb, both consumer-relocatable, and a ReadWritePaths that misses one fails at
-    # ownership rather than at start, which is harder to diagnose than no sandbox at all.
+    # ownership rather than at start, which is harder to diagnose than no sandbox at all. `ProtectHome`
+    # is part of that sandbox for the permissions unit, whose share roots the consumer may place under
+    # /home; the passwords unit only ever touches samba's passdb, so it keeps it.
     systemd.services.selfhost-smb-permissions = {
       description = "Prepare SMB share ownership";
       wantedBy = [ "multi-user.target" ];
@@ -347,6 +349,7 @@ in
         UMask = "0077";
         LoadCredential = lib.mapAttrsToList (name: p: "${name}:${toString p.storage.smb.passwordFile}") principals;
         ExecStart = lib.getExe provisionPasswords;
+        ProtectHome = true;
         PrivateTmp = true;
         NoNewPrivileges = true;
         ProtectKernelTunables = true;

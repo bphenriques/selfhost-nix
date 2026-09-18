@@ -71,7 +71,7 @@ in
     };
   };
 
-  config = lib.mkIf (config.selfhost.enable && app.enable) {
+  config = lib.mkIf app.enable {
     selfhost = {
       services.gitea = {
         displayName = lib.mkDefault "Gitea";

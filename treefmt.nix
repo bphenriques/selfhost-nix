@@ -1,5 +1,4 @@
-{ pkgs, lib, ... }:
-{
+_: {
   projectRootFile = "flake.nix";
   programs = {
     # Formatters
@@ -14,17 +13,9 @@
     statix.priority = 2;
   };
 
-  # Nushell formatter (not yet in treefmt-nix).
-  settings.formatter.nufmt =
-    let
-      config = pkgs.writeText "nufmt.nuon" "{ indent: 2, line_length: 120 }";
-    in
-    {
-      command = lib.getExe pkgs.nufmt;
-      options = [
-        "--config"
-        (toString config)
-      ];
-      includes = [ "*.nu" ];
-    };
+  # No nushell formatter. nufmt is pre-1.0 and rewrites valid scripts into ones that do not parse: it
+  # strips the parentheses from `data: ((payload $user) | merge {…})` inside a record literal, where
+  # nushell then reads the `|` as closure parameters. Gating CI on a formatter that can do that trades a
+  # real check for a cosmetic one. `writeNushellApplication` nu-checks every script at build instead,
+  # which is what caught this.
 }

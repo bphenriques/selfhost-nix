@@ -7,6 +7,7 @@
 - [Users](users.md)
 - [Shares](shares.md)
 - [Recipes](recipes.md)
+- [Bundled apps](apps.md)
 - [Media automation](media.md)
 - [Immich](immich.md)
 - [Jellyfin](jellyfin.md)

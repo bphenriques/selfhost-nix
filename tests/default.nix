@@ -21,7 +21,6 @@ let
     {
       imports = [ "${self}/modules/nixos" ];
       selfhost = {
-        enable = true;
         ingress.domain = "test.local";
         users.admin = {
           email = "admin@test.local";
@@ -81,7 +80,6 @@ let
           system.stateVersion = "25.11";
           nixpkgs.config.allowUnfree = true;
           selfhost = {
-            enable = true;
             ingress.domain = "test.local";
             users.admin = {
               email = "admin@test.local";

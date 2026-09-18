@@ -36,7 +36,7 @@ in
     };
   };
 
-  config = lib.mkIf (config.selfhost.enable && cfg.enable) {
+  config = lib.mkIf cfg.enable {
     systemd.services.desec-ddns = {
       description = "deSEC dynamic DNS update";
       after = [ "network-online.target" ];
@@ -49,6 +49,9 @@ in
         ProtectHome = true;
         PrivateTmp = true;
         NoNewPrivileges = true;
+        ProtectKernelTunables = true;
+        ProtectControlGroups = true;
+        RestrictSUIDSGID = true;
       };
       # deSEC autodetects the IP from the request source, so there's nothing to detect locally; -4
       # (+ myipv6=preserve) keeps us to the A record and never clobbers an AAAA. The token is written

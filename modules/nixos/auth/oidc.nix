@@ -6,6 +6,7 @@
 }:
 let
   selfhostCfg = config.selfhost;
+  selfhostLib = import ../lib.nix { inherit lib; };
   cfg = selfhostCfg.auth.oidc;
   # Persistent (not tmpfs): these have no source to re-derive from, so a tmpfs would regenerate them every
   # boot → drift. Persisting (rotate-when-missing keeps the file) makes them stable; rotation is deliberate.
@@ -17,9 +18,10 @@ let
 
   enabledUsers = lib.filterAttrs (_: u: u.auth.oidc.enable) selfhostCfg.users;
 
-  allGroups = lib.unique (
-    (lib.attrValues selfhostCfg.groups) ++ lib.concatLists (lib.mapAttrsToList (_: u: u.groups) enabledUsers)
-  );
+  # Every group a policy may name, not just the ones an OIDC user holds: `access.allowedGroups` accepts
+  # the wider set, and a group the provider never heard of fails client provisioning at boot. A group
+  # whose only members opted out of OIDC lands here empty, which is what it means.
+  allGroups = selfhostLib.knownGroups selfhostCfg;
 in
 {
   options.selfhost.auth.oidc = {
@@ -122,72 +124,57 @@ in
     };
   };
 
-  config = lib.mkMerge [
-    (lib.mkIf (derivedClients != { }) (
-      let
-        allDependentServices = lib.concatLists (
-          lib.mapAttrsToList (_: client: client.systemd.dependentServices) derivedClients
-        );
-        hasProvisionUnits = cfg.systemd.baseProvisionUnit != null;
-        invitedUsers = lib.attrNames (lib.filterAttrs (_: u: u.auth.oidc.inviteByEmail) enabledUsers);
-        # Scoped to OIDC users: the provider rejects a domain without a dot, while a placeholder like
-        # `guest@localhost` stays legal for accounts that never reach it.
-        badEmails = lib.attrNames (
-          lib.filterAttrs (_: u: builtins.match "[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+" u.email == null) enabledUsers
-        );
-        explicitGids = lib.filter (g: g != null) (lib.mapAttrsToList (_: c: c.gid) derivedClients);
-        dupGids = lib.filter (gid: lib.count (g: g == gid) explicitGids > 1) (lib.unique explicitGids);
-      in
-      {
-        assertions = [
-          {
-            assertion = badEmails == [ ];
-            message = "OIDC users whose email the provider will reject, because the domain has no dot: ${toString badEmails}. A create failure aborts provisioning for every other user in the same run, so this is caught here. Use a reserved placeholder domain such as local.invalid.";
-          }
-          {
-            assertion = invitedUsers == [ ] || options.selfhost.mail.host.isDefined;
-            message = "Users ask for an emailed OIDC enrolment link but selfhost.mail is unset: ${toString invitedUsers}. Configure selfhost.mail, or leave auth.oidc.inviteByEmail off and mint the link with `pocket-id one-time-access-token <user>`.";
-          }
-          {
-            assertion = dupGids == [ ];
-            message = "OIDC clients have duplicate explicit gids: ${toString dupGids}";
-          }
-          {
-            assertion = hasProvisionUnits || allDependentServices == [ ];
-            message = "selfhost.auth.oidc.systemd.baseProvisionUnit must be set when OIDC clients have dependentServices configured. Without it, systemd ordering is silently skipped.";
-          }
-        ];
+  config = lib.mkIf (derivedClients != { }) (
+    let
+      allDependentServices = lib.concatLists (
+        lib.mapAttrsToList (_: client: client.systemd.dependentServices) derivedClients
+      );
+      hasProvisionUnits = cfg.systemd.baseProvisionUnit != null;
+      invitedUsers = lib.attrNames (lib.filterAttrs (_: u: u.auth.oidc.inviteByEmail) enabledUsers);
+      # Scoped to OIDC users: the provider rejects a domain without a dot, while a placeholder like
+      # `guest@localhost` stays legal for accounts that never reach it.
+      badEmails = lib.attrNames (
+        lib.filterAttrs (_: u: builtins.match "[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+" u.email == null) enabledUsers
+      );
+    in
+    {
+      assertions = [
+        {
+          assertion = badEmails == [ ];
+          message = "OIDC users whose email the provider will reject, because the domain has no dot: ${toString badEmails}. A create failure aborts provisioning for every other user in the same run, so this is caught here. Use a reserved placeholder domain such as local.invalid.";
+        }
+        {
+          assertion = invitedUsers == [ ] || selfhostCfg.mail.active;
+          message = "Users ask for an emailed OIDC enrolment link but selfhost.mail is unset: ${toString invitedUsers}. Configure selfhost.mail, or leave auth.oidc.inviteByEmail off and mint the link with `pocket-id one-time-access-token <user>`.";
+        }
+        {
+          assertion = hasProvisionUnits || allDependentServices == [ ];
+          message = "selfhost.auth.oidc.systemd.baseProvisionUnit must be set when OIDC clients have dependentServices configured. Without it, systemd ordering is silently skipped.";
+        }
+      ];
 
-        users.groups = lib.mapAttrs' (
-          _: client:
-          lib.nameValuePair client.group (
-            lib.optionalAttrs (client.gid != null) {
-              inherit (client) gid;
-            }
-          )
-        ) derivedClients;
+      users.groups = lib.mapAttrs' (_: client: lib.nameValuePair client.group { }) derivedClients;
 
-        systemd.services = lib.mkIf hasProvisionUnits (
-          lib.mkMerge (
-            lib.mapAttrsToList (
-              name: client:
-              let
-                clientProvisionUnit = "${cfg.systemd.clientProvisionUnitPrefix}${name}.service";
-              in
-              lib.listToAttrs (
-                map (svcName: {
-                  name = svcName;
-                  value = {
-                    requires = [ clientProvisionUnit ];
-                    after = [ clientProvisionUnit ];
-                    partOf = [ clientProvisionUnit ];
-                  };
-                }) client.systemd.dependentServices
-              )
-            ) derivedClients
-          )
-        );
-      }
-    ))
-  ];
+      systemd.services = lib.mkIf hasProvisionUnits (
+        lib.mkMerge (
+          lib.mapAttrsToList (
+            name: client:
+            let
+              clientProvisionUnit = "${cfg.systemd.clientProvisionUnitPrefix}${name}.service";
+            in
+            lib.listToAttrs (
+              map (svcName: {
+                name = svcName;
+                value = {
+                  requires = [ clientProvisionUnit ];
+                  after = [ clientProvisionUnit ];
+                  partOf = [ clientProvisionUnit ];
+                };
+              }) client.systemd.dependentServices
+            )
+          ) derivedClients
+        )
+      );
+    }
+  );
 }

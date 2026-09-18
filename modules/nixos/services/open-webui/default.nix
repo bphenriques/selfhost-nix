@@ -27,7 +27,7 @@ in
       '';
     };
 
-  config = lib.mkIf (cfg.enable && app.enable) {
+  config = lib.mkIf app.enable {
     selfhost = {
       services.open-webui = {
         displayName = lib.mkDefault "Open WebUI";

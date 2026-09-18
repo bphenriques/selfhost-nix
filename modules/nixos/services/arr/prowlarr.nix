@@ -32,7 +32,7 @@ in
     };
   };
 
-  config = lib.mkIf (cfg.enable && app.enable) {
+  config = lib.mkIf app.enable {
     selfhost = {
       services.prowlarr = {
         displayName = lib.mkDefault "Prowlarr";
@@ -41,7 +41,7 @@ in
         meta.category = lib.mkDefault "downloads";
         port = lib.mkDefault 9696;
         healthcheck.path = "/ping";
-        # The reconcile sets PROWLARR__AUTH__METHOD=External, so Prowlarr serves no login of its own.
+        # The unit below sets PROWLARR__AUTH__METHOD=External, so Prowlarr serves no login of its own.
         access.model = "forwardAuth";
         access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
         integrations.homepage.group = lib.mkDefault "Admin";

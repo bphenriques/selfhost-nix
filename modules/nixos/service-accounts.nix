@@ -50,7 +50,7 @@ in
     '';
   };
 
-  config = lib.mkIf cfg.enable {
+  config = {
     assertions = [
       {
         assertion = duplicates == [ ];

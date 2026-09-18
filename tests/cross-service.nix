@@ -98,7 +98,7 @@ let
             address = "10.100.0.1/24";
             clientSubnet = "10.100.0.0/24";
             endpoint = "vpn.test.local";
-            dns = "10.100.0.1";
+            dns = "1.1.1.1";
           };
         };
 
@@ -132,7 +132,6 @@ in
 # set enabled, and are the reason this check exists at all.
 assert lib.assertMsg (failed == [ ]) "assertions fired: ${lib.concatMapStringsSep "; " (a: a.message) failed}";
 assert lib.assertMsg (cfg.system.build.toplevel.drvPath != null) "the full surface must evaluate";
-# Read only by consumers, and each folds every registry entry into one value, so nothing per-app forces them.
-assert lib.assertMsg (builtins.deepSeq cfg.selfhost.inventory true) "inventory must evaluate";
+# Read only by consumers, and it folds every registry entry into one value, so nothing per-app forces it.
 assert lib.assertMsg (builtins.deepSeq cfg.selfhost.dashboards.generatedTiles true) "tiles must evaluate";
 pkgs.runCommand "selfhost-cross-service-eval" { } "touch $out"

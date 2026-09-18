@@ -35,6 +35,18 @@ private/                  # confidential build-time data (split into its own rep
 
 Nothing else changes. `flake.nix` already reads it as `private.hosts.myhost`.
 
+## Reach it
+
+The template routes `<subdomain>.<domain>` on your LAN interface and stops there. Putting those services on
+the public internet is [out of scope](https://bphenriques.github.io/selfhost-nix/concepts.html#exposure),
+so the way in from elsewhere is `selfhost.apps.wireguard`: add it in `selfhost.nix`, declare each device
+under `selfhost.users.<name>.services.wireguard.devices`, and enrol them with `wg-manage`. The
+[Users chapter](https://bphenriques.github.io/selfhost-nix/users.html) walks through it.
+
+Radicale is the example app because it needs no provider to be useful. Its accounts authenticate with a
+generated password, which you read once with
+`sudo cat /var/lib/homelab-secrets/radicale-password-<user>` and hand over.
+
 ## Extend from here
 
 - **More apps**: `selfhost.apps.<name>.enable = true;` in `selfhost.nix`, then opt users in via

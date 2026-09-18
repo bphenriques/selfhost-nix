@@ -13,7 +13,7 @@ in
   options.selfhost.apps.bentopdf.enable =
     lib.mkEnableOption "the first-party BentoPDF app (static, client-side PDF toolkit)";
 
-  config = lib.mkIf (config.selfhost.enable && config.selfhost.apps.bentopdf.enable) {
+  config = lib.mkIf config.selfhost.apps.bentopdf.enable {
     selfhost.services.bentopdf = {
       displayName = lib.mkDefault "BentoPDF";
       meta.homepage = lib.mkDefault "https://www.bentopdf.com";
