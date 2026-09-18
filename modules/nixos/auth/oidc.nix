@@ -130,11 +130,20 @@ in
         );
         hasProvisionUnits = cfg.systemd.baseProvisionUnit != null;
         invitedUsers = lib.attrNames (lib.filterAttrs (_: u: u.auth.oidc.inviteByEmail) enabledUsers);
+        # Scoped to OIDC users: the provider rejects a domain without a dot, while a placeholder like
+        # `guest@localhost` stays legal for accounts that never reach it.
+        badEmails = lib.attrNames (
+          lib.filterAttrs (_: u: builtins.match "[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+" u.email == null) enabledUsers
+        );
         explicitGids = lib.filter (g: g != null) (lib.mapAttrsToList (_: c: c.gid) derivedClients);
         dupGids = lib.filter (gid: lib.count (g: g == gid) explicitGids > 1) (lib.unique explicitGids);
       in
       {
         assertions = [
+          {
+            assertion = badEmails == [ ];
+            message = "OIDC users whose email the provider will reject, because the domain has no dot: ${toString badEmails}. A create failure aborts provisioning for every other user in the same run, so this is caught here. Use a reserved placeholder domain such as local.invalid.";
+          }
           {
             assertion = invitedUsers == [ ] || options.selfhost.mail.host.isDefined;
             message = "Users ask for an emailed OIDC enrolment link but selfhost.mail is unset: ${toString invitedUsers}. Configure selfhost.mail, or leave auth.oidc.inviteByEmail off and mint the link with `pocket-id one-time-access-token <user>`.";

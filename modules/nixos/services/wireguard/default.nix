@@ -104,25 +104,34 @@ let
     else
       allowedIPsFull;
 
-  wgEnv = {
-    WG_DATA_DIR = dataDir;
-    WG_INTERFACE = wg.interface;
-    WG_HOMELAB_NAME = wg.name;
-    WG_SERVER_ENDPOINT = "${wg.endpoint}:${toString wg.listenPort}";
-    WG_CLIENT_SUBNET = wg.clientSubnet;
-    WG_CLIENT_DNS = wg.dns;
-    WG_ALLOWED_IPS_FULL = lib.concatStringsSep "," allowedIPsFull;
-    WG_ALLOWED_IPS_RESTRICTED = lib.concatStringsSep "," allowedIPsRestricted;
-    # Matched on address, not name: the registry and the client store agree on IPs but not on naming,
-    # and a client the registry does not know yet renders restricted rather than open.
-    WG_FULL_ACCESS_IPS = lib.concatStringsSep "," (map (c: c.ip) fullAccessPeers);
-  };
+  # One generated file rather than a spread of env vars, matching pocket-id-manage. Carrying the peer
+  # list makes the registry the tool's only inventory: allocation, policy and status all read it, so
+  # none of them can disagree with what the server actually routes.
+  manageConfigFile = pkgs.writeText "wg-manage-config.json" (
+    builtins.toJSON {
+      inherit (wg) interface clientSubnet dns;
+      serverPublicKeyFile = serverPubKeyFile;
+      endpoint = "${wg.endpoint}:${toString wg.listenPort}";
+      allowedIPs = {
+        full = lib.concatStringsSep "," allowedIPsFull;
+        restricted = lib.concatStringsSep "," allowedIPsRestricted;
+      };
+      peers = map (c: {
+        inherit (c)
+          name
+          ip
+          fullAccess
+          publicKey
+          ;
+      }) clients;
+    }
+  );
 
   wgManage = pkgs.writeShellApplication {
     name = "wg-manage";
     runtimeInputs = [ pkgs.selfhost.wg-manage ];
     text = ''
-      ${lib.concatStringsSep "\n" (lib.mapAttrsToList (k: v: "export ${k}=${lib.escapeShellArg v}") wgEnv)}
+      export WG_CONFIG_FILE=${manageConfigFile}
       exec wg-manage-bin "$@"
     '';
   };
@@ -163,10 +172,6 @@ in
     dns = lib.mkOption {
       type = lib.types.str;
       description = "DNS server pushed to clients.";
-    };
-    name = lib.mkOption {
-      type = lib.types.str;
-      description = "Short identity prefix for client interface/device names (e.g. 'bphenr').";
     };
     openFirewall = lib.mkOption {
       type = lib.types.bool;
@@ -252,7 +257,6 @@ in
         systemd.tmpfiles.rules = [
           "d ${dataDir} 0700 root root -"
           "d ${dataDir}/server 0700 root root -"
-          "d ${dataDir}/clients 0700 root root -"
         ];
 
         systemd.services.wireguard-keygen = {
@@ -304,11 +308,6 @@ in
           let
             clientsByIp = builtins.groupBy (c: c.ip) clients;
             ipCollisions = lib.filterAttrs (_: cs: builtins.length cs > 1) clientsByIp;
-
-            maxIfNameLen = 15;
-            prefix = "${wg.name}-";
-            maxDeviceLen = maxIfNameLen - builtins.stringLength prefix;
-            tooLong = builtins.filter (c: builtins.stringLength c.device > maxDeviceLen) clients;
           in
           [
             {
@@ -319,13 +318,42 @@ in
                 )
               }";
             }
-            {
-              assertion = tooLong == [ ];
-              message = "WireGuard device name too long (max ${toString maxDeviceLen} chars with prefix '${prefix}'): ${
-                lib.concatMapStringsSep ", " (c: "'${c.device}' (${toString (builtins.stringLength c.device)} chars)") tooLong
-              }";
-            }
           ];
+
+        # systemd-networkd applies the netdev's peers but never removes one that is no longer declared
+        # (verified: neither `networkctl reload` nor `reconfigure` drops a stale peer), so deleting a
+        # device from the registry would leave it connectable until the next reboot. The unit's script
+        # embeds the declared set, so a changed registry restarts it and revocation lands on deploy.
+        systemd.services.wireguard-reconcile-peers = {
+          description = "Remove ${wg.interface} peers that are no longer declared";
+          wantedBy = [ "multi-user.target" ];
+          after = [ ifaceBackend ];
+          path = [ pkgs.wireguard-tools ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            ProtectSystem = "strict";
+            ProtectHome = true;
+            PrivateTmp = true;
+            NoNewPrivileges = true;
+            ProtectKernelTunables = true;
+            ProtectControlGroups = true;
+            RestrictSUIDSGID = true;
+          };
+          script = ''
+            declared=${pkgs.writeText "wireguard-declared-peers" (lib.concatMapStringsSep "\n" (c: c.publicKey) clients + "\n")}
+            live=$(wg show ${wg.interface} peers 2>/dev/null) || {
+              echo "${wg.interface} is not up; nothing to reconcile."
+              exit 0
+            }
+            for pk in $live; do
+              if ! grep -qxF "$pk" "$declared"; then
+                echo "Removing undeclared peer: $pk"
+                wg set ${wg.interface} peer "$pk" remove
+              fi
+            done
+          '';
+        };
 
         environment.systemPackages = [ wgManage ];
       }

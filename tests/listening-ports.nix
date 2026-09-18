@@ -40,7 +40,6 @@ let
         clientSubnet = "10.100.0.0/24";
         endpoint = "vpn.test.local";
         dns = "10.100.0.1";
-        name = "test";
       };
 
       users.ada = {
