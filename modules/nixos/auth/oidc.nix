@@ -100,6 +100,7 @@ in
             isAdmin
             groups
             ;
+          inherit (u.auth.oidc) inviteByEmail;
         }) enabledUsers;
         groups = map (name: { inherit name; }) allGroups;
       };
@@ -128,11 +129,16 @@ in
           lib.mapAttrsToList (_: client: client.systemd.dependentServices) derivedClients
         );
         hasProvisionUnits = cfg.systemd.baseProvisionUnit != null;
+        invitedUsers = lib.attrNames (lib.filterAttrs (_: u: u.auth.oidc.inviteByEmail) enabledUsers);
         explicitGids = lib.filter (g: g != null) (lib.mapAttrsToList (_: c: c.gid) derivedClients);
         dupGids = lib.filter (gid: lib.count (g: g == gid) explicitGids > 1) (lib.unique explicitGids);
       in
       {
         assertions = [
+          {
+            assertion = invitedUsers == [ ] || options.selfhost.mail.host.isDefined;
+            message = "Users ask for an emailed OIDC enrolment link but selfhost.mail is unset: ${toString invitedUsers}. Configure selfhost.mail, or leave auth.oidc.inviteByEmail off and mint the link with `pocket-id one-time-access-token <user>`.";
+          }
           {
             assertion = dupGids == [ ];
             message = "OIDC clients have duplicate explicit gids: ${toString dupGids}";

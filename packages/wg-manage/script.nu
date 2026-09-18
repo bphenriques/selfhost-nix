@@ -16,7 +16,13 @@ let endpoint = require_env "WG_SERVER_ENDPOINT"
 let client_subnet = require_env "WG_CLIENT_SUBNET"
 let client_dns = require_env "WG_CLIENT_DNS"
 let selfhost_name = require_env "WG_HOMELAB_NAME"
-let allowed_ips_full = $env.WG_SERVER_ALLOWED_IPS? | default $client_subnet
+# AllowedIPs is the client's routing table, so a restricted device routes the server alone rather than
+# the whole LAN, which would capture the local network of anyone whose home uses the same subnet.
+# Keyed on address because the registry and this store agree on IPs but not on naming; a client the
+# registry does not know yet renders restricted rather than open.
+let allowed_ips_full = $env.WG_ALLOWED_IPS_FULL? | default $client_subnet
+let allowed_ips_restricted = $env.WG_ALLOWED_IPS_RESTRICTED? | default $allowed_ips_full
+let full_access_ips = $env.WG_FULL_ACCESS_IPS? | default "" | split row "," | where { $in != "" }
 let clients_dir = $"($data_dir)/clients"
 let server_pubkey_file = $"($data_dir)/server/public.key"
 if not ($server_pubkey_file | path exists) { error make {msg: "Server key not found. Start wireguard service first."} }
@@ -43,11 +49,6 @@ def validate_name [name: string] {
   }
 }
 
-def conf_file [name: string, device: string] {
-  validate_iface_name $device
-  $"($clients_dir)/($name)/($selfhost_name)-($device).conf"
-}
-
 def get_client [name: string] {
   let dir = $"($clients_dir)/($name)"
   if not ($dir | path exists) {
@@ -56,9 +57,12 @@ def get_client [name: string] {
   open $"($dir)/meta.json"
 }
 
+# Rendered on demand from the stored key: a conf written once at issue time would keep handing out a
+# policy the server no longer applies, and persisting it would put the private key on disk twice.
 def show_qr [name: string] {
   let meta = get_client $name
-  open --raw (conf_file $name $meta.device) | qrencode -t ANSIUTF8
+  let priv_key = open --raw $"($clients_dir)/($name)/private.key" | str trim
+  render_conf $priv_key $meta.ip | qrencode -t ANSIUTF8
 }
 
 def list_clients [] {
@@ -101,7 +105,7 @@ DNS = ($client_dns)
 [Peer]
 PublicKey = (get_server_pubkey)
 Endpoint = ($endpoint)
-AllowedIPs = ($allowed_ips_full)
+AllowedIPs = (if ($ip in $full_access_ips) { $allowed_ips_full } else { $allowed_ips_restricted })
 PersistentKeepalive = 25
 "
 }
@@ -124,9 +128,6 @@ def create_client [name: string, --ip: string, --device: string] {
     ip: $client_ip
     pub_key: $pub_key
   } | save -f $"($dir)/meta.json"
-  let conf = conf_file $name $dev
-  render_conf $priv_key $client_ip | save -f $conf
-  chmod 0600 $conf
   print $"Client '($name)' provisioned (($client_ip))"
   print $"  publicKey = \"($pub_key)\""
   print "Add this device to the WireGuard registry (name/ip/fullAccess/publicKey) and rebuild to enable the peer."

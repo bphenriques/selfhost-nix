@@ -27,8 +27,11 @@ let
       };
       name = lib.mkOption {
         type = lib.types.str;
-        default = "${config.firstName} ${config.lastName}";
-        defaultText = lib.literalMD "`<firstName> <lastName>`";
+        default = lib.concatStringsSep " " (lib.filter (s: s != "") [
+          config.firstName
+          config.lastName
+        ]);
+        defaultText = lib.literalMD "`<firstName> <lastName>`, and just `<firstName>` when `lastName` is empty";
         description = "Display name shown by services that take a single full name.";
       };
       groups = lib.mkOption {

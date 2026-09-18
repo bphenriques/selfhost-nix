@@ -30,6 +30,80 @@ let
     ) enabledUsers
   );
 
+  restrictedPeers = lib.filter (c: !c.fullAccess) clients;
+  fullAccessPeers = lib.filter (c: c.fullAccess) clients;
+
+  # fullAccess governs forwarding, so it says nothing about this host's own ports. sshd, the reverse
+  # proxy and anything else bound to the tunnel interface are otherwise reachable by every peer. Ahead
+  # of nixos-fw so it polices what those services opened. New connections only, so traffic the server
+  # itself initiated is untouched; everything else from these peers goes, ICMP included, so they cannot
+  # ping the host either.
+  #
+  # The v6 drop is not redundant: this module is IPv4-only, so `ip saddr` cannot match a v6 packet and
+  # it would fall through to whatever nixos-fw opened on the tunnel interface, which is family-agnostic.
+  # Only the absence of a v6 address on the interface stops that today.
+  restrictApplies = wg.restrictedPeerPorts != [ ] && restrictedPeers != [ ];
+  restrictChain = lib.optionalString restrictApplies (
+    let
+      saddr = "ip saddr { ${lib.concatMapStringsSep ", " (c: c.ip) restrictedPeers} }";
+      ports = lib.concatMapStringsSep ", " toString wg.restrictedPeerPorts;
+    in
+    ''
+      chain input {
+        type filter hook input priority filter - 1; policy accept;
+        iifname "${wg.interface}" meta nfproto ipv6 ct state new drop
+        iifname "${wg.interface}" ${saddr} ct state new tcp dport { ${ports} } accept
+        iifname "${wg.interface}" ${saddr} ct state new drop
+      }
+    ''
+  );
+
+  # A magic packet is only useful as a broadcast (a powered-off host answers no ARP), so WoL is the one
+  # directed broadcast let through, on the magic-packet ports and from full-access clients only.
+  # `fib daddr type` classifies the destination without deriving the broadcast address from the subnet.
+  wolRules = lib.optionals (wg.lanAccess.wakeOnLan && fullAccessPeers != [ ]) [
+    ''iifname "${wg.interface}" ip saddr { ${
+      lib.concatMapStringsSep ", " (c: c.ip) fullAccessPeers
+    } } fib daddr type broadcast udp dport { 7, 9 } accept comment "Wake-on-LAN"''
+    ''iifname "${wg.interface}" fib daddr type broadcast drop''
+  ];
+
+  # Govern only WireGuard clients: fullAccess devices forward to the LAN, the rest reach just the
+  # server. Other forwarding (containers, bridges) is left to whatever manages it, so this never has to
+  # know about podman/microvm/etc.
+  forwardRules =
+    wolRules
+    ++ map (c: ''iifname "${wg.interface}" ip saddr ${c.ip} accept'') fullAccessPeers
+    ++ [ ''iifname "${wg.interface}" drop'' ];
+
+  lanChains = lib.optionalString wg.lanAccess.enable (
+    ''
+      chain forward {
+        type filter hook forward priority 0; policy accept;
+        ${lib.concatStringsSep "\n      " forwardRules}
+      }
+    ''
+    + lib.optionalString wg.lanAccess.masquerade ''
+      chain postrouting {
+        type nat hook postrouting priority srcnat; policy accept;
+        ip saddr ${wg.clientSubnet} ip daddr ${wg.lanAccess.subnet} masquerade
+      }
+    ''
+  );
+
+  # AllowedIPs is the client's routing table, so it decides what the device diverts away from its own
+  # network, not what it is permitted to reach. A restricted device therefore routes the server alone:
+  # sending it the whole LAN subnet captures the local network of anyone whose home uses the same one.
+  allowedIPsFull = [ wg.clientSubnet ] ++ lib.optional wg.lanAccess.enable wg.lanAccess.subnet;
+  allowedIPsRestricted =
+    if wg.lanAccess.enable && wg.lanAccess.serverAddress != null then
+      [
+        wg.clientSubnet
+        "${wg.lanAccess.serverAddress}/32"
+      ]
+    else
+      allowedIPsFull;
+
   wgEnv = {
     WG_DATA_DIR = dataDir;
     WG_INTERFACE = wg.interface;
@@ -37,9 +111,11 @@ let
     WG_SERVER_ENDPOINT = "${wg.endpoint}:${toString wg.listenPort}";
     WG_CLIENT_SUBNET = wg.clientSubnet;
     WG_CLIENT_DNS = wg.dns;
-    WG_SERVER_ALLOWED_IPS = lib.concatStringsSep "," (
-      [ wg.clientSubnet ] ++ lib.optional wg.lanAccess.enable wg.lanAccess.subnet
-    );
+    WG_ALLOWED_IPS_FULL = lib.concatStringsSep "," allowedIPsFull;
+    WG_ALLOWED_IPS_RESTRICTED = lib.concatStringsSep "," allowedIPsRestricted;
+    # Matched on address, not name: the registry and the client store agree on IPs but not on naming,
+    # and a client the registry does not know yet renders restricted rather than open.
+    WG_FULL_ACCESS_IPS = lib.concatStringsSep "," (map (c: c.ip) fullAccessPeers);
   };
 
   wgManage = pkgs.writeShellApplication {
@@ -104,8 +180,24 @@ in
         type = lib.types.str;
         description = "LAN subnet full-access clients may reach; added to their AllowedIPs and used as the masquerade destination. Required when lanAccess.enable.";
       };
+      serverAddress = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "192.168.1.10";
+        description = "This host's own address on `subnet`. Restricted devices route just this instead of the whole subnet, so a client whose home network overlaps it keeps its local devices. Null leaves them routing the whole subnet.";
+      };
+
       masquerade = lib.mkEnableOption "srcnat masquerade of client traffic into the LAN (enable only if the LAN lacks routes back to the client subnet)";
       wakeOnLan = lib.mkEnableOption "forwarding Wake-on-LAN magic packets (UDP 7 and 9) from full-access clients to the LAN broadcast address; every other directed broadcast stays in the tunnel";
+    };
+
+    restrictedPeerPorts = lib.mkOption {
+      type = lib.types.listOf lib.types.port;
+      default = [
+        80
+        443
+      ];
+      description = "TCP ports on this host reachable by devices without `fullAccess`. Everything else opened on the tunnel interface by other services is dropped for them. Empty disables the restriction.";
     };
 
     peers = lib.mkOption {
@@ -238,62 +330,28 @@ in
         environment.systemPackages = [ wgManage ];
       }
 
-      (lib.mkIf wg.lanAccess.enable (
-        let
-          fullAccessPeers = builtins.filter (c: c.fullAccess) wg.peers;
+      # One table, three chains, rather than a table per concern: `nft list table inet wireguard-access`
+      # then shows everything this module installs, and a reload is one atomic delete-and-add.
+      (lib.mkIf (restrictApplies || wg.lanAccess.enable) {
+        networking.nftables.enable = true;
+        networking.nftables.tables.wireguard-access = {
+          family = "inet";
+          content = restrictChain + lanChains;
+        };
+      })
 
-          # A magic packet is only useful as a broadcast (a powered-off host answers no ARP), so WoL
-          # is the one directed broadcast let through, on the magic-packet ports and from full-access
-          # clients only. `fib daddr type` classifies the destination without deriving the broadcast
-          # address from the subnet.
-          wolRules = lib.optionals (wg.lanAccess.wakeOnLan && fullAccessPeers != [ ]) [
-            ''iifname "${wg.interface}" ip saddr { ${
-              lib.concatMapStringsSep ", " (c: c.ip) fullAccessPeers
-            } } fib daddr type broadcast udp dport { 7, 9 } accept comment "Wake-on-LAN"''
-            ''iifname "${wg.interface}" fib daddr type broadcast drop''
-          ];
-
-          # Govern only WireGuard clients: fullAccess devices forward to the LAN, the rest reach just
-          # the server. Other forwarding (containers, bridges) is left to whatever manages it, so this
-          # never has to know about podman/microvm/etc.
-          forwardRules =
-            wolRules
-            ++ map (c: ''iifname "${wg.interface}" ip saddr ${c.ip} accept'') fullAccessPeers
-            ++ [
-              ''iifname "${wg.interface}" drop''
-            ];
-
-          nftablesContent = ''
-            chain forward {
-              type filter hook forward priority 0; policy accept;
-              ${lib.concatStringsSep "\n      " forwardRules}
-            }
-          ''
-          + lib.optionalString wg.lanAccess.masquerade ''
-            chain postrouting {
-              type nat hook postrouting priority srcnat; policy accept;
-              ip saddr ${wg.clientSubnet} ip daddr ${wg.lanAccess.subnet} masquerade
-            }
-          '';
-        in
-        {
-          boot.kernel.sysctl = {
-            "net.ipv4.ip_forward" = 1;
-          }
-          // lib.optionalAttrs wg.lanAccess.wakeOnLan {
-            # Routing drops a forwarded directed broadcast before the filter ever sees it, unless both
-            # `all` and the ingress interface opt in (AND, not OR, so no other interface is affected);
-            # the interface entry is applied by udev once the interface appears.
-            "net.ipv4.conf.all.bc_forwarding" = 1;
-            "net.ipv4.conf.${wg.interface}.bc_forwarding" = 1;
-          };
-          networking.nftables.enable = true;
-          networking.nftables.tables.wireguard-access = {
-            family = "inet";
-            content = nftablesContent;
-          };
+      (lib.mkIf wg.lanAccess.enable {
+        boot.kernel.sysctl = {
+          "net.ipv4.ip_forward" = 1;
         }
-      ))
+        // lib.optionalAttrs wg.lanAccess.wakeOnLan {
+          # Routing drops a forwarded directed broadcast before the filter ever sees it, unless both
+          # `all` and the ingress interface opt in (AND, not OR, so no other interface is affected);
+          # the interface entry is applied by udev once the interface appears.
+          "net.ipv4.conf.all.bc_forwarding" = 1;
+          "net.ipv4.conf.${wg.interface}.bc_forwarding" = 1;
+        };
+      })
     ]
   );
 }

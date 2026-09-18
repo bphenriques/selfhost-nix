@@ -124,7 +124,7 @@ def "main provision-users" [] {
       emailVerified: true
       firstName: $u.firstName
       lastName: $u.lastName
-      displayName: $"($u.firstName) ($u.lastName)", 
+      displayName: ([$u.firstName, $u.lastName] | where { $in != "" } | str join " ")
       isAdmin: $u.isAdmin
       customClaims: [{ key: "managed-by", value: "nix" }]
     }
@@ -138,7 +138,11 @@ def "main provision-users" [] {
       let r = http post $"($base_url)/api/users" $body --headers $headers --content-type application/json --full --allow-errors
       if $r.status != 201 { error make { msg: $"Failed to create user ($u.username): ($r.status) - ($r.body)" } }
       print $"  Created user: ($u.username)"
-      send_invite $r.body.id $u.email
+      if ($u.inviteByEmail? | default false) {
+        send_invite $r.body.id $u.email
+      } else {
+        print $"  Enrol with: pocket-id one-time-access-token ($u.username)"
+      }
       $r.body.id
     }
 
