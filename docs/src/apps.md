@@ -42,6 +42,42 @@ reload-loops. With an OIDC provider it federates, otherwise it keeps its own acc
 Unfree in nixpkgs, so it needs `nixpkgs.config.allowUnfree` or a predicate admitting `open-webui`. Every
 other bundled app is free software.
 
+## WireGuard
+
+The way in. Peers are runtime state in `/var/lib/wireguard/peers.json`, owned by `wg-manage`, which
+applies every change to the live interface. Adding or removing someone needs no deploy.
+
+A device's tier is its address. `fullAccessSubnet` carves a block out of `clientSubnet` whose devices
+reach the LAN; every other address reaches this host on `restrictedPeers` (TCP 80 and 443 by default,
+no UDP) and nothing else. The firewall matches those prefixes, so an address is bounded by where it
+sits rather than by any list being correct, and a peer nobody registered is still restricted.
+
+```console
+$ sudo wg-manage add alice-phone
+alice-phone is live at 10.100.0.16.
+<QR code>
+```
+
+`--full-access` allocates from the full-access block instead, and errors rather than spilling out of it.
+`--conf` prints the config instead of a QR, for someone you cannot hand a screen to; what you send is
+then a live credential, which the restricted tier is what bounds. Nothing is stored beyond the peer
+file, so losing the output means adding again, the same answer as a lost phone.
+
+`wg-manage status` is the inventory: address, tier, when it was added, last handshake, and anything
+live the file does not list. `remove <name>` cuts a peer and forgets it. `apply` re-syncs the file onto
+the interface in both directions; `wireguard-apply-peers` runs it whenever the interface appears, so a
+reboot restores everyone. Anything the three commands do not cover, edit the file and run `apply`.
+
+Restricted devices reach no DNS either, so `dns` normally names a resolver the device reaches over its
+own connection. That resolver has to answer for your domain, since it maps `<subdomain>.<domain>` to the
+address the tunnel then carries traffic to. Naming this host instead takes `restrictedPeers.udpPorts = [ 53 ]`.
+
+A restricted client also routes only `lanAccess.serverAddress` rather than the whole subnet, so someone
+whose home network overlaps yours keeps their own devices reachable.
+
+The backup hook covers the peer file, not the server private key. Losing the host therefore costs each
+device one edited field, its peer `PublicKey`, which the restored file is what makes possible.
+
 ## deSEC
 
 Keeps hostnames pointed at the current public IP, for reaching a WireGuard server on a connection whose IP

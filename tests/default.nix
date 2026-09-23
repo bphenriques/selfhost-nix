@@ -143,6 +143,7 @@ in
 # One `app-<name>-eval` per first-party app, so a broken app names itself.
 // import ./apps.nix { inherit pkgs evalConfig; }
 // {
+  vm-wireguard = runTest ./wireguard-vm.nix;
   wireguard-eval = runEval ./wireguard.nix;
   homepage-eval = runEval ./homepage.nix;
   arr-eval = runEval ./arr.nix;

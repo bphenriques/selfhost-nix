@@ -39,9 +39,9 @@ Nothing else changes. `flake.nix` already reads it as `private.hosts.myhost`.
 
 The template routes `<subdomain>.<domain>` on your LAN interface and stops there. Putting those services on
 the public internet is [out of scope](https://bphenriques.github.io/selfhost-nix/concepts.html#exposure),
-so the way in from elsewhere is `selfhost.apps.wireguard`: add it in `selfhost.nix`, declare each device
-under `selfhost.users.<name>.services.wireguard.devices`, and enrol them with `wg-manage`. The
-[Users chapter](https://bphenriques.github.io/selfhost-nix/users.html) walks through it.
+so the way in from elsewhere is `selfhost.apps.wireguard`: add it in `selfhost.nix`, then enrol each
+device with `sudo wg-manage add <name>`. Peers are runtime state, so no deploy is needed per device. The
+[Apps chapter](https://bphenriques.github.io/selfhost-nix/apps.html#wireguard) walks through it.
 
 Radicale is the example app because it needs no provider to be useful. Its accounts authenticate with a
 generated password, which you read once with

@@ -1,15 +1,25 @@
 #!/usr/bin/env nu
-# WireGuard client provisioning (IPv4 only). Nothing is stored here, so there is no state to drift from
-# the registry and no private key at rest beyond the server's own. A device's tier is its address:
-# inside `fullAccessSubnet` it reaches the LAN, anywhere else only the server's restricted ports.
+# WireGuard peers (IPv4 only). This owns the peer file and applies every change to the live interface,
+# so nothing needs a deploy. A device's tier is its address: inside `fullAccessSubnet` it reaches the
+# LAN, anywhere else only the server's restricted ports.
 let config_file = ($env.WG_CONFIG_FILE? | default "")
 if ($config_file | is-empty) { error make {msg: "WG_CONFIG_FILE required"} }
 let cfg = open $config_file
 let server_pubkey = (open --raw $cfg.serverPublicKeyFile | str trim)
 
+def load_peers [] { if ($cfg.peersFile | path exists) { open $cfg.peersFile } else { [] } }
+
+# Rename rather than truncate: a torn write here leaves nobody able to connect after the next boot.
+def save_peers [peers: list] {
+  let tmp = $"($cfg.peersFile).tmp"
+  $peers | to json | save -f $tmp
+  mv -f $tmp $cfg.peersFile
+}
+
 def ip_to_int [ip: string] {
   $ip | split row "." | each {|o| $o | into int } | reduce -f 0 {|o, acc| $acc * 256 + $o }
 }
+def int_to_ip [n: int] { [24 16 8 0] | each {|s| ($n | bits shr $s) | bits and 255 | into string } | str join "." }
 
 def in_subnet [ip: string, cidr: any] {
   if $cidr == null { return false }
@@ -18,9 +28,7 @@ def in_subnet [ip: string, cidr: any] {
   ((ip_to_int $ip) | bits and $mask) == ((ip_to_int ($parts | get 0)) | bits and $mask)
 }
 
-def int_to_ip [n: int] { [24 16 8 0] | each {|s| ($n | bits shr $s) | bits and 255 | into string } | str join "." }
-
-# The pool is the tier, and declared peers plus the server are the only addresses already spoken for.
+# The pool is the tier, and registered peers plus the server are the only addresses already spoken for.
 def next_ip [full: bool] {
   if $full and $cfg.fullAccessSubnet == null {
     error make {msg: "No fullAccessSubnet is configured, so there is no full-access pool to allocate from"}
@@ -28,24 +36,16 @@ def next_ip [full: bool] {
   let parts = ($cfg.clientSubnet | split row "/")
   let base = (ip_to_int ($parts | get 0))
   let hosts = ((2 ** (32 - ($parts | get 1 | into int))) - 2)
-  let used = (($cfg.peers | get -o ip | default []) | append ($cfg.address | split row "/" | get 0))
+  let used = ((load_peers | get -o ip | default []) | append ($cfg.address | split row "/" | get 0))
   let free = (
     1..$hosts | each {|i| int_to_ip ($base + $i) }
     | where {|ip| (in_subnet $ip $cfg.fullAccessSubnet) == $full and not ($ip in $used) }
-    | get -o 0
+    | take 1 | get -o 0
   )
   if $free == null {
     error make {msg: $"No free addresses in (if $full { $cfg.fullAccessSubnet } else { $cfg.clientSubnet })"}
   }
   $free
-}
-
-def resolve_ip [ip: any, full: bool] {
-  if $ip == null { return (next_ip $full) }
-  if $full and not (in_subnet $ip $cfg.fullAccessSubnet) {
-    error make {msg: $"($ip) sits outside ($cfg.fullAccessSubnet), so it cannot be full-access"}
-  }
-  $ip
 }
 
 # AllowedIPs is the client's routing table, so a restricted device routes the server alone rather than
@@ -68,41 +68,56 @@ PersistentKeepalive = 25
 "
 }
 
-def declare_hint [device: string, ip: string, pubkey: string] {
-  print -e "Declare it before the next deploy, which reaps whatever is not in the registry:"
-  print -e $"  \{ name = \"($device)\"; ip = \"($ip)\"; publicKey = \"($pubkey)\"; \}"
+# The name is the handle `revoke` takes, so it has to be unique and unambiguous. wg keys a peer by its
+# public key, so a reused one silently becomes a single peer at whichever address was written last.
+def register [name: string, ip: string, pubkey: string] {
+  if not ($name =~ '^[a-z0-9][a-z0-9-]*$') {
+    error make {msg: $"($name) is not a peer name: lowercase alphanumerics and dashes"}
+  }
+  let peers = (load_peers)
+  if ($peers | any {|p| $p.name == $name }) { error make {msg: $"($name) is already registered"} }
+  if ($peers | any {|p| $p.ip == $ip }) { error make {msg: $"($ip) is already taken"} }
+  if ($peers | any {|p| $p.publicKey == $pubkey }) { error make {msg: $"($pubkey) is already registered"} }
+  save_peers ($peers | append {name: $name, ip: $ip, publicKey: $pubkey, added: (date now | format date "%Y-%m-%d")})
+  wg set $cfg.interface peer $pubkey allowed-ips $"($ip)/32"
 }
 
-# The embedded key is a throwaway, never declared, so the tunnel stays dead until the recipient
-# regenerates it: a skipped step fails closed. Guidance goes to stderr so `invite > device.conf` yields
-# a file the app imports as-is.
-def "main invite" [--ip: string, --device: string = "<device>", --full-access] {
-  let addr = (resolve_ip $ip $full_access)
-  print -e "Send the config below. In the WireGuard app: import it, Edit, regenerate the Private Key,"
-  print -e "then send back the Public Key."
-  declare_hint $device $addr "<theirs>"
-  render_conf (wg genkey | str trim) $addr
-}
-
-# Up before rendering, so the QR works the moment it is scanned; declaring it is bookkeeping after that.
-def "main issue" [--ip: string, --device: string = "<device>", --full-access] {
-  let addr = (resolve_ip $ip $full_access)
+# Mints the key, brings the peer up, and renders its QR once. `--conf` prints the config instead, for
+# someone you cannot hand a screen to; what you send is then a live credential, which the restricted
+# tier is what bounds. Losing the output means adding again, the same answer as a lost phone.
+def "main add" [name: string, --full-access, --conf] {
+  let addr = (next_ip $full_access)
   let priv = (wg genkey | str trim)
-  let pub = ($priv | wg pubkey | str trim)
-  wg set $cfg.interface peer $pub allowed-ips $"($addr)/32"
-  print -e $"Peer is live on ($cfg.interface) at ($addr)."
-  declare_hint $device $addr $pub
-  print -e ""
-  render_conf $priv $addr | qrencode -t ANSIUTF8
+  register $name $addr ($priv | wg pubkey | str trim)
+  print -e $"($name) is live at ($addr)."
+  if $conf { render_conf $priv $addr } else { render_conf $priv $addr | qrencode -t ANSIUTF8 }
 }
 
+# Forget before cutting. The other order means a failed write leaves the peer in the file, and the next
+# boot quietly hands the access back. A live peer with no entry has no name to give here; `apply` drops
+# those.
+def "main remove" [name: string] {
+  let peers = (load_peers)
+  let match = ($peers | where name == $name | get -o 0)
+  if $match == null { error make {msg: $"($name) is not registered"} }
+  save_peers ($peers | where name != $name)
+  wg set $cfg.interface peer $match.publicKey remove
+  print -e $"Removed ($name)."
+}
 
-# Cuts the peer now; the registry still has to lose it, or the next deploy puts it straight back.
-def "main revoke" [peer: string] {
-  let declared = ($cfg.peers | where name == $peer | get -o 0)
-  let key = (if $declared == null { $peer } else { $declared.publicKey })
-  wg set $cfg.interface peer $key remove
-  print -e $"Cut ($key). Delete it from the registry too, or the next deploy restores it."
+# Full sync in both directions, so it restores the interface when it appears and also picks up a
+# hand-edited file. An absent file is not an empty one: it means leave the interface alone.
+def "main apply" [] {
+  if not ($cfg.peersFile | path exists) {
+    print -e $"No ($cfg.peersFile); leaving ($cfg.interface) alone."
+    return
+  }
+  let want = (load_peers)
+  let live = (try { wg show $cfg.interface peers | lines | where {|l| $l != "" } } catch { [] })
+  for p in $want { wg set $cfg.interface peer $p.publicKey allowed-ips $"($p.ip)/32" }
+  let keys = ($want | get -o publicKey | default [])
+  for k in $live { if not ($k in $keys) { wg set $cfg.interface peer $k remove } }
+  print -e $"Applied ($want | length) peers."
 }
 
 def "main status" [] {
@@ -114,20 +129,20 @@ def "main status" [] {
     ($raw | default "") | lines | skip 1 | where {|l| ($l | str trim) != "" }
     | reduce -f {} {|line, acc| let f = ($line | split row "\t"); $acc | insert ($f | get 0) ($f | get -o 4 | default "0" | into int) }
   )
-  # Live but undeclared is invisible in the registry, and vanishes at the next deploy without this.
-  let undeclared = ($dump | columns | where {|k| not ($k in ($cfg.peers | get -o publicKey | default [])) })
-  if not ($undeclared | is-empty) {
-    print -e $"Live but undeclared, reaped on next deploy: ($undeclared | str join ', ')"
-  }
-  if ($cfg.peers | is-empty) { print "No declared peers"; return }
+  let peers = (load_peers)
+  # Live but unregistered means a hand-run `wg set` or a peer file restored from an older backup.
+  let stray = ($dump | columns | where {|k| not ($k in ($peers | get -o publicKey | default [])) })
+  if not ($stray | is-empty) { print -e $"Live but unregistered, apply drops them: ($stray | str join ', ')" }
+  if ($peers | is-empty) { print "No peers"; return }
   let now = ((date now | into int) // 1_000_000_000)
-  $cfg.peers | each {|p|
+  $peers | each {|p|
     let hs = ($dump | get -o $p.publicKey | default 0)
     let ago = (if $hs > 0 { [($now - $hs) 0] | math max } else { null })
     {
       peer: $p.name
       ip: $p.ip
       access: (if (in_subnet $p.ip $cfg.fullAccessSubnet) { "lan" } else { "server" })
+      added: ($p.added? | default "?")
       handshake: (if $raw == null { "unknown"
         } else if $ago == null { "never"
         } else if $ago < 60 { $"($ago)s ago"
@@ -136,17 +151,19 @@ def "main status" [] {
         } else { $"($ago // 86400)d ago" })
     }
   }
+  # Nothing reports a width off a terminal, and the default renderer gives up rather than printing.
+  | if (term size).columns == 0 { table --width 100 } else { $in }
 }
 
 def main [] {
-  print "wg-manage - WireGuard client provisioning (peers are declared in the registry)
+  print "wg-manage - WireGuard peers (runtime state in the peer file, applied live, no deploy)
 
-  status                Declared peers, their last handshake, and anything live but undeclared
-  invite [--ip] [--device] [--full-access]   Keyless config to send; they regenerate the key and return its public half
-  issue  [--ip] [--device] [--full-access]   Mint a keypair, bring the peer up now, and render its QR once
-  revoke <peer>         Cut a live peer by declared name or public key (still delete it from the registry)
+  add <name> [--full-access] [--conf]   Mint a keypair, bring the peer up, render its QR
+  remove <name>                         Cut a peer and forget it
+  status                                Peers, tier, when added, last handshake, plus strays
+  apply                                 Re-sync the peer file onto the interface; runs at boot
 
-  `invite` and `issue` print the registry line to declare, matching the config they rendered.
-  --ip defaults to the next free address; --full-access allocates from the full-access block, which
-  reaches the LAN. Every other address reaches the server's restricted ports only."
+  --full-access allocates from the full-access block, which reaches the LAN. Every other address
+  reaches the server's restricted ports only. Anything these cannot do, edit the peer file and
+  run `apply`."
 }

@@ -16,19 +16,8 @@ let
   dataDir = "/var/lib/wireguard";
   serverKeyFile = "${dataDir}/server/private.key";
   serverPubKeyFile = "${dataDir}/server/public.key";
+  peersFile = "${dataDir}/peers.json";
 
-  enabledUsers = lib.filterAttrs (_: u: u.services.wireguard.enable) cfg.users;
-
-  clients = lib.concatLists (
-    lib.mapAttrsToList (
-      _: u:
-      map (d: {
-        name = "${u.username}-${d.name}";
-        device = d.name;
-        inherit (d) ip publicKey;
-      }) u.services.wireguard.devices
-    ) enabledUsers
-  );
 
   # Ahead of nixos-fw so it polices what those services opened on the tunnel, and new connections only,
   # so traffic the server itself initiated is untouched. An accept here skips this chain's drop, not
@@ -112,7 +101,7 @@ let
         full = lib.concatStringsSep "," allowedIPsFull;
         restricted = lib.concatStringsSep "," allowedIPsRestricted;
       };
-      peers = map (c: { inherit (c) name ip publicKey; }) clients;
+      inherit peersFile;
     }
   );
 
@@ -126,10 +115,8 @@ let
   };
 in
 {
-  imports = [ ./user.nix ];
-
   options.selfhost.apps.wireguard = {
-    enable = lib.mkEnableOption "WireGuard VPN server (interface, keys, user/device registry, client provisioning)";
+    enable = lib.mkEnableOption "WireGuard VPN server (interface, server keys, and runtime peer provisioning via wg-manage)";
 
     interface = lib.mkOption {
       type = lib.types.str;
@@ -226,6 +213,20 @@ in
         selfhost.services.wireguard = {
           displayName = lib.mkDefault "WireGuard";
           meta.description = lib.mkDefault "VPN";
+
+          # Device names, addresses and public keys. The server private key is deliberately left out:
+          # a leaked backup must not let anyone stand up the tunnel, and losing it costs one new config
+          # per device rather than a re-enrolment, since client keys and addresses survive here.
+          backup.package = pkgs.writeShellApplication {
+            name = "backup-wireguard";
+            text = ''
+              if [ -e ${peersFile} ]; then
+                cp -a ${peersFile} "$OUTPUT_DIR/"
+              else
+                echo "No ${peersFile} yet; nothing to back up."
+              fi
+            '';
+          };
           # No port: WireGuard is a UDP daemon with no HTTP backend, so it is neither routed nor
           # healthchecked. The entry exists for its metadata and metrics; the tunnel socket is
           # registered below.
@@ -302,52 +303,21 @@ in
           ips = [ wg.address ];
           inherit (wg) listenPort;
           privateKeyFile = serverKeyFile;
-          peers = map (c: {
-            inherit (c) publicKey;
-            allowedIPs = [ "${c.ip}/32" ];
-          }) clients;
+          peers = [ ];
         };
 
         networking.firewall.allowedUDPPorts = lib.optionals wg.openFirewall [ wg.listenPort ];
 
-        assertions =
-          let
-            clientsByIp = builtins.groupBy (c: c.ip) clients;
-            ipCollisions = lib.filterAttrs (_: cs: builtins.length cs > 1) clientsByIp;
-            # wg keys a peer by its public key, so two devices sharing one silently become a single
-            # peer holding whichever address was written last.
-            keyCollisions = lib.filterAttrs (_: cs: builtins.length cs > 1) (
-              builtins.groupBy (c: c.publicKey) clients
-            );
-          in
-          [
-            {
-              assertion = ipCollisions == { };
-              message = "WireGuard IP collision detected: ${
-                lib.concatStringsSep ", " (
-                  lib.mapAttrsToList (ip: cs: "${ip} -> [${lib.concatMapStringsSep ", " (c: c.name) cs}]") ipCollisions
-                )
-              }";
-            }
-            {
-              assertion = keyCollisions == { };
-              message = "WireGuard public key reused: ${
-                lib.concatStringsSep ", " (
-                  lib.mapAttrsToList (_: cs: "[${lib.concatMapStringsSep ", " (c: c.name) cs}]") keyCollisions
-                )
-              }";
-            }
-          ];
 
-        # systemd-networkd applies the netdev's peers but never removes one that is no longer declared
-        # (verified: neither `networkctl reload` nor `reconfigure` drops a stale peer), so deleting a
-        # device from the registry would leave it connectable until the next reboot. The unit's script
-        # embeds the declared set, so a changed registry restarts it and revocation lands on deploy.
-        systemd.services.wireguard-reconcile-peers = {
-          description = "Remove ${wg.interface} peers that are no longer declared";
-          wantedBy = [ "multi-user.target" ];
-          after = [ ifaceBackend ];
-          path = [ pkgs.wireguard-tools ];
+        # Peers are runtime state that `wg-manage` writes and applies live, so this only restores them
+        # after the interface is recreated. Bound to the device rather than the target: networkd being
+        # up does not mean wg0 exists yet, and this way a reconfigure re-applies too.
+        systemd.services.wireguard-apply-peers = {
+          description = "Apply ${wg.interface} peers from ${peersFile}";
+          after = [ ifaceBackend "sys-subsystem-net-devices-${wg.interface}.device" ];
+          bindsTo = [ "sys-subsystem-net-devices-${wg.interface}.device" ];
+          wantedBy = [ "sys-subsystem-net-devices-${wg.interface}.device" ];
+          path = [ wgManage ];
           serviceConfig = {
             Type = "oneshot";
             RemainAfterExit = true;
@@ -359,19 +329,7 @@ in
             ProtectControlGroups = true;
             RestrictSUIDSGID = true;
           };
-          script = ''
-            declared=${pkgs.writeText "wireguard-declared-peers" (lib.concatMapStringsSep "\n" (c: c.publicKey) clients + "\n")}
-            live=$(wg show ${wg.interface} peers 2>/dev/null) || {
-              echo "${wg.interface} is not up; nothing to reconcile."
-              exit 0
-            }
-            for pk in $live; do
-              if ! grep -qxF "$pk" "$declared"; then
-                echo "Removing undeclared peer: $pk"
-                wg set ${wg.interface} peer "$pk" remove
-              fi
-            done
-          '';
+          script = "wg-manage apply";
         };
 
         environment.systemPackages = [ wgManage ];

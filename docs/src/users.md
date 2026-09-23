@@ -17,64 +17,10 @@ attributes **mirror the framework's registry**, so where an option lives tells y
 selfhost.users.alice = {
   groups = [ "admin" ];
   services.filebrowser-quantum = { enable = true; storage = { … }; }; # per-user config for that service
-  services.wireguard.devices = [ … ];                          # per-user config for the wireguard service
   auth.oidc.enable = true;                                      # mirrors selfhost.auth.oidc
   storage.smb.enable = true;                                    # mirrors selfhost.storage.shares.smb
 };
 ```
-
-## WireGuard devices
-
-Each entry in `services.wireguard.devices` is a **declarative peer**: the server routes its `ip` to its
-`publicKey`. The registry is the only inventory. `wg-manage` stores nothing, so there is no local state
-to drift from it, and allocation, access policy and status all read the same list.
-
-Only the private key is out of band, and there are two ways to get one.
-
-**Either the device generates it**, so no private key for that person exists anywhere but their phone:
-
-```console
-$ sudo wg-manage invite --device phone > alice-phone.conf
-Send the config below. In the WireGuard app: import it, Edit, regenerate the Private Key,
-then send back the Public Key.
-Declare it and rebuild before telling them to connect:
-  { name = "phone"; ip = "10.100.0.2"; fullAccess = false; publicKey = "<theirs>"; }
-```
-
-The key inside that file is a throwaway that is never declared, so the tunnel stays dead until they
-regenerate it: a skipped step fails closed rather than leaving a server-minted key in use.
-
-**Or `issue` mints one** and renders its QR once, for someone who cannot manage that. Nothing is stored,
-so losing the output means issuing again, which is the same answer as a lost phone.
-
-Both take `--ip`, otherwise picking the next free address in `clientSubnet`, and both print the registry
-line matching the config they rendered. Pass `--full-access` for a device that should reach the LAN: a
-not-yet-declared device has no registry entry to resolve from, so without it the config would route only
-the server while the line you paste says otherwise.
-
-**Then declare it** and rebuild:
-
-```nix
-selfhost.users.alice.services.wireguard.devices = [
-  { name = "phone"; ip = "10.100.0.2"; fullAccess = true; publicKey = "kQ…="; }
-];
-```
-
-`fullAccess = true` reaches the whole LAN. `false` reaches the server only, on
-`apps.wireguard.restrictedPeers` (TCP 80 and 443 by default, no UDP) and nothing else, and its config
-routes just `lanAccess.serverAddress` instead of the whole subnet, so a client whose home network overlaps
-yours keeps its own devices reachable.
-
-Empty lists there allow nothing. They do not lift the restriction: a device meant to reach everything
-carries `fullAccess`.
-
-"Nothing else" includes DNS, so `apps.wireguard.dns` normally names a resolver the device reaches over its
-own connection. That resolver has to answer for your domain, since it maps `<subdomain>.<domain>` to the
-address the tunnel then carries traffic to. Naming this host instead takes `restrictedPeers.udpPorts = [ 53 ]`.
-
-`wg-manage status` lists declared peers and their last handshake. **To revoke, delete the device from the
-registry and rebuild.** systemd-networkd never removes a peer it no longer declares, so
-`wireguard-reconcile-peers` does it on deploy.
 
 ## Extending per-user as a consumer
 
