@@ -1,0 +1,1 @@
+[wg set wg0 peer SomeUndeclaredKey= remove]

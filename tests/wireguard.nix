@@ -68,12 +68,33 @@ let
           ];
     };
   };
+  reusedKey = evalConfig {
+    selfhost = {
+      apps.wireguard = server;
+      users.admin =
+        mkUser
+          [ "admin" ]
+          [
+            {
+              name = "phone";
+              ip = "10.100.0.10";
+              publicKey = "SharedPublicKeyEEEEEEEEEEEEEEEEEEEEEEEEEEEE=";
+            }
+            {
+              name = "laptop";
+              ip = "10.100.0.11";
+              publicKey = "SharedPublicKeyEEEEEEEEEEEEEEEEEEEEEEEEEEEE=";
+            }
+          ];
+    };
+  };
 
   mkLanAccess =
     extra:
     evalConfig {
       selfhost = {
         apps.wireguard = server // {
+          fullAccessSubnet = "10.100.0.0/28";
           lanAccess = {
             enable = true;
             subnet = "192.168.1.0/24";
@@ -87,7 +108,6 @@ let
               {
                 name = "phone";
                 ip = "10.100.0.10";
-                fullAccess = true;
                 publicKey = "AdminPhonePublicKeyAAAAAAAAAAAAAAAAAAAAAAAA=";
               }
             ];
@@ -97,18 +117,21 @@ let
   wolOff = mkLanAccess { };
   wolRuleset = wolOn.networking.nftables.tables.wireguard-access.content;
   # Everything before the peer's blanket accept, so the broadcast drop must be ordered ahead of it.
-  beforePeerAccept = lib.head (lib.splitString "ip saddr 10.100.0.10 accept" wolRuleset);
+  beforePeerAccept = lib.head (lib.splitString "ip saddr 10.100.0.0/28 accept" wolRuleset);
 
-  peerNames = lib.sort (a: b: a < b) (map (p: p.name) ok.selfhost.apps.wireguard.peers);
-  collisionFires = lib.any (a: !a.assertion && lib.hasInfix "IP collision" a.message) collide.assertions;
+  # The netdev peers are what the server actually routes, and the /32 is what pins a key to one address.
+  peerRoutes = lib.sort (a: b: a < b) (map (p: lib.head p.allowedIPs) ok.networking.wireguard.interfaces.wg0.peers);
+  collisionFires = lib.any (a: !a.assertion && lib.hasInfix "10.100.0.10 -> [admin-phone, admin-laptop]" a.message) collide.assertions;
+  keyReuseFires = lib.any (a: !a.assertion && lib.hasInfix "public key reused" a.message) reusedKey.assertions;
 in
 assert lib.assertMsg (
-  peerNames == [
-    "admin-phone"
-    "bob-laptop"
+  peerRoutes == [
+    "10.100.0.10/32"
+    "10.100.0.20/32"
   ]
-) "wrong peers: ${toString peerNames}";
+) "wrong peer routes: ${toString peerRoutes}";
 assert lib.assertMsg collisionFires "IP-collision assertion did not fire on a duplicate";
+assert lib.assertMsg keyReuseFires "public-key-reuse assertion did not fire on a shared key";
 assert lib.assertMsg (
   (wolOn.boot.kernel.sysctl."net.ipv4.conf.all.bc_forwarding" or null) == 1
   && (wolOn.boot.kernel.sysctl."net.ipv4.conf.wg0.bc_forwarding" or null) == 1
@@ -119,7 +142,7 @@ assert lib.assertMsg (
   && !(lib.hasInfix "fib daddr type broadcast" wolOff.networking.nftables.tables.wireguard-access.content)
 ) "wakeOnLan leaked while disabled";
 assert lib.assertMsg
-  (lib.hasInfix "ip saddr { 10.100.0.10 } fib daddr type broadcast udp dport { 7, 9 } accept" wolRuleset)
+  (lib.hasInfix "ip saddr 10.100.0.0/28 fib daddr type broadcast udp dport { 7, 9 } accept" wolRuleset)
   "wakeOnLan did not scope the accept to full-access peers and the magic-packet ports";
 assert lib.assertMsg (lib.hasInfix "fib daddr type broadcast drop" beforePeerAccept)
   "every other directed broadcast is not dropped ahead of the peer's blanket accept";

@@ -25,67 +25,51 @@ let
       map (d: {
         name = "${u.username}-${d.name}";
         device = d.name;
-        inherit (d) ip fullAccess publicKey;
+        inherit (d) ip publicKey;
       }) u.services.wireguard.devices
     ) enabledUsers
   );
 
-  restrictedDevices = lib.filter (c: !c.fullAccess) clients;
-  fullAccessDevices = lib.filter (c: c.fullAccess) clients;
-
-  # fullAccess governs forwarding, so it says nothing about this host's own ports. sshd, the reverse
-  # proxy and anything else bound to the tunnel interface are otherwise reachable by every peer. Ahead
-  # of nixos-fw so it polices what those services opened. New connections only, so traffic the server
-  # itself initiated is untouched; everything else from these peers goes, ICMP included, so they cannot
-  # ping the host either.
-  #
-  # The v6 drop is not redundant: this module is IPv4-only, so `ip saddr` cannot match a v6 packet and
-  # it would fall through to whatever nixos-fw opened on the tunnel interface, which is family-agnostic.
-  # Only the absence of a v6 address on the interface stops that today.
-  #
-  # Having a restricted device is the whole trigger: empty port lists mean such a device reaches nothing,
-  # not that the restriction lifts. A device meant to reach everything carries `fullAccess`.
-  restrictApplies = restrictedDevices != [ ];
-  restrictChain = lib.optionalString restrictApplies (
+  # Ahead of nixos-fw so it polices what those services opened on the tunnel, and new connections only,
+  # so traffic the server itself initiated is untouched. An accept here skips this chain's drop, not
+  # nixos-fw: every base chain on the hook still runs. The v6 drop is not redundant, since `ip saddr`
+  # cannot match a v6 packet and it would fall through to whatever nixos-fw opened, family-agnostic.
+  restrictChain =
     let
-      saddr = "ip saddr { ${lib.concatMapStringsSep ", " (c: c.ip) restrictedDevices} }";
       accept =
         proto: ports:
-        lib.optional (ports != [ ])
-          ''iifname "${wg.interface}" ${saddr} ct state new ${proto} dport { ${
-            lib.concatMapStringsSep ", " toString ports
-          } } accept'';
+        lib.optional (ports != [ ]) ''iifname "${wg.interface}" ct state new ${proto} dport { ${
+          lib.concatMapStringsSep ", " toString ports
+        } } accept'';
       rules = [
         ''iifname "${wg.interface}" meta nfproto ipv6 ct state new drop''
       ]
+      ++ lib.optional (wg.fullAccessSubnet != null) ''iifname "${wg.interface}" ip saddr ${wg.fullAccessSubnet} ct state new accept''
       ++ accept "tcp" wg.restrictedPeers.tcpPorts
       ++ accept "udp" wg.restrictedPeers.udpPorts
-      ++ [ ''iifname "${wg.interface}" ${saddr} ct state new drop'' ];
+      ++ [ ''iifname "${wg.interface}" ct state new drop'' ];
     in
     ''
       chain input {
         type filter hook input priority filter - 1; policy accept;
         ${lib.concatStringsSep "\n  " rules}
       }
-    ''
-  );
+    '';
 
   # A magic packet is only useful as a broadcast (a powered-off host answers no ARP), so WoL is the one
   # directed broadcast let through, on the magic-packet ports and from full-access clients only.
   # `fib daddr type` classifies the destination without deriving the broadcast address from the subnet.
-  wolRules = lib.optionals (wg.lanAccess.wakeOnLan && fullAccessDevices != [ ]) [
-    ''iifname "${wg.interface}" ip saddr { ${
-      lib.concatMapStringsSep ", " (c: c.ip) fullAccessDevices
-    } } fib daddr type broadcast udp dport { 7, 9 } accept comment "Wake-on-LAN"''
+  wolRules = lib.optionals (wg.lanAccess.wakeOnLan && wg.fullAccessSubnet != null) [
+    ''iifname "${wg.interface}" ip saddr ${wg.fullAccessSubnet} fib daddr type broadcast udp dport { 7, 9 } accept comment "Wake-on-LAN"''
     ''iifname "${wg.interface}" fib daddr type broadcast drop''
   ];
 
-  # Govern only WireGuard clients: fullAccess devices forward to the LAN, the rest reach just the
+  # Govern only WireGuard clients: full-access addresses forward to the LAN, the rest reach just the
   # server. Other forwarding (containers, bridges) is left to whatever manages it, so this never has to
   # know about podman/microvm/etc.
   forwardRules =
     wolRules
-    ++ map (c: ''iifname "${wg.interface}" ip saddr ${c.ip} accept'') fullAccessDevices
+    ++ lib.optional (wg.fullAccessSubnet != null) ''iifname "${wg.interface}" ip saddr ${wg.fullAccessSubnet} accept''
     ++ [ ''iifname "${wg.interface}" drop'' ];
 
   lanChains = lib.optionalString wg.lanAccess.enable (
@@ -121,21 +105,14 @@ let
   # none of them can disagree with what the server actually routes.
   manageConfigFile = pkgs.writeText "wg-manage-config.json" (
     builtins.toJSON {
-      inherit (wg) interface clientSubnet dns;
+      inherit (wg) interface address clientSubnet fullAccessSubnet dns;
       serverPublicKeyFile = serverPubKeyFile;
       endpoint = "${wg.endpoint}:${toString wg.listenPort}";
       allowedIPs = {
         full = lib.concatStringsSep "," allowedIPsFull;
         restricted = lib.concatStringsSep "," allowedIPsRestricted;
       };
-      peers = map (c: {
-        inherit (c)
-          name
-          ip
-          fullAccess
-          publicKey
-          ;
-      }) clients;
+      peers = map (c: { inherit (c) name ip publicKey; }) clients;
     }
   );
 
@@ -177,6 +154,12 @@ in
       type = lib.types.str;
       description = "Client address subnet (e.g. 10.100.0.0/24).";
     };
+    fullAccessSubnet = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "10.100.0.0/28";
+      description = "Block within `clientSubnet` whose devices skip `restrictedPeers` and, with `lanAccess.enable`, reach the LAN. Every other client address is restricted, so a device's tier is its address. Null grants full access to nobody.";
+    };
     endpoint = lib.mkOption {
       type = lib.types.str;
       description = "Public endpoint host/IP that clients dial.";
@@ -189,8 +172,8 @@ in
         every device, and is what makes `<subdomain>.<domain>` resolve before the tunnel carries the
         request.
 
-        Naming this host instead takes `restrictedPeers.udpPorts = [ 53 ]`, since a device without
-        `fullAccess` reaches only the ports listed there.
+        Naming this host instead takes `restrictedPeers.udpPorts = [ 53 ]`, since a device outside
+        `fullAccessSubnet` reaches only the ports listed there.
       '';
     };
     openFirewall = lib.mkOption {
@@ -216,7 +199,7 @@ in
       wakeOnLan = lib.mkEnableOption "forwarding Wake-on-LAN magic packets (UDP 7 and 9) from full-access clients to the LAN broadcast address; every other directed broadcast stays in the tunnel";
     };
 
-    # What a device without `fullAccess` reaches on this host, the counterpart to `lanAccess` governing
+    # What a device outside `fullAccessSubnet` reaches on this host, the counterpart to `lanAccess` governing
     # what a full-access one reaches beyond it.
     restrictedPeers = {
       tcpPorts = lib.mkOption {
@@ -225,23 +208,15 @@ in
           80
           443
         ];
-        description = "TCP ports on this host a device without `fullAccess` may reach. Everything else another service opened on the tunnel interface is dropped for it. Empty allows none.";
+        description = "TCP ports on this host a device outside `fullAccessSubnet` may reach. Everything else another service opened on the tunnel interface is dropped for it. Empty allows none.";
       };
 
       udpPorts = lib.mkOption {
         type = lib.types.listOf lib.types.port;
         default = [ ];
         example = [ 53 ];
-        description = "UDP ports on this host a device without `fullAccess` may reach. Empty allows none, which is why `dns` normally names a resolver these devices reach without the server. Open 53 here instead if the resolver is this host.";
+        description = "UDP ports on this host a device outside `fullAccessSubnet` may reach. Empty allows none, which is why `dns` normally names a resolver these devices reach without the server. Open 53 here instead if the resolver is this host.";
       };
-    };
-
-    peers = lib.mkOption {
-      type = lib.types.listOf (lib.types.attrsOf lib.types.anything);
-      readOnly = true;
-      default = clients;
-      defaultText = lib.literalMD "derived from `users.*.services.wireguard`";
-      description = "Derived per-device peers `{ name, device, ip, fullAccess, publicKey }` for consumer firewall/routing rules.";
     };
   };
 
@@ -339,6 +314,11 @@ in
           let
             clientsByIp = builtins.groupBy (c: c.ip) clients;
             ipCollisions = lib.filterAttrs (_: cs: builtins.length cs > 1) clientsByIp;
+            # wg keys a peer by its public key, so two devices sharing one silently become a single
+            # peer holding whichever address was written last.
+            keyCollisions = lib.filterAttrs (_: cs: builtins.length cs > 1) (
+              builtins.groupBy (c: c.publicKey) clients
+            );
           in
           [
             {
@@ -346,6 +326,14 @@ in
               message = "WireGuard IP collision detected: ${
                 lib.concatStringsSep ", " (
                   lib.mapAttrsToList (ip: cs: "${ip} -> [${lib.concatMapStringsSep ", " (c: c.name) cs}]") ipCollisions
+                )
+              }";
+            }
+            {
+              assertion = keyCollisions == { };
+              message = "WireGuard public key reused: ${
+                lib.concatStringsSep ", " (
+                  lib.mapAttrsToList (_: cs: "[${lib.concatMapStringsSep ", " (c: c.name) cs}]") keyCollisions
                 )
               }";
             }
@@ -391,13 +379,13 @@ in
 
       # One table, three chains, rather than a table per concern: `nft list table inet wireguard-access`
       # then shows everything this module installs, and a reload is one atomic delete-and-add.
-      (lib.mkIf (restrictApplies || wg.lanAccess.enable) {
+      {
         networking.nftables.enable = true;
         networking.nftables.tables.wireguard-access = {
           family = "inet";
           content = restrictChain + lanChains;
         };
-      })
+      }
 
       (lib.mkIf wg.lanAccess.enable {
         boot.kernel.sysctl = {

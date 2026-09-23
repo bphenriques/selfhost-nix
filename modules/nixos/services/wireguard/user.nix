@@ -16,16 +16,11 @@
                   };
                   ip = lib.mkOption {
                     type = lib.types.str;
-                    description = "Static WireGuard client IP (e.g. 10.100.0.42).";
+                    description = "Static WireGuard client IP (e.g. 10.100.0.42). Inside `apps.wireguard.fullAccessSubnet` this device reaches the LAN; anywhere else in `clientSubnet` it is restricted.";
                   };
                   publicKey = lib.mkOption {
                     type = lib.types.str;
-                    description = "Device's WireGuard public key, from `wg-manage add` (the private key stays on the server).";
-                  };
-                  fullAccess = lib.mkOption {
-                    type = lib.types.bool;
-                    default = false;
-                    description = "If true, device can reach the whole LAN; if false, only the home server.";
+                    description = "Device's WireGuard public key, from `wg-manage invite` or `issue`.";
                   };
                 };
               }
