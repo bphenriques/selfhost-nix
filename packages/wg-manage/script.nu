@@ -17,9 +17,9 @@ def save_peers [peers: list] {
 }
 
 def ip_to_int [ip: string] {
-  $ip | split row "." | each {|o| $o | into int } | reduce -f 0 {|o, acc| $acc * 256 + $o }
+  $ip | split row "." | into int | reduce -f 0 {|o, acc| $acc * 256 + $o }
 }
-def int_to_ip [n: int] { [24 16 8 0] | each {|s| ($n | bits shr $s) | bits and 255 | into string } | str join "." }
+def int_to_ip [n: int] { [24 16 8 0] | each {|s| ($n | bits shr $s) | bits and 255 } | str join "." }
 
 def in_subnet [ip: string, cidr: any] {
   if $cidr == null { return false }
@@ -36,10 +36,10 @@ def next_ip [full: bool] {
   let parts = ($cfg.clientSubnet | split row "/")
   let base = (ip_to_int ($parts | get 0))
   let hosts = ((2 ** (32 - ($parts | get 1 | into int))) - 2)
-  let used = ((load_peers | get -o ip | default []) | append ($cfg.address | split row "/" | get 0))
+  let used = ((load_peers | get -o ip) | append ($cfg.address | split row "/" | get 0))
   let free = (
     1..$hosts | each {|i| int_to_ip ($base + $i) }
-    | where {|ip| (in_subnet $ip $cfg.fullAccessSubnet) == $full and not ($ip in $used) }
+    | where {|ip| (in_subnet $ip $cfg.fullAccessSubnet) == $full and $ip not-in $used }
     | take 1 | get -o 0
   )
   if $free == null {
@@ -71,7 +71,7 @@ PersistentKeepalive = 25
 # The name is the handle `revoke` takes, so it has to be unique and unambiguous. wg keys a peer by its
 # public key, so a reused one silently becomes a single peer at whichever address was written last.
 def register [name: string, ip: string, pubkey: string] {
-  if not ($name =~ '^[a-z0-9][a-z0-9-]*$') {
+  if $name !~ '^[a-z0-9][a-z0-9-]*$' {
     error make {msg: $"($name) is not a peer name: lowercase alphanumerics and dashes"}
   }
   let peers = (load_peers)
@@ -115,8 +115,8 @@ def "main apply" [] {
   let want = (load_peers)
   let live = (try { wg show $cfg.interface peers | lines | where {|l| $l != "" } } catch { [] })
   for p in $want { wg set $cfg.interface peer $p.publicKey allowed-ips $"($p.ip)/32" }
-  let keys = ($want | get -o publicKey | default [])
-  for k in $live { if not ($k in $keys) { wg set $cfg.interface peer $k remove } }
+  let keys = ($want | get -o publicKey)
+  for k in $live { if $k not-in $keys { wg set $cfg.interface peer $k remove } }
   print -e $"Applied ($want | length) peers."
 }
 
@@ -131,8 +131,8 @@ def "main status" [] {
   )
   let peers = (load_peers)
   # Live but unregistered means a hand-run `wg set` or a peer file restored from an older backup.
-  let stray = ($dump | columns | where {|k| not ($k in ($peers | get -o publicKey | default [])) })
-  if not ($stray | is-empty) { print -e $"Live but unregistered, apply drops them: ($stray | str join ', ')" }
+  let stray = ($dump | columns | where {|k| $k not-in ($peers | get -o publicKey) })
+  if ($stray | is-not-empty) { print -e $"Live but unregistered, apply drops them: ($stray | str join ', ')" }
   if ($peers | is-empty) { print "No peers"; return }
   let now = ((date now | into int) // 1_000_000_000)
   $peers | each {|p|
@@ -142,17 +142,11 @@ def "main status" [] {
       peer: $p.name
       ip: $p.ip
       access: (if (in_subnet $p.ip $cfg.fullAccessSubnet) { "lan" } else { "server" })
-      added: ($p.added? | default "?")
-      handshake: (if $raw == null { "unknown"
-        } else if $ago == null { "never"
-        } else if $ago < 60 { $"($ago)s ago"
-        } else if $ago < 3600 { $"($ago // 60)m ago"
-        } else if $ago < 86400 { $"($ago // 3600)h ago"
-        } else { $"($ago // 86400)d ago" })
+      handshake: (if $raw == null { "unknown" } else if $ago == null { "never" } else { $ago * 1sec })
     }
   }
-  # Nothing reports a width off a terminal, and the default renderer gives up rather than printing.
-  | if (term size).columns == 0 { table --width 100 } else { $in }
+  # Fixed width, not the terminal: table fits to content either way, and a pipe reports no width at all.
+  | table --width 200
 }
 
 def main [] {
@@ -160,7 +154,7 @@ def main [] {
 
   add <name> [--full-access] [--conf]   Mint a keypair, bring the peer up, render its QR
   remove <name>                         Cut a peer and forget it
-  status                                Peers, tier, when added, last handshake, plus strays
+  status                                Peers, tier, last handshake, plus anything live and unregistered
   apply                                 Re-sync the peer file onto the interface; runs at boot
 
   --full-access allocates from the full-access block, which reaches the LAN. Every other address

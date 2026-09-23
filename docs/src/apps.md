@@ -63,10 +63,11 @@ alice-phone is live at 10.100.0.16.
 then a live credential, which the restricted tier is what bounds. Nothing is stored beyond the peer
 file, so losing the output means adding again, the same answer as a lost phone.
 
-`wg-manage status` is the inventory: address, tier, when it was added, last handshake, and anything
-live the file does not list. `remove <name>` cuts a peer and forgets it. `apply` re-syncs the file onto
-the interface in both directions; `wireguard-apply-peers` runs it whenever the interface appears, so a
-reboot restores everyone. Anything the three commands do not cover, edit the file and run `apply`.
+`wg-manage status` is the inventory: address, tier, last handshake, and anything live the file does not
+list; the peer file also records when each was added. `remove <name>` cuts a peer and forgets it.
+`apply` re-syncs the file onto the interface in both directions, and `wireguard-apply-peers` runs it
+whenever the interface appears, so a reboot restores everyone. Anything the three commands do not cover,
+edit the file and run `apply`.
 
 Restricted devices reach no DNS either, so `dns` normally names a resolver the device reaches over its
 own connection. That resolver has to answer for your domain, since it maps `<subdomain>.<domain>` to the
