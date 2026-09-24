@@ -72,6 +72,12 @@ def report_stale_clients [declared: list<string>, credentials_dir: string] {
   if ($remote | is-not-empty) {
     print --stderr $"WARNING: OIDC clients in Pocket-ID that Nix does not declare: ($remote | str join ', ')"
     print --stderr "  A renamed or removed service leaves its client behind, secret still valid. Delete it in Pocket-ID, or ignore if you created it by hand."
+    # Only a group grant makes a leftover reachable, and a client's groups have no GET, so ask each group.
+    let granting = get_all "user-groups" | each {|g|
+      let stale = ((http get $"($base_url)/api/user-groups/($g.id)" --headers $headers).allowedOidcClients? | default [] | get name | where {|n| $n in $remote })
+      if ($stale | is-empty) { null } else { $"($g.name) -> ($stale | str join ', ')" }
+    } | compact
+    if ($granting | is-not-empty) { print --stderr $"  Granting access right now: ($granting | str join '; ')" }
   }
   if ($local | is-not-empty) {
     print --stderr $"WARNING: credential directories with no declared client: ($local | str join ', ')"
