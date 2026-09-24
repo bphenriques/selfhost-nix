@@ -107,7 +107,7 @@ in
 
     systemd.services.traefik = {
       serviceConfig = {
-        EnvironmentFile = ingressCfg.acme.credentialsEnvFile;
+        EnvironmentFile = ingressCfg.acme.dns01.credentialsEnvFile;
         Restart = "on-failure";
         RestartSec = "10s";
         RestartMaxDelaySec = "5min";
@@ -162,7 +162,7 @@ in
         certificatesResolvers.default.acme = {
           email = ingressCfg.acme.email;
           storage = "/var/lib/traefik/acme.json";
-          dnsChallenge.provider = ingressCfg.acme.dnsProvider;
+          dnsChallenge.provider = ingressCfg.acme.dns01.provider;
         };
       };
 

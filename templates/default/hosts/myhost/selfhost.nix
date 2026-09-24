@@ -14,7 +14,7 @@
       inherit (private.settings) domain allowedInterfaces;
       traefik.enable = true;
       acme = {
-        dnsProvider = "cloudflare";
+        dns01.provider = "cloudflare";
         email = private.settings.acme.email;
       };
     };

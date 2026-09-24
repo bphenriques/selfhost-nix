@@ -157,12 +157,12 @@ def "main provision-users" [] {
 
     { username: $u.username, id: $user_id }
   }
-  # Write users mapping file
+  # username -> Pocket-ID user id, for looking one up when a login misbehaves. Nothing reads it, so it
+  # is a debugging aid rather than a published path. 0644, unlike the 0400/0640 files beside it, since
+  # it holds no secret.
   let users_file = $"($credentials_dir)/oidc-users.json"
   let users_tmp = $"($users_file).tmp"
   $provisioned_users | to json | save --force $users_tmp
-  # 0644 on purpose, unlike the 0400/0640 credential files beside it: this holds username -> provider-id
-  # pairs, no secret, and `auth.oidc.credentials.usersFile` publishes it for consumers to read.
   chmod 0644 $users_tmp
   mv --force $users_tmp $users_file # atomic rename
   print $"Wrote users mapping to ($users_file)"

@@ -19,5 +19,5 @@
 
   # Hand the framework the resolved paths.
   selfhost.mail.passwordFile = config.sops.secrets.smtp-password.path;
-  selfhost.ingress.acme.credentialsEnvFile = config.sops.templates."traefik-cloudflare".path;
+  selfhost.ingress.acme.dns01.credentialsEnvFile = config.sops.templates."traefik-cloudflare".path;
 }

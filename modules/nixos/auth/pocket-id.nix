@@ -9,6 +9,10 @@ let
   cfg = config.selfhost;
   serviceCfg = config.selfhost.services.pocket-id;
   oidcCfg = config.selfhost.auth.oidc;
+
+  # Local rather than on `auth.oidc.provider`: how an implementation authenticates to itself is its
+  # own business, not part of the contract.
+  apiKeyFile = cfg.runtimeSecrets.pocket-id-api-key.path;
   smtpCfg = config.selfhost.mail;
 
   baseServiceName = "pocket-id-provision-base";
@@ -41,7 +45,7 @@ let
     runtimeInputs = [ pkgs.selfhost.pocket-id-manage ];
     text = ''
       export POCKET_ID_URL="${serviceCfg.url}"
-      export POCKET_ID_API_KEY_FILE="${oidcCfg.provider.apiKeyFile}"
+      export POCKET_ID_API_KEY_FILE="${apiKeyFile}"
       export POCKET_ID_GUESTS_GROUP="${cfg.groups.guests}"
       exec pocket-id-manage-bin "$@"
     '';
@@ -89,7 +93,6 @@ in
         displayName = "Pocket-ID";
         internalName = "PocketID";
         issuerUrl = serviceCfg.publicUrl;
-        apiKeyFile = cfg.runtimeSecrets.pocket-id-api-key.path;
       };
 
       auth.oidc.systemd = {
@@ -134,7 +137,7 @@ in
         TRUST_PROXY = true;
         ANALYTICS_DISABLED = true;
         ENCRYPTION_KEY_FILE = cfg.runtimeSecrets.pocket-id-encryption-key.path;
-        STATIC_API_KEY_FILE = cfg.runtimeSecrets.pocket-id-api-key.path;
+        STATIC_API_KEY_FILE = apiKeyFile;
         UI_CONFIG_DISABLED = true;
 
         # Invite only

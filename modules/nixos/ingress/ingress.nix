@@ -13,14 +13,19 @@
         description = "ACME account email for certificate registration";
       };
 
-      dnsProvider = lib.mkOption {
-        type = lib.types.str;
-        description = "DNS-01 challenge provider name for the ACME client (e.g. 'cloudflare')";
-      };
+      # Challenge-specific settings sit under the challenge that needs them, so an implementation
+      # solving HTTP-01 or managing its own certificates forces none of these.
+      dns01 = {
+        provider = lib.mkOption {
+          type = lib.types.str;
+          example = "cloudflare";
+          description = "DNS-01 challenge provider name for the ACME client.";
+        };
 
-      credentialsEnvFile = lib.mkOption {
-        type = lib.types.str;
-        description = "Path to an env file with the DNS provider's credentials (e.g. CF_DNS_API_TOKEN). Provided by the host, e.g. via sops-nix.";
+        credentialsEnvFile = lib.mkOption {
+          type = lib.types.str;
+          description = "Path to an env file with the DNS-01 provider's credentials (e.g. CF_DNS_API_TOKEN). Provided by the host, e.g. via sops-nix.";
+        };
       };
     };
 

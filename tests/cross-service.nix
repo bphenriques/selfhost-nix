@@ -29,8 +29,8 @@ let
           traefik.enable = true;
           acme = {
             email = "admin@test.local";
-            dnsProvider = "cloudflare";
-            credentialsEnvFile = stub;
+            dns01.provider = "cloudflare";
+            dns01.credentialsEnvFile = stub;
           };
         };
 

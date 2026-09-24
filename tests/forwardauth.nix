@@ -29,8 +29,8 @@ pkgs.testers.runNixOSTest {
         traefik.enable = true;
         acme = {
           email = "acme@test.local";
-          dnsProvider = "cloudflare";
-          credentialsEnvFile = toString (pkgs.writeText "acme-env" "CF_DNS_API_TOKEN=dummy\n");
+          dns01.provider = "cloudflare";
+          dns01.credentialsEnvFile = toString (pkgs.writeText "acme-env" "CF_DNS_API_TOKEN=dummy\n");
         };
       };
       # Gate the hello backend at the edge.

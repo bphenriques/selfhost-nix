@@ -26,7 +26,7 @@ let
         system.stateVersion = "25.11";
         # Stand in for secrets.nix: the consumer normally wires these from sops; the framework only needs paths.
         selfhost.mail.passwordFile = "/run/secrets/stub";
-        selfhost.ingress.acme.credentialsEnvFile = "/run/secrets/stub";
+        selfhost.ingress.acme.dns01.credentialsEnvFile = "/run/secrets/stub";
       }
     ];
   };

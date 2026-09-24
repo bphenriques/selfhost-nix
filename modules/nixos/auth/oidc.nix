@@ -56,11 +56,6 @@ in
         readOnly = true;
         description = "OIDC discovery document URL (derived from issuerUrl); for consumers that need the full well-known URL rather than the bare issuer.";
       };
-
-      apiKeyFile = lib.mkOption {
-        type = lib.types.str;
-        description = "Path to file containing provider API key";
-      };
     };
 
     credentials = {
@@ -68,14 +63,7 @@ in
         type = lib.types.str;
         default = credentialsBaseDir;
         readOnly = true;
-        description = "Base directory for OIDC credentials (persistent; see credentialsBaseDir).";
-      };
-
-      usersFile = lib.mkOption {
-        type = lib.types.str;
-        default = "${credentialsBaseDir}/oidc-users.json";
-        readOnly = true;
-        description = "JSON file mapping usernames to their OIDC provider user IDs";
+        description = "Base directory holding each client's id and secret. Persistent, not tmpfs: these have no source to re-derive from, so a tmpfs would mint new ones every boot.";
       };
     };
 
