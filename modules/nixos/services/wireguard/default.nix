@@ -9,7 +9,7 @@ let
   wg = cfg.apps.wireguard;
 
   # The server key must exist before whichever backend creates wg0 (systemd-networkd under networkd,
-  # wireguard-<iface>.service otherwise); anchor keygen on it. Client peers are declarative (below).
+  # wireguard-<iface>.service otherwise), so anchor keygen on it.
   ifaceBackend =
     if config.networking.wireguard.useNetworkd then "systemd-networkd.service" else "wireguard-${wg.interface}.service";
 
@@ -17,7 +17,6 @@ let
   serverKeyFile = "${dataDir}/server/private.key";
   serverPubKeyFile = "${dataDir}/server/public.key";
   peersFile = "${dataDir}/peers.json";
-
 
   # Ahead of nixos-fw so it polices what those services opened on the tunnel, and new connections only,
   # so traffic the server itself initiated is untouched. An accept here skips this chain's drop, not
@@ -27,13 +26,14 @@ let
     let
       accept =
         proto: ports:
-        lib.optional (ports != [ ]) ''iifname "${wg.interface}" ct state new ${proto} dport { ${
-          lib.concatMapStringsSep ", " toString ports
-        } } accept'';
+        lib.optional (ports != [ ])
+          ''iifname "${wg.interface}" ct state new ${proto} dport { ${lib.concatMapStringsSep ", " toString ports} } accept'';
       rules = [
         ''iifname "${wg.interface}" meta nfproto ipv6 ct state new drop''
       ]
-      ++ lib.optional (wg.fullAccessSubnet != null) ''iifname "${wg.interface}" ip saddr ${wg.fullAccessSubnet} ct state new accept''
+      ++ lib.optional (
+        wg.fullAccessSubnet != null
+      ) ''iifname "${wg.interface}" ip saddr ${wg.fullAccessSubnet} ct state new accept''
       ++ accept "tcp" wg.restrictedPeers.tcpPorts
       ++ accept "udp" wg.restrictedPeers.udpPorts
       ++ [ ''iifname "${wg.interface}" ct state new drop'' ];
@@ -89,12 +89,34 @@ let
     else
       allowedIPsFull;
 
-  # One generated file rather than a spread of env vars, matching pocket-id-manage. Carrying the peer
-  # list makes the registry the tool's only inventory: allocation, policy and status all read it, so
-  # none of them can disagree with what the server actually routes.
+  # `fullAccessSubnet` has to name a block inside `clientSubnet`. Outside it both halves fail closed
+  # but neither says why: the chain exempts a prefix no client can hold, and `add --full-access`
+  # reports no free address because it only ever allocates out of `clientSubnet`.
+  ipToInt = s: lib.foldl' (acc: o: acc * 256 + lib.toInt o) 0 (lib.splitString "." s);
+  netMask = prefix: 4294967296 - lib.foldl' (acc: _: acc * 2) 1 (lib.range 1 (32 - prefix));
+  within =
+    inner: outer:
+    let
+      i = lib.splitString "/" inner;
+      o = lib.splitString "/" outer;
+      outerPrefix = lib.toInt (lib.elemAt o 1);
+      mask = netMask outerPrefix;
+    in
+    lib.toInt (lib.elemAt i 1) >= outerPrefix
+    && builtins.bitAnd (ipToInt (lib.head i)) mask == builtins.bitAnd (ipToInt (lib.head o)) mask;
+
+  # One generated file rather than a spread of env vars, matching pocket-id-manage. It carries the
+  # address plan and the peer file's path, so allocation, policy and status all resolve a device's
+  # tier the same way the nftables chain above does.
   manageConfigFile = pkgs.writeText "wg-manage-config.json" (
     builtins.toJSON {
-      inherit (wg) interface address clientSubnet fullAccessSubnet dns;
+      inherit (wg)
+        interface
+        address
+        clientSubnet
+        fullAccessSubnet
+        dns
+        ;
       serverPublicKeyFile = serverPubKeyFile;
       endpoint = "${wg.endpoint}:${toString wg.listenPort}";
       allowedIPs = {
@@ -210,6 +232,13 @@ in
   config = lib.mkIf wg.enable (
     lib.mkMerge [
       {
+        assertions = [
+          {
+            assertion = wg.fullAccessSubnet == null || within wg.fullAccessSubnet wg.clientSubnet;
+            message = "selfhost.apps.wireguard.fullAccessSubnet (${toString wg.fullAccessSubnet}) must be a block within clientSubnet (${wg.clientSubnet}); a device's tier is its address, so an address outside the client subnet is one nothing routes.";
+          }
+        ];
+
         selfhost.services.wireguard = {
           displayName = lib.mkDefault "WireGuard";
           meta.description = lib.mkDefault "VPN";
@@ -296,9 +325,8 @@ in
           '';
         };
 
-        # Peers are declarative: the registry's public key + tunnel IP become a [WireGuardPeer]
-        # (networkd) or a scripted peer. Reconcile-safe; no runtime `wg set`. Private keys never
-        # leave the server FS (see wg-manage) and pubkeys are non-secret, so config is the truth.
+        # No peers here: they are runtime state that `wg-manage` owns and applies live (see
+        # wireguard-apply-peers below). This declares only the interface and the server key.
         networking.wireguard.interfaces.${wg.interface} = {
           ips = [ wg.address ];
           inherit (wg) listenPort;
@@ -308,13 +336,15 @@ in
 
         networking.firewall.allowedUDPPorts = lib.optionals wg.openFirewall [ wg.listenPort ];
 
-
         # Peers are runtime state that `wg-manage` writes and applies live, so this only restores them
         # after the interface is recreated. Bound to the device rather than the target: networkd being
         # up does not mean wg0 exists yet, and this way a reconfigure re-applies too.
         systemd.services.wireguard-apply-peers = {
           description = "Apply ${wg.interface} peers from ${peersFile}";
-          after = [ ifaceBackend "sys-subsystem-net-devices-${wg.interface}.device" ];
+          after = [
+            ifaceBackend
+            "sys-subsystem-net-devices-${wg.interface}.device"
+          ];
           bindsTo = [ "sys-subsystem-net-devices-${wg.interface}.device" ];
           wantedBy = [ "sys-subsystem-net-devices-${wg.interface}.device" ];
           path = [ wgManage ];

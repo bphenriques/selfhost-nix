@@ -78,6 +78,11 @@ your `bindings` (paths mounted read-only) and each hook's output under `extras/<
 a DB dump). A hook output is *material to replay*, not a live service. Restoring a DB dump means importing it,
 not dropping it onto a running database.
 
+**WireGuard peers are runtime state.** `/var/lib/wireguard/peers.json` is the only inventory of who may
+connect, and it is not in your repo. The app's backup hook covers it. The server private key is
+deliberately left out, so restoring the file gets every device its address and public key back while the
+server presents a new one: each client then needs its `[Peer] PublicKey` edited, not a re-enrolment.
+
 **What is NOT in them.** Runtime secrets (`/var/lib/homelab-secrets`) and OIDC credentials are not backed up
 unless you explicitly add them as a binding. Two things you must hold **out-of-band**, or the rest is
 unrecoverable:

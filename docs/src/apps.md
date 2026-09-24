@@ -63,6 +63,11 @@ alice-phone is live at 10.100.0.16.
 then a live credential, which the restricted tier is what bounds. Nothing is stored beyond the peer
 file, so losing the output means adding again, the same answer as a lost phone.
 
+The server mints the keypair, so a client private key does exist here for as long as it takes to render
+the QR. That is a deliberate trade for one command over an enrolment round-trip, and it holds because
+the admin already has root on this host. Generate the key on the device and add its public key to the
+peer file by hand if you want that property back.
+
 `wg-manage status` is the inventory: address, tier, last handshake, and anything live the file does not
 list; the peer file also records when each was added. `remove <name>` cuts a peer and forgets it.
 `apply` re-syncs the file onto the interface in both directions, and `wireguard-apply-peers` runs it

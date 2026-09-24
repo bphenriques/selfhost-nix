@@ -111,16 +111,6 @@ let
           immich.enable = true;
           jellyfin.enable = true;
           radicale.enable = true;
-          wireguard = {
-            enable = true;
-            devices = [
-              {
-                name = "laptop";
-                ip = "10.100.0.42";
-                publicKey = "0000000000000000000000000000000000000000000=";
-              }
-            ];
-          };
         };
       };
     }

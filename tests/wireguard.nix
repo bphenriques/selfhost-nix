@@ -13,9 +13,16 @@ let
   };
 
   mkWireguard =
+    extra: (evalConfig { selfhost.apps.wireguard = server // extra; }).networking.nftables.tables.wireguard-access.content;
+
+  # A tier is an address, so a full-access block outside `clientSubnet` exempts a prefix nobody can
+  # hold. Both halves fail closed, which is why nothing louder than an assertion catches it.
+  tierAssertionFires =
     extra:
-    (evalConfig { selfhost.apps.wireguard = server // extra; })
-    .networking.nftables.tables.wireguard-access.content;
+    lib.any (a: !a.assertion && lib.hasInfix "fullAccessSubnet" a.message)
+      (evalConfig {
+        selfhost.apps.wireguard = server // extra;
+      }).assertions;
 
   restrictedOnly = mkWireguard { };
   tiered = mkWireguard {
@@ -33,13 +40,22 @@ assert lib.assertMsg (lib.hasInfix "iifname \"wg0\" ct state new tcp dport { 80,
   "restricted peers do not reach the default ports";
 assert lib.assertMsg (lib.hasInfix "iifname \"wg0\" ct state new drop" restrictedOnly)
   "the chain does not end in a deny";
-assert lib.assertMsg (!(lib.hasInfix "ip saddr" restrictedOnly))
-  "a null fullAccessSubnet still carved out an exemption";
+assert lib.assertMsg (
+  !(lib.hasInfix "ip saddr" restrictedOnly)
+) "a null fullAccessSubnet still carved out an exemption";
 assert lib.assertMsg (lib.hasInfix "iifname \"wg0\" ip saddr 10.100.0.0/28 ct state new accept" tiered)
   "the full-access block is not exempted from the restriction";
-assert lib.assertMsg
-  (lib.hasInfix "ip saddr 10.100.0.0/28 fib daddr type broadcast udp dport { 7, 9 } accept" tiered)
+assert lib.assertMsg (lib.hasInfix "ip saddr 10.100.0.0/28 fib daddr type broadcast udp dport { 7, 9 } accept" tiered)
   "wakeOnLan is not scoped to the full-access block and the magic-packet ports";
 assert lib.assertMsg (lib.hasInfix "fib daddr type broadcast drop" beforeFullAccept)
   "every other directed broadcast is not dropped ahead of the blanket accept";
+assert lib.assertMsg (
+  !(tierAssertionFires { fullAccessSubnet = "10.100.0.16/28"; })
+) "a block inside clientSubnet was rejected";
+assert lib.assertMsg (tierAssertionFires {
+  fullAccessSubnet = "10.200.0.0/28";
+}) "a block outside clientSubnet was accepted";
+assert lib.assertMsg (tierAssertionFires {
+  fullAccessSubnet = "10.100.0.0/16";
+}) "a block wider than clientSubnet was accepted";
 pkgs.runCommand "selfhost-wireguard-eval" { } "touch $out"
