@@ -118,6 +118,19 @@ in
 
     users.groups = lib.mapAttrs' (_name: mountCfg: lib.nameValuePair mountCfg.group { inherit (mountCfg) gid; }) cfg.shares;
 
+    # `uid = 0` means nobody owns these files, so the group is the only way in. An owner uid means that
+    # service already has rw through the owner bits, which DAC checks first. Not the exact test (is
+    # *this* user the owner): most service uids are null until activation, so it is not evaluable here.
+    users.users = lib.mkMerge (
+      lib.concatMap (
+        entry:
+        let
+          granted = map (m: cfg.shares.${m}.group) (lib.filter (m: cfg.shares.${m}.uid == 0) entry.storage.mounts);
+        in
+        map (user: { ${user}.extraGroups = granted; }) entry.storage.users
+      ) entriesWithStorage
+    );
+
     fileSystems = lib.mapAttrs' (
       name: mountCfg:
       lib.nameValuePair mountCfg.localMount {

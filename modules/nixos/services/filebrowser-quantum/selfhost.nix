@@ -143,7 +143,10 @@ in
         inherit (u.services.filebrowser-quantum) admin;
       }) enabledUsers;
 
-      selfhost.services.filebrowser-quantum.storage.mounts = lib.unique (map (g: g.mount) grants);
+      selfhost.services.filebrowser-quantum.storage = {
+        mounts = lib.unique (map (g: g.mount) grants);
+        users = [ "filebrowser-quantum" ];
+      };
 
       # ro grants get a ro bind that can't be bypassed (same namespace, never re-bound).
       systemd.services.filebrowser-quantum.serviceConfig = {

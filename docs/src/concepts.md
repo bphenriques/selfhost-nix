@@ -110,7 +110,11 @@ A wiped host with no data to orphan generates cleanly on the next boot.
 `storage.mounts.smb.shares` are on-demand CIFS shares behind per-share access groups. Boot does not wait for the
 SMB server. First access may wait up to 30 seconds. After a failed mount, a later access retries. A service
 requests `storage.mounts = [ â¦ ]` to start its automount guards before the service can touch their paths. The
-service still owns its failure and restart policy. Converting a share that a previous generation
+service still owns its failure and restart policy. Naming the users it runs as in `storage.users` also
+grants them each share's access group, so a share is added in one place rather than two. A share with an
+owner `uid` is skipped there, because its owner already reaches the files through the owner bits. That
+means a *second* consumer of an owned share still needs the group granted by hand, and it fails loudly
+when you forget. Converting a share that a previous generation
 boot-mounted takes one reboot: systemd cannot install autofs over an already-mounted path. Dashboard tiles
 come from services and externals that
 opt into `integrations.homepage`, grouped by `group`. The bundled `apps.homepage` renders them, or read the

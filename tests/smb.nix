@@ -19,12 +19,26 @@ let
           };
           photos = {
             gid = 5002;
+            uid = 996; # owned: its consumer reaches the files as owner, not through the group
           };
         };
       };
       # A registered service that needs the media mount makes it a "dependent" share.
       services.gallery = {
         port = 8080;
+        ingress.enable = false;
+        storage.mounts = [
+          "media"
+          "photos"
+        ];
+        storage.users = [
+          "gallery"
+          "nginx"
+        ];
+      };
+      # Same mounts, no users: a unit running as root needs no grant.
+      services.viewer = {
+        port = 8081;
         ingress.enable = false;
         storage.mounts = [ "media" ];
       };
@@ -68,4 +82,11 @@ assert lib.assertMsg (mediaMountUnit.overrideStrategy == "asDropin") "mount retr
 assert lib.assertMsg (lib.hasInfix "StartLimitIntervalSec=0" mediaMountUnit.text)
   "mount attempts should not be rate limited";
 assert lib.assertMsg collisionFires "duplicate-gid assertion did not fire";
+assert lib.assertMsg (
+  cfg.users.users.gallery.extraGroups == [ "homelab-media" ]
+) "storage.users should grant the group of every unowned mount, and only those";
+assert lib.assertMsg (
+  cfg.users.users.nginx.extraGroups == [ "homelab-media" ]
+) "every named user should be granted, not just the first";
+assert lib.assertMsg ((cfg.users.users.viewer or null) == null) "an entry with no storage.users should grant nothing";
 pkgs.runCommand "selfhost-smb-eval" { } "touch $out"
