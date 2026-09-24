@@ -5,7 +5,15 @@
 let config_file = ($env.WG_CONFIG_FILE? | default "")
 if ($config_file | is-empty) { error make {msg: "WG_CONFIG_FILE required"} }
 let cfg = open $config_file
-let server_pubkey = (open --raw $cfg.serverPublicKeyFile | str trim)
+
+# Read on demand, not at load: only `add` needs it, and the key is root-only, so eager reading means
+# even the help text fails for anyone who forgot the sudo.
+def server_pubkey [] { open --raw $cfg.serverPublicKeyFile | str trim }
+
+# 0700 on the data dir makes an unprivileged read look like an empty peer list rather than an error.
+def require_root [] {
+  if (^id -u | into int) != 0 { error make {msg: "wg-manage needs root; re-run with sudo"} }
+}
 
 def load_peers [] { if ($cfg.peersFile | path exists) { open $cfg.peersFile } else { [] } }
 
@@ -61,7 +69,7 @@ Address = ($ip)/32
 DNS = ($cfg.dns)
 
 [Peer]
-PublicKey = ($server_pubkey)
+PublicKey = (server_pubkey)
 Endpoint = ($cfg.endpoint)
 AllowedIPs = (allowed_ips_for $ip)
 PersistentKeepalive = 25
@@ -86,6 +94,7 @@ def register [name: string, ip: string, pubkey: string] {
 # someone you cannot hand a screen to; what you send is then a live credential, which the restricted
 # tier is what bounds. Losing the output means adding again, the same answer as a lost phone.
 def "main add" [name: string, --full-access, --conf] {
+  require_root
   let addr = (next_ip $full_access)
   let priv = (wg genkey | str trim)
   register $name $addr ($priv | wg pubkey | str trim)
@@ -97,6 +106,7 @@ def "main add" [name: string, --full-access, --conf] {
 # boot quietly hands the access back. A live peer with no entry has no name to give here; `apply` drops
 # those.
 def "main remove" [name: string] {
+  require_root
   let peers = (load_peers)
   let match = ($peers | where name == $name | get -o 0)
   if $match == null { error make {msg: $"($name) is not registered"} }
@@ -108,6 +118,7 @@ def "main remove" [name: string] {
 # Full sync in both directions, so it restores the interface when it appears and also picks up a
 # hand-edited file. An absent file is not an empty one: it means leave the interface alone.
 def "main apply" [] {
+  require_root
   if not ($cfg.peersFile | path exists) {
     print -e $"No ($cfg.peersFile); leaving ($cfg.interface) alone."
     return
@@ -121,10 +132,11 @@ def "main apply" [] {
 }
 
 def "main status" [] {
-  # Reading the interface needs root. Say so rather than reporting every peer as never connected,
-  # which is a wrong answer that sends you debugging a problem that is not there.
+  require_root
+  # Past the root check a missing dump only means the interface is down. Saying so beats reporting
+  # every peer as never connected, which sends you debugging a problem that is not there.
   let raw = (try { wg show $cfg.interface dump err> /dev/null } catch { null })
-  if $raw == null { print -e $"Cannot read ($cfg.interface): rerun with sudo for handshakes." }
+  if $raw == null { print -e $"($cfg.interface) is not up; handshakes unknown." }
   let dump = (
     ($raw | default "") | lines | skip 1 | where {|l| ($l | str trim) != "" }
     | reduce -f {} {|line, acc| let f = ($line | split row "\t"); $acc | insert ($f | get 0) ($f | get -o 4 | default "0" | into int) }
