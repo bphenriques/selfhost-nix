@@ -1,9 +1,8 @@
-# Per-principal SMB surface, shared by `selfhost.users` and `selfhost.serviceAccounts`: a person and a
-# machine hold an account on the same terms. Holding an account is separate from being let into a share;
-# grants live on the share, where the whole access list reads at once.
+# Per-principal SMB surface, shared by `selfhost.users` and `selfhost.serviceAccounts`. Holding an
+# account is separate from being let into a share: grants live on the share.
 { name, lib, ... }:
 let
-  secretsDir = "/var/lib/homelab-secrets"; # persistent; see runtime-secrets.nix for the rationale
+  secretsDir = "/var/lib/homelab-secrets"; # persistent, see runtime-secrets.nix
 in
 {
   options.storage.smb = {

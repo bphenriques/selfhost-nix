@@ -46,7 +46,7 @@ the split.
 
 ## Handing out a generated account password
 
-Radicale's DAV endpoint and CouchDB authenticate people directly, because their clients cannot do SSO. The
+Radicale, CouchDB and the SMB server authenticate people directly, because their clients cannot do SSO. The
 framework generates a password per enabled user instead of asking you for one, root-owned `0400` under
 `runtimeSecretsDir`:
 
@@ -54,15 +54,16 @@ framework generates a password per enabled user instead of asking you for one, r
 $ sudo cat /var/lib/homelab-secrets/radicale-password-alice
 ```
 
-Read it once and hand it over out of band. Nothing mails it. To roll one, delete the file and rebuild.
+Read it once and hand it over out of band. Nothing mails it. To roll one, delete the file and restart
+`homelab-runtime-secrets.service`.
 
 ## Key rotation
 
 | Secret | How it rotates |
 |---|---|
 | OIDC client secrets | Framework-managed: `oidc-rotate [<client>]` (always available) or the opt-in `rotation` timer. It removes the secret and the provider re-mints it. |
-| Random per-service secrets (`regenerateIfMissing`) | Delete the file. Regenerated on next activation. |
-| Data-bound keys (`generateOnce`) | **Manual and deliberate.** Rotating means re-keying the data it protects, so the framework refuses to auto-rotate (that would brick the data). Remove the secret *together with* the data at the path `generateOnce` names. |
+| Random per-service secrets (`regenerateIfMissing`) | Delete the file, then `systemctl restart homelab-runtime-secrets.service`. A rebuild alone will not do it: the unit is a `RemainAfterExit` oneshot, so systemd leaves it alone until its definition changes. |
+| Data-bound keys (`generateOnce`) | **Manual and deliberate.** Rotating means re-keying the data it protects, so the framework refuses to auto-rotate (that would brick the data). Remove the secret *together with* the data at the path `generateOnce` names, then restart the unit above. |
 | Externally-synced secrets (`regenerateIfMissing = false`) | Rotate in your own store. The framework leaves them untouched. |
 
 ## Restore & disaster recovery

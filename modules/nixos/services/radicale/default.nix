@@ -120,7 +120,7 @@ in
       map (uname: {
         name = "radicale-password-${uname}";
         value = {
-          bytes = 24;
+          bytes = 12; # a person types this into a calendar app
           restartUnits = [ "radicale-configure.service" ];
         };
       }) enabledUsernames

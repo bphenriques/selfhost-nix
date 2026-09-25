@@ -84,7 +84,7 @@ in
     // lib.mapAttrs' (
       uname: _:
       lib.nameValuePair "couchdb-password-${uname}" {
-        bytes = 24;
+        bytes = 12; # typed into a sync client by hand
         restartUnits = [ "couchdb-configure.service" ];
       }
     ) enabledUsers;

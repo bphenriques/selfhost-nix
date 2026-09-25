@@ -118,9 +118,8 @@ in
 
     users.groups = lib.mapAttrs' (_name: mountCfg: lib.nameValuePair mountCfg.group { inherit (mountCfg) gid; }) cfg.shares;
 
-    # `uid = 0` means nobody owns these files, so the group is the only way in. An owner uid means that
-    # service already has rw through the owner bits, which DAC checks first. Not the exact test (is
-    # *this* user the owner): most service uids are null until activation, so it is not evaluable here.
+    # `uid = 0` means nobody owns these files, so the group is the only way in. An owner uid already grants
+    # rw, which DAC checks first. Not per-user (is *this* user the owner): most uids are null until activation.
     users.users = lib.mkMerge (
       lib.concatMap (
         entry:

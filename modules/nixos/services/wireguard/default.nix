@@ -89,9 +89,8 @@ let
     else
       allowedIPsFull;
 
-  # `fullAccessSubnet` has to name a block inside `clientSubnet`. Outside it both halves fail closed
-  # but neither says why: the chain exempts a prefix no client can hold, and `add --full-access`
-  # reports no free address because it only ever allocates out of `clientSubnet`.
+  # `fullAccessSubnet` has to name a block inside `clientSubnet`. Outside it, both the chain and
+  # `add --full-access` fail closed without saying why, so catch it at eval.
   ipToInt = s: lib.foldl' (acc: o: acc * 256 + lib.toInt o) 0 (lib.splitString "." s);
   netMask = prefix: 4294967296 - lib.foldl' (acc: _: acc * 2) 1 (lib.range 1 (32 - prefix));
   within =

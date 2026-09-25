@@ -340,7 +340,7 @@ in
         (
           pname: _p:
           lib.nameValuePair "smb-password-${pname}" {
-            bytes = 24;
+            bytes = 12; # typed into a device by hand
             restartUnits = [ "selfhost-smb-passwords.service" ];
           }
         )
