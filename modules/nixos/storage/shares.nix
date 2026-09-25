@@ -273,6 +273,8 @@ in
           "map to guest" = "Never";
           # "map to guest" still lets an anonymous session enumerate share names, which carry real names.
           "restrict anonymous" = "2";
+          # An authenticated session enumerates every share too, not just an anonymous one.
+          "access based share enum" = "yes";
           "server min protocol" = "SMB3";
           "disable netbios" = "yes";
           "smb ports" = "445"; # netbios is off, so do not listen on 139 either

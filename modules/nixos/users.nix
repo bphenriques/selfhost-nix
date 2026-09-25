@@ -4,6 +4,9 @@ let
 
   adminUsers = lib.filterAttrs (_: u: u.isAdmin) cfg.users;
 
+  posixUsers = lib.filterAttrs (_: u: u.unixAccount.enable) cfg.users;
+  unpinnedUids = lib.attrNames (lib.filterAttrs (_: u: u.unixAccount.uid == null) posixUsers);
+
   baseUserModule = { name, config, ... }: {
     options = {
       username = lib.mkOption {
@@ -47,6 +50,16 @@ let
         defaultText = lib.literalMD "true if the user's `groups` include the admin group";
         description = "Whether this user is an admin (derived from `groups`; set the group, not this).";
       };
+      unixAccount = {
+        enable = lib.mkEnableOption "a POSIX account for this person on the host that declares it, for services that resolve a session to a Unix identity";
+
+        uid = lib.mkOption {
+          type = lib.types.nullOr lib.types.int;
+          default = null;
+          description = "As in `users.users.<name>.uid`. Null picks a free one on activation; pin it where this account owns data that outlives the root filesystem, since the allocation is recorded only on root.";
+        };
+      };
+
       extraConfig = lib.mkOption {
         type = lib.types.submodule { freeformType = lib.types.attrsOf lib.types.anything; };
         default = { };
@@ -106,5 +119,14 @@ in
         message = "At least one user must be in the admin group (selfhost.groups.admin); none found.";
       }
     ];
+
+    warnings = lib.optional (unpinnedUids != [ ])
+      "Users with a POSIX account and no pinned uid: ${toString unpinnedUids}. Read each back with `getent passwd` and set `selfhost.users.<name>.unixAccount.uid`.";
+
+    # Identity only: login policy (password, keys, wheel) belongs to the consumer.
+    users.users = lib.mapAttrs (_: u: {
+      isNormalUser = true;
+      inherit (u.unixAccount) uid;
+    }) posixUsers;
   };
 }

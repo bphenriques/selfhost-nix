@@ -5,6 +5,9 @@
 let
   cfg = config.selfhost;
   systemUserAccounts = lib.filterAttrs (_: a: a.systemUser.enable) cfg.serviceAccounts;
+  unpinnedIds = lib.attrNames (
+    lib.filterAttrs (_: a: a.systemUser.uid == null || a.systemUser.gid == null) systemUserAccounts
+  );
   duplicates = lib.intersectLists (lib.attrNames cfg.users) (lib.attrNames cfg.serviceAccounts);
 in
 {
@@ -57,6 +60,9 @@ in
         message = "Names declared in both selfhost.users and selfhost.serviceAccounts: ${toString duplicates}. A principal belongs to one registry.";
       }
     ];
+
+    warnings = lib.optional (unpinnedIds != [ ])
+      "Service accounts with a system user and no pinned uid or gid: ${toString unpinnedIds}. Read each back with `getent passwd` and `getent group`, then set `selfhost.serviceAccounts.<name>.systemUser.uid` and `.gid`.";
 
     users.users = lib.mapAttrs (
       name: a:
