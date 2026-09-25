@@ -25,7 +25,7 @@ let
     ];
     users.bob = person [ "family" ];
     serviceAccounts.machine-backup = {
-      systemUser.enable = true;
+      unixAccount.enable = true;
       storage.smb = {
         enable = true;
         passwordFile = password;

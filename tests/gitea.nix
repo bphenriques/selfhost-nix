@@ -43,7 +43,7 @@ pkgs.testers.runNixOSTest {
         };
 
         # A non-human principal from the shared registry: a Gitea account and an SSH key, but no Unix
-        # identity, since systemUser.enable is off. The key is deliberately commented, so a mismatch
+        # identity, since unixAccount.enable is off. The key is deliberately commented, so a mismatch
         # against gitea's comment-less view would show up as a re-add on every reconcile.
         serviceAccounts.ci = {
           description = "CI bot";
@@ -81,7 +81,7 @@ pkgs.testers.runNixOSTest {
       # The service account came from selfhost.serviceAccounts, not an app-scoped list, and is not an admin.
       machine.succeed("runuser -u gitea -- ${gitea} admin user list | grep -qw ci")
       machine.fail("runuser -u gitea -- ${gitea} admin user list --admin | grep -qw ci")
-      # systemUser.enable is off for it, so no Unix user was created alongside.
+      # unixAccount.enable is off for it, so no Unix user was created alongside.
       machine.fail("getent passwd ci")
 
       # Its key registered, read back through the same unauthenticated view the reconcile uses.

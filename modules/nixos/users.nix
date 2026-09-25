@@ -51,7 +51,7 @@ let
         description = "Whether this user is an admin (derived from `groups`; set the group, not this).";
       };
       unixAccount = {
-        enable = lib.mkEnableOption "a POSIX account for this person on the host that declares it, for services that resolve a session to a Unix identity";
+        enable = lib.mkEnableOption "a POSIX account for this person on the host that declares it, for services that resolve a session to a Unix identity. Identity only: no home and no shell, since the account exists for a service rather than for signing in. Add those on `users.users.<name>` where a person actually does";
 
         uid = lib.mkOption {
           type = lib.types.nullOr lib.types.int;
@@ -120,12 +120,21 @@ in
       }
     ];
 
-    warnings = lib.optional (unpinnedUids != [ ])
-      "Users with a POSIX account and no pinned uid: ${toString unpinnedUids}. Read each back with `getent passwd` and set `selfhost.users.<name>.unixAccount.uid`.";
+    warnings =
+      lib.optional (unpinnedUids != [ ])
+        "Users with a POSIX account and no pinned uid: ${toString unpinnedUids}. Read each back with `getent passwd` and set `selfhost.users.<name>.unixAccount.uid`.";
 
-    # Identity only: login policy (password, keys, wheel) belongs to the consumer.
+    # Identity only: a service resolving a session needs a uid, not a login. `isNormalUser` for the uid
+    # range people's files belong in, but nothing is created and no shell is given until a consumer asks.
+    # `home` keeps whatever nixpkgs names it, since nothing is there to find.
+    #
+    # 900 sits between `mkDefault` (1000) and a plain definition (100): it beats the `isNormalUser`
+    # defaults these would otherwise conflict with, and still loses to a consumer promoting the account
+    # with `users.users.<name>.createHome = true`.
     users.users = lib.mapAttrs (_: u: {
       isNormalUser = true;
+      createHome = lib.mkOverride 900 false;
+      useDefaultShell = lib.mkOverride 900 false;
       inherit (u.unixAccount) uid;
     }) posixUsers;
   };

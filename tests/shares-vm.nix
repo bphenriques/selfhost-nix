@@ -61,7 +61,7 @@ pkgs.testers.runNixOSTest {
 
         serviceAccounts.machine-backup = {
           description = "Backup principal";
-          systemUser = {
+          unixAccount = {
             enable = true;
             uid = 977;
             gid = 977;

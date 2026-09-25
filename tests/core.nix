@@ -19,7 +19,7 @@ pkgs.testers.runNixOSTest {
       # ownership of files that can outlive the root filesystem.
       serviceAccounts.machine-probe = {
         description = "Probe SMB principal";
-        systemUser = {
+        unixAccount = {
           enable = true;
           uid = 977;
           gid = 977;
@@ -71,7 +71,7 @@ pkgs.testers.runNixOSTest {
     # runs in the same loop iteration, and a failure there fails the oneshot.
     machine.succeed("stat -c '%U:%G %a' /var/lib/homelab-secrets/notify-publishers/offsite | grep -qx 'root:root 400'")
 
-    # systemUser.enable creates a system user with its own primary group, at the declared ids.
+    # unixAccount.enable creates a system user with its own primary group, at the declared ids.
     machine.succeed("getent passwd machine-probe | cut -d: -f3,4 | grep -qx '977:977'")
     machine.succeed("getent group machine-probe | cut -d: -f3 | grep -qx 977")
     machine.succeed("test -s /var/lib/homelab-secrets/notify-publishers/offsite")

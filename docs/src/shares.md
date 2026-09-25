@@ -21,7 +21,7 @@ selfhost = {
   };
 
   serviceAccounts.machine-backup = {
-    systemUser.enable = true;                 # smbd drops to the connecting user, so it needs one
+    unixAccount.enable = true;                 # smbd drops to the connecting user, so it needs one
     storage.smb = {
       enable = true;
       passwordFile = config.sops.secrets."samba/machine-backup-password".path;
