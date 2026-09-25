@@ -230,7 +230,6 @@ in
         unknownGroups = lib.subtractLists knownGroups grantedGroups;
         needUnixUser = lib.unique (lib.attrNames principals ++ lib.mapAttrsToList (_: s: s.owner) cfg.shares);
         missingUnixUser = lib.filter (n: !(config.users.users ? ${n})) needUnixUser;
-        missingPassword = lib.attrNames (lib.filterAttrs (_: p: !p.storage.smb.hasPassword) principals);
       in
       [
         {
@@ -252,10 +251,6 @@ in
         {
           assertion = missingUnixUser == [ ];
           message = "SMB principals and share owners need a Unix user on this host; missing: ${toString missingUnixUser}. smbd drops to the connecting user, so the identity has to exist.";
-        }
-        {
-          assertion = missingPassword == [ ];
-          message = "SMB principals with no `storage.smb.passwordFile`: ${toString missingPassword}.";
         }
       ];
 
@@ -338,6 +333,22 @@ in
         # of this unit — it is what makes everything written into a share inherit its group.
       };
     };
+
+    # Only for principals still on the default path: one that supplies its own needs nothing generated.
+    selfhost.runtimeSecrets =
+      lib.mapAttrs'
+        (
+          pname: _p:
+          lib.nameValuePair "smb-password-${pname}" {
+            bytes = 24;
+            restartUnits = [ "selfhost-smb-passwords.service" ];
+          }
+        )
+        (
+          lib.filterAttrs (
+            pname: p: p.storage.smb.passwordFile == "${selfhostCfg.runtimeSecretsDir}/smb-password-${pname}"
+          ) principals
+        );
 
     systemd.services.selfhost-smb-passwords = {
       description = "Provision SMB passwords";

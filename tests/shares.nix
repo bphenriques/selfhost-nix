@@ -108,6 +108,19 @@ let
     imports = [ unixUsers ];
   };
 
+  # `bob` says nothing about a password, `ada` supplies one: only the first is minted a secret.
+  # Replaced rather than merged, since `recursiveUpdate` would fold the fixture's `passwordFile` back in.
+  generated = evalConfig {
+    selfhost = base // {
+      users = base.users // {
+        bob = lib.removeAttrs (person [ "family" ]) [ "storage" ] // {
+          storage.smb.enable = true;
+        };
+      };
+    };
+    imports = [ unixUsers ];
+  };
+
   share = name: cfg.services.samba.settings.${name};
   members = name: cfg.users.groups."storage-${name}".members;
   passwords = cfg.systemd.services.selfhost-smb-passwords;
@@ -137,18 +150,6 @@ let
   } "groups nobody is in";
 
   noUnixUser = fires { selfhost = base; } "need a Unix user";
-
-  # Omitted, not nulled: `passwordFile` has no default, so absence is the signal the assertion reads.
-  noPassword = fires {
-    selfhost = base // {
-      users = base.users // {
-        ada = lib.removeAttrs (person [ "family" ]) [ "storage" ] // {
-          storage.smb.enable = true;
-        };
-      };
-    };
-    imports = [ unixUsers ];
-  } "no `storage.smb.passwordFile`";
 
   bothRegistries = fires {
     selfhost = lib.recursiveUpdate base { serviceAccounts.ada.description = "robot"; };
@@ -218,7 +219,15 @@ assert lib.assertMsg (lib.elem "selfhost-smb-permissions.service" cfg.systemd.se
 assert lib.assertMsg ungranted "grant to a principal with no SMB account did not fire";
 assert lib.assertMsg unknownGroup "grant to an unknown group did not fire";
 assert lib.assertMsg noUnixUser "principal with no Unix user did not fire";
-assert lib.assertMsg noPassword "principal with no passwordFile did not fire";
+assert lib.assertMsg (
+  generated.selfhost.users.bob.storage.smb.passwordFile == "/var/lib/homelab-secrets/smb-password-bob"
+) "a principal that supplies no password should default to a generated one";
+assert lib.assertMsg (
+  generated.selfhost.runtimeSecrets ? smb-password-bob
+) "the default password should actually be minted";
+assert lib.assertMsg (
+  !(generated.selfhost.runtimeSecrets ? smb-password-ada)
+) "a principal supplying its own password should have nothing minted for it";
 assert lib.assertMsg bothRegistries "name in both registries did not fire";
 assert lib.assertMsg emptyAccess "share with no grants did not fire; an empty `valid users` admits everyone";
 assert lib.assertMsg reservedName "share named `global` did not fire";
