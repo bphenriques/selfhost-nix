@@ -36,7 +36,7 @@ For more info check the [docs](https://bphenriques.github.io/selfhost-nix), incl
 I created to support my own [homelab](https://github.com/bphenriques/dotfiles) and learn more about self-hosting. It is open by design and if this project intrigues and interests you let me know!
 
 
-> [!INFO]
+> [!NOTE]
 > For a more different yet mature approach, consider [`nix-podman-stacks`](https://github.com/Tarow/nix-podman-stacks).
 
 > [!WARNING]
@@ -44,8 +44,8 @@ I created to support my own [homelab](https://github.com/bphenriques/dotfiles) a
 
 ## Out of Scope
 
-- **Public internet exposure**: it has to be a deliberate choice for you. I promote WireGuard.
-- **Containers**: very common but it makes networking tricky at times between nixpkgs services and containers.
+- **Public Exposure**: the _how_ will vary from case-to-case. At the end, it has to be an informed and deliberate choice considering the risks.
+- **Containers**: makes networking tricky at times between nixpkgs services and containers.
 
 ## Support
 
