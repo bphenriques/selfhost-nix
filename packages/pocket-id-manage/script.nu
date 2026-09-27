@@ -25,22 +25,6 @@ def get_all [resource: string] {
   $r.body.data
 }
 
-def find_user [username: string] {
-  let user = get_all "users" | where username == $username | get 0?
-  if $user == null {
-    error make {msg: $"User '($username)' not found"}
-  }
-  $user
-}
-
-def find_group [name: string] {
-  let group = get_all "user-groups" | where name == $name | get 0?
-  if $group == null {
-    error make {msg: $"Group '($name)' not found"}
-  }
-  $group
-}
-
 def send_invite [user_id: string, email: string] {
   let r = http post $"($base_url)/api/users/($user_id)/one-time-access-email" "{}" --headers $headers --content-type application/json --full --allow-errors
   if $r.status == 204 {
@@ -245,115 +229,10 @@ def "main provision-client" [] {
   print $"OIDC client ($client.name) provisioning complete"
 }
 
-# --- Manual: guest management ---
-# Create a guest user, assign to guests group, and send invite email.
-def "main guest invite" [
-  email: string        # Email address
-  --firstName: string  # First name
-  --lastName: string   # Last name
-  --username: string   # Username (defaults to email local part)
-] {
-  let guests_group = $env.POCKET_ID_GUESTS_GROUP
-  let uname = if $username != null { $username } else {
-    $email | split row "@" | get 0
-  }
-  let fname = if $firstName != null { $firstName } else { $uname }
-  let lname = if $lastName != null { $lastName } else { "" }
-  let existing = get_all "users"
-  let found = $existing | where username == $uname | get 0?
-  if $found != null {
-    error make {msg: $"User '($uname)' already exists. Use 'reinvite' to resend the invite."}
-  }
-  let body = {
-    username: $uname
-    email: $email
-    emailVerified: true
-    firstName: $fname
-    lastName: $lname
-    displayName: ([$fname, $lname] | where { $in != "" } | str join " ")
-    isAdmin: false
-  }
-  let r = http post $"($base_url)/api/users" $body --headers $headers --content-type application/json --full --allow-errors
-  if $r.status != 201 {
-    error make {msg: $"Failed to create user ($uname): ($r.status) - ($r.body)"}
-  }
-  let user_id = $r.body.id
-  print $"Created user: ($uname)"
-  # Assign to guests group
-  let group = find_group $guests_group
-  let gr = http put $"($base_url)/api/users/($user_id)/user-groups" { userGroupIds: [$group.id] } --headers $headers --content-type application/json --full --allow-errors
-  if $gr.status != 200 {
-    error make {msg: $"Failed to assign group: ($gr.status) - ($gr.body)"}
-  }
-  print $"Assigned to group: ($guests_group)"
-  send_invite $user_id $email
-}
-
-# Remove guest users. Only removes users in the guests group.
-def "main guest remove" [...usernames: string] {
-  let guests_group = $env.POCKET_ID_GUESTS_GROUP
-  let all_users = get_all "users"
-  let guest_group = find_group $guests_group
-  for uname in $usernames {
-    let user = $all_users | where username == $uname | get 0?
-    if $user == null {
-      print $"User '($uname)' not found, skipping"
-      continue
-    }
-    let user_group_ids = $user.userGroups? | default [] | get id
-    if $guest_group.id not-in $user_group_ids {
-      print $"User '($uname)' is not a guest, skipping."
-      continue
-    }
-    let r = http delete $"($base_url)/api/users/($user.id)" --headers $headers --full --allow-errors
-    if $r.status != 204 and $r.status != 200 {
-      print $"Failed to remove ($uname): ($r.status) - ($r.body)"
-    } else {
-      print $"Removed guest: ($uname)"
-    }
-  }
-}
-
-# Resend one-time access email to any user.
-def "main reinvite" [username: string] {
-  let user = find_user $username
-  send_invite $user.id $user.email
-}
-
-# List all users with their groups.
-def "main list" [] {
-  let users = get_all "users"
-  if ($users | is-empty) {
-    print "No users"
-    return
-  }
-  let groups = get_all "user-groups"
-  $users | each { |u|
-    let user_groups = $u.userGroups? | default [] | each { |ug|
-      let g = $groups | where id == $ug.id | get 0?
-      if $g != null { $g.name } else { $ug.id }
-    }
-    {
-      username: $u.username
-      email: $u.email
-      groups: ($user_groups | str join ", ")
-    }
-  }
-}
-
 def main [] {
   print "pocket-id-manage - Pocket-ID management
 
   Provisioning (systemd):
     provision-users          Provision Nix-managed users and groups
     provision-client         Provision a single OIDC client with credentials
-
-  Guest management (manual):
-    guest invite <email> [--firstName] [--lastName] [--username]
-                             Create guest user and send invite email
-    guest remove <username>  Remove guest users
-
-  General (manual):
-    reinvite <username>      Resend one-time access email
-    list                     List all users with groups"
 }
