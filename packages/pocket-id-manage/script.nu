@@ -234,5 +234,5 @@ def main [] {
 
   Provisioning (systemd):
     provision-users          Provision Nix-managed users and groups
-    provision-client         Provision a single OIDC client with credentials
+    provision-client         Provision a single OIDC client with credentials"
 }
