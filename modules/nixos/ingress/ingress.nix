@@ -1,10 +1,23 @@
-{ lib, ... }:
+{ config, lib, ... }:
 {
   options.selfhost.ingress = {
     domain = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
       description = "Base domain for publicly routed services (e.g. 'home.example.com'). Required once any service enables ingress; a host that routes nothing may leave it null.";
+    };
+
+    # Guarded on domain: publicHost throws without one, and the registry's assertion should report that instead.
+    hosts = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      readOnly = true;
+      default =
+        if config.selfhost.ingress.domain == null then
+          [ ]
+        else
+          map (s: s.publicHost) (lib.filter (s: s.ingress.enable) (lib.attrValues config.selfhost.services));
+      defaultText = lib.literalMD "every ingress-enabled service's `publicHost`";
+      description = "Public hostnames this host's ingress serves, for consumers that resolve or publish them.";
     };
 
     acme = {

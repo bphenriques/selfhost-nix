@@ -284,10 +284,8 @@ in
 
         ingressServices = lib.filter (s: s.ingress.enable) allServices;
 
-        # Public hosts must be unique across ingress-enabled services. Guarded on domain so a missing
-        # one reports the assertion below instead of publicHost's throw.
-        ingressHosts = if cfg.ingress.domain == null then [ ] else map (s: s.publicHost) ingressServices;
-        dupHosts = lib.attrNames (selfhostLib.collisions (builtins.groupBy lib.id ingressHosts));
+        # Public hosts must be unique across ingress-enabled services.
+        dupHosts = lib.attrNames (selfhostLib.collisions (builtins.groupBy lib.id cfg.ingress.hosts));
 
         # One check over the whole registry: services + monitoring exporters + anything else registered.
         # Within a port and transport, two entries collide when they share an address, or when either
