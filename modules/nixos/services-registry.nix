@@ -282,8 +282,6 @@ in
       let
         allServices = lib.attrValues cfg.services;
 
-        ingressServices = lib.filter (s: s.ingress.enable) allServices;
-
         # Public hosts must be unique across ingress-enabled services.
         dupHosts = lib.attrNames (selfhostLib.collisions (builtins.groupBy lib.id cfg.ingress.hosts));
 
@@ -310,10 +308,6 @@ in
         names = lib.concatMapStringsSep ", " (x: x.name);
       in
       [
-        {
-          assertion = ingressServices == [ ] || cfg.ingress.domain != null;
-          message = "selfhost.ingress.domain must be set when any service enables ingress. Routed services: ${names ingressServices}";
-        }
         {
           assertion = danglingBackends == [ ];
           message = "Services set access to another entry's backend that is not registered (or is themselves): ${
