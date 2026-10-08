@@ -34,6 +34,18 @@ Upstream serves the frontend, the downloads and the emulator's cross-origin head
 vhost, so ingress routes to that vhost and RomM's API keeps a separate socket behind it. That is why RomM
 registers two ports where other apps register one.
 
+`settings` is RomM's `config.yml`, linked in from the store, so RomM reports it read-only and its own
+config editor refuses to save. Netplay is the exception: its TURN password is generated at boot, so the
+file renders at boot too.
+
+## coturn
+
+A STUN/TURN relay for clients that cannot reach each other directly, which today means RomM's netplay. An
+app needing it appends a login to `logins` and reads the generated password back from
+`credential.<login>`, so the relay names no service and the password never reaches the store. Relaying is
+denied to every address `allowedPeerRanges` does not list, which is what keeps a LAN relay on the LAN. A
+public relay is that option set to the whole range, spelled out.
+
 ## Open WebUI
 
 Never behind forward-auth: the gateway answers this app's XHR with a redirect it cannot follow and the UI

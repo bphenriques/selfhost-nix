@@ -28,6 +28,7 @@
     ./services/arr
     ./services/bazarr
     ./services/bentopdf
+    ./services/coturn
     ./services/couchdb
     ./services/desec
     ./services/filebrowser-quantum

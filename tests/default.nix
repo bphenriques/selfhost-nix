@@ -117,6 +117,7 @@ in
   vm-monitoring = runTest ./monitoring.nix;
   vm-filebrowser-quantum = runTest ./filebrowser-quantum.nix;
   vm-filebrowser-quantum-selfhost = runTest ./filebrowser-quantum-selfhost.nix;
+  vm-coturn = runTest ./coturn.nix;
   vm-couchdb = runTest ./couchdb.nix;
   vm-radicale = runTest ./radicale.nix;
   vm-romm = runTest ./romm.nix;

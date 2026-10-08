@@ -15,6 +15,7 @@ let
   apps = {
     bazarr.apiKeyFile = stub;
     bentopdf = { };
+    coturn = { };
     couchdb = { };
     desec = {
       tokenFile = stub;

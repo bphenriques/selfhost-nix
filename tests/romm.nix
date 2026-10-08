@@ -1,7 +1,8 @@
 # RomM: the frontend, the API and the downloads all reach the client through upstream's nginx vhost, so
 # what matters here is that the vhost answers on the registered socket, keeps the API on its own one, and
-# leaves :80 to the gateway. Pocket-ID provisions the client so the OIDC credentials are rendered into
-# RomM's environment; no OIDC login is performed, the heartbeat reports what the app parsed.
+# leaves :80 to the gateway. `settings` is checked through what RomM parsed, since a store-linked
+# config.yml it cannot write is the whole point. Pocket-ID provisions the client so the OIDC credentials
+# are rendered into RomM's environment; no OIDC login is performed, the heartbeat reports what it parsed.
 { pkgs, common, ... }:
 pkgs.testers.runNixOSTest {
   name = "selfhost-romm";
@@ -22,7 +23,14 @@ pkgs.testers.runNixOSTest {
         passwordFile = builtins.toFile "smtp-pw" "dummy";
       };
       auth.oidc.pocket-id.enable = true;
-      apps.romm.enable = true;
+      apps.romm = {
+        enable = true;
+        settings.system.platforms.megadrive = "genesis";
+      };
+      services.romm.access.allowedGroups = [
+        "users"
+        "admin"
+      ];
     };
   };
 
@@ -41,5 +49,19 @@ pkgs.testers.runNixOSTest {
 
     machine.succeed("ss -tlnH 'sport = :8080' | grep '127.0.0.1:8080'")              # API on its own socket
     machine.fail("ss -tlnH 'sport = :80' | grep LISTEN")                             # :80 stays with the gateway
+
+    cfg = machine.succeed("curl -fsS http://127.0.0.1:8095/api/config")
+    assert '"PLATFORMS_BINDING":{"megadrive":"genesis"}' in cfg, cfg                 # settings reached RomM
+    assert '"CONFIG_FILE_WRITABLE":false' in cfg, cfg                                # …from the store, read-only
+
+    # Federated, so the wizard's local-admin form is off even with no admin user yet.
+    machine.succeed("curl -fsS http://127.0.0.1:8095/api/heartbeat | grep '\"SHOW_SETUP_WIZARD\":false' >/dev/null")
+
+    # One seat per allowed group, and no seat for a group the provider refuses: RomM 403s it rather
+    # than falling back to its non-admin role.
+    env = machine.succeed("systemctl show romm.service -p Environment")
+    assert "OIDC_ROLE_ADMIN=admin" in env, env
+    assert "OIDC_ROLE_EDITOR=users" in env, env
+    assert "OIDC_ROLE_VIEWER" not in env, env
   '';
 }
