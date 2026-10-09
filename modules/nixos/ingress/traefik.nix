@@ -71,6 +71,22 @@ in
           ];
         }
       ];
+
+      traefik.rules = [
+        {
+          name = "traefik";
+          rules = [
+            {
+              # Traefik starts renewing at 30 days, so 21 means renewal has already been failing for a week.
+              alert = "TraefikCertificateExpiring";
+              expr = "traefik_tls_certs_not_after - time() < 86400 * 21";
+              "for" = "1h";
+              labels.severity = "warning";
+              annotations.summary = "TLS certificate for {{ $labels.cn }} expires in {{ $value | humanizeDuration }}";
+            }
+          ];
+        }
+      ];
     };
 
     assertions =
