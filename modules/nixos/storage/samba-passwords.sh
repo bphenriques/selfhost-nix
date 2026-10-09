@@ -24,6 +24,6 @@ fi
 pdbedit -L | cut -d: -f1 | while read -r account; do
   case " $declared " in
     *" $account "*) ;;
-    *) smbpasswd -x "$account" ;;
+    *) pdbedit -x -u "$account" ;;
   esac
 done
