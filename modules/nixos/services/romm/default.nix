@@ -30,9 +30,7 @@ let
 
   declarative = app.settings != { };
   # A config carrying a generated password cannot sit in the world-readable store, so it renders at boot.
-  secretBearing = lib.any (placeholder: lib.hasInfix placeholder rendered) (
-    lib.attrValues cfg.runtimePlaceholder
-  );
+  secretBearing = lib.any (placeholder: lib.hasInfix placeholder rendered) (lib.attrValues cfg.runtimePlaceholder);
   configPath = if secretBearing then cfg.runtimeTemplates."romm-config.yml".path else "${configFile}";
 
   turn = cfg.apps.coturn;
@@ -60,7 +58,7 @@ in
     enable = lib.mkEnableOption "the first-party RomM app (ROM library manager)";
 
     settings = lib.mkOption {
-      type = yamlFormat.type;
+      inherit (yamlFormat) type;
       default = { };
       example = {
         system.platforms.megadrive = "genesis";
@@ -78,7 +76,9 @@ in
   };
 
   config = lib.mkIf app.enable {
-    warnings = lib.optional (federated && lib.length roleSeats > 2) "selfhost.services.romm.access.allowedGroups names ${toString (lib.length roleSeats)} non-admin groups, but RomM maps only two, so ${lib.concatStringsSep ", " (lib.drop 2 roleSeats)} is refused at login.";
+    warnings =
+      lib.optional (federated && lib.length roleSeats > 2)
+        "selfhost.services.romm.access.allowedGroups names ${toString (lib.length roleSeats)} non-admin groups, but RomM maps only two, so ${lib.concatStringsSep ", " (lib.drop 2 roleSeats)} is refused at login.";
 
     assertions = [
       {
@@ -193,7 +193,9 @@ in
       # Every unit reads the config: the API serves it, the worker scans with it. The rendered path
       # carries its own triggers through `restartUnits`.
       (lib.mkIf (declarative && !secretBearing) (
-        lib.genAttrs units (_: { restartTriggers = [ configFile ]; })
+        lib.genAttrs units (_: {
+          restartTriggers = [ configFile ];
+        })
       ))
     ];
 

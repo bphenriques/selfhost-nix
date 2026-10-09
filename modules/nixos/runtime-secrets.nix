@@ -258,6 +258,90 @@ let
       };
     };
   };
+
+  # Admin-facing inventory, spanning both roots: this dir and the OIDC credentials dir. Built from the
+  # same options the generators read, so a declared owner/mode is the value that was applied and the CLI
+  # can call a mismatch on disk drift rather than guessing.
+  oidcProvisionUnit =
+    client: if clientProvisionUnitPrefix == null then null else "${clientProvisionUnitPrefix}${client}.service";
+  # Services and tasks that publish are exactly ntfy's local publishers, so this reads the neutral
+  # contract rather than the provider.
+  notifyPublishers = lib.filterAttrs (_: p: p.integrations.notify.enable) (cfg.services // cfg.tasks);
+  # Grouping only, never ownership: the longest registered service name that prefixes the given one. The
+  # candidate set being closed is what makes it safe, so `pocket-id-api-key` files under `pocket-id`.
+  # `smb` is named because the share subsystem registers no service, and it is the only one that needs
+  # it. Tasks are deliberately not candidates: no secret is named after one, while a publisher *is*
+  # often a task, and `sonarr-configure` matching itself would split sonarr's token off from sonarr.
+  appCandidates = lib.sort (a: b: lib.stringLength a > lib.stringLength b) (
+    lib.unique (lib.attrNames cfg.services ++ [ "smb" ])
+  );
+  appOf = fallback: name: lib.findFirst (candidate: lib.hasPrefix candidate name) fallback appCandidates;
+
+  manifest =
+    lib.mapAttrsToList (name: s: {
+      app = appOf "other" name;
+      inherit name;
+      inherit (s) path;
+      kind = "secret";
+      unit = "homelab-runtime-secrets.service";
+      expected = {
+        inherit (s) owner mode;
+        group = resolveGroup s;
+      };
+    }) cfg.runtimeSecrets
+    ++ lib.mapAttrsToList (name: t: {
+      app = appOf "other" name;
+      inherit name;
+      inherit (t) path;
+      kind = "template";
+      unit = "${renderUnitName name}.service";
+      expected = {
+        inherit (t) owner mode;
+        group = resolveGroup t;
+      };
+    }) cfg.runtimeTemplates
+    # Keyed by service name, so the app needs no deriving. Owner and mode are constants inside
+    # pocket-id-manage, so restating them here would be a second copy rather than a check.
+    ++ lib.concatMap (client: [
+      {
+        app = client;
+        name = "oidc/${client}/id";
+        path = oidcClients.${client}.id.file;
+        kind = "oidc";
+        unit = oidcProvisionUnit client;
+        expected = null;
+      }
+      {
+        app = client;
+        name = "oidc/${client}/secret";
+        path = oidcClients.${client}.secret.file;
+        kind = "oidc";
+        unit = oidcProvisionUnit client;
+        expected = null;
+      }
+    ]) (lib.attrNames oidcClients)
+    ++ lib.mapAttrsToList (publisher: p: {
+      # A publisher is a service or a task, and a task is named after the app it reconciles, so this
+      # files `sonarr-configure`'s token under sonarr. Its own name is the fallback, not "other".
+      app = appOf publisher publisher;
+      name = "notify/${publisher}";
+      path = p.integrations.notify.tokenFile;
+      kind = "token";
+      unit = cfg.notify.provisioningUnit;
+      expected = null;
+    }) notifyPublishers;
+
+  manifestFile = pkgs.writeText "homelab-secrets-manifest.json" (builtins.toJSON manifest);
+
+  homelabSecrets = pkgs.writeShellApplication {
+    name = "homelab-secrets";
+    runtimeInputs = [ pkgs.selfhost.homelab-secrets ];
+    text = ''
+      export HOMELAB_SECRETS_MANIFEST=${manifestFile}
+      exec homelab-secrets-bin "$@"
+    '';
+  };
+
   renderPath = with pkgs; [
     coreutils
     openssl
@@ -337,6 +421,10 @@ in
         unitCollisions = lib.filterAttrs (_: names: lib.length names > 1) (
           builtins.groupBy renderUnitName (lib.attrNames cfg.runtimeTemplates)
         );
+
+        # `homelab-secrets cat` takes one name, so two entries answering to the same one would make it
+        # ambiguous. Nothing stops a secret and a template sharing a name: their paths differ.
+        nameCollisions = lib.filterAttrs (_: entries: lib.length entries > 1) (builtins.groupBy (e: e.name) manifest);
       in
       [
         {
@@ -351,7 +439,18 @@ in
             )
           }. Rename one, since a unit can only render a single template.";
         }
+        {
+          assertion = nameCollisions == { };
+          message = "Secrets sharing one name, which `homelab-secrets cat` could not tell apart: ${
+            lib.concatStringsSep "; " (
+              lib.mapAttrsToList (name: entries: "${name} ← ${lib.concatStringsSep ", " (map (e: e.path) entries)}") nameCollisions
+            )
+          }. Rename one.";
+        }
       ];
+
+    # Read-only, no setuid and no group grant: a convenience over `sudo cat`, which the admin already has.
+    environment.systemPackages = [ homelabSecrets ];
 
     systemd.tmpfiles.rules = [
       "d ${secretsDir} 0755 root root -"

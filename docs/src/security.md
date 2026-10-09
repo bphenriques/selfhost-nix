@@ -44,6 +44,33 @@ the split.
   A container published on `0.0.0.0` breaks the invariant quietly, since podman and docker DNAT ahead of the
   firewall's input rules. See [Containers](recipes.md#containers).
 
+## Reading a secret
+
+`homelab-secrets` is the read-only way in, so you do not have to remember which of the two directories a
+secret lives in or what it is called. With no argument it lists the apps holding secrets:
+
+```console
+$ homelab-secrets ls
+APP        SECRETS  STATUS
+coturn           2  ok
+pocket-id        2  ok
+radicale         3  1 drift
+sonarr           3  ok
+```
+
+An argument matches both app and name, so `ls radicale` drills into one app and `ls alice` finds every
+secret belonging to one person. `cat` takes the name `ls` printed and needs root:
+
+```console
+$ sudo homelab-secrets cat radicale-password-alice
+```
+
+`STATUS` is worth reading. `missing` means the file is not there, and the error from `cat` names the unit
+that should have generated it. `unknown` means you lack the rights to look, which is not the same answer.
+`drift` means the owner or mode on disk is not what was declared, which is what a hand-restored key with
+the wrong ownership looks like — `ls -l` shows both values. The generator fixes the mode on its next run,
+but it is a `RemainAfterExit` oneshot, so that run is the next reboot unless you restart it yourself.
+
 ## Handing out a generated account password
 
 Radicale, CouchDB and the SMB server authenticate people directly, because their clients cannot do SSO. The
@@ -51,7 +78,7 @@ framework generates a password per enabled user instead of asking you for one, r
 `runtimeSecretsDir`:
 
 ```console
-$ sudo cat /var/lib/homelab-secrets/radicale-password-alice
+$ sudo homelab-secrets cat radicale-password-alice
 ```
 
 Read it once and hand it over out of band. Nothing mails it. To roll one, delete the file and restart

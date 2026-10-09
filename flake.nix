@@ -30,6 +30,7 @@
         pocket-id-manage = pkgs.callPackage ./packages/pocket-id-manage { };
         wg-manage = pkgs.callPackage ./packages/wg-manage { };
         immich-configure = pkgs.callPackage ./packages/immich-configure { };
+        homelab-secrets = pkgs.callPackage ./packages/homelab-secrets { };
       };
     in
     {

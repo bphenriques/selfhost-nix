@@ -26,6 +26,13 @@ Accounts and the OIDC auth source go in through the `gitea admin` CLI, which sta
 in a way the API does not. Service-account SSH keys are the exception and use the admin API, since the CLI
 cannot add them.
 
+Keys are declared, never generated: `sshKeys` takes public keys, so the private half is made wherever it
+will be used and stays there. Registration is add-only, so a key dropped from the configuration, or added
+by hand, stays on the account until removed in the UI. `https://<host>/<username>.keys` lists what an
+account actually holds, with no token, which is also how the configure step decides whether it has work to
+do. Repositories and their permissions are not provisioned: an account that should push to a repository is
+added to it by hand, once.
+
 `ssh.enable` is off because it opens a TCP port. Git over HTTPS works without it, using an access token.
 
 ## RomM

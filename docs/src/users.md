@@ -22,6 +22,27 @@ selfhost.users.alice = {
 };
 ```
 
+## Service accounts
+
+`selfhost.serviceAccounts.<name>` is the same registry for non-human principals. They hold no groups, so
+grants name them directly, and the framework provisions **identity and the credentials you declare, never
+authorization inside the application**: whatever the account is then allowed to do is set where that
+application keeps its permissions.
+
+```nix
+selfhost.serviceAccounts.personal-agent = {
+  description = "An agent's forge principal, for git over SSH";
+  services.gitea = {
+    enable = true;
+    sshKeys = [ { key = "ssh-ed25519 AAAA… agent@host"; } ];  # public half only; readOnly = true for a deploy key
+  };
+};
+```
+
+So a usable account is three steps: declare it with its public key, deploy, then grant it what it needs in
+the application itself. See [Gitea](apps.md#gitea) for how that lands and how to read back what an account
+holds.
+
 ## Extending per-user as a consumer
 
 To give your **own** registered service a per-user surface, declare it at

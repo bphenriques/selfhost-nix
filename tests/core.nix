@@ -97,5 +97,31 @@ pkgs.testers.runNixOSTest {
     machine.systemctl("restart homelab-runtime-secrets.service")
     machine.wait_for_unit("homelab-runtime-secrets.service")
     machine.succeed("test -e /var/lib/homelab-secrets/test-guarded")
+
+    # The admin CLI groups by app and resolves a name to the same bytes as reading the path by hand.
+    # Assertions read the captured output rather than piping into grep: the driver runs with pipefail,
+    # and a `grep -q` closing the pipe early makes nushell exit non-zero.
+    overview = machine.succeed("homelab-secrets ls")
+    assert "ntfy" in overview, overview
+    assert machine.succeed("homelab-secrets cat ntfy-admin-password") == machine.succeed(
+        "cat /var/lib/homelab-secrets/ntfy-admin-password"
+    ), "homelab-secrets cat diverged from the file"
+    machine.fail("homelab-secrets cat no-such-secret")
+
+    # Ownership drift is reported rather than tolerated, and the generator heals it on its next run.
+    machine.succeed("chmod 0644 /var/lib/homelab-secrets/ntfy-admin-password")
+    drifted = machine.succeed("homelab-secrets ls ntfy-admin-password")
+    assert "drift" in drifted, drifted
+    machine.systemctl("restart homelab-runtime-secrets.service")
+    machine.wait_for_unit("homelab-runtime-secrets.service")
+    healed = machine.succeed("homelab-secrets ls ntfy-admin-password")
+    assert "ok" in healed, healed
+
+    # A token under the 0700 publisher dir is unreadable to an unprivileged caller, not absent: calling
+    # that "missing" would report a secret gone while it sits there.
+    unpriv = "su -s /bin/sh nobody -c '/run/current-system/sw/bin/homelab-secrets"
+    denied = machine.succeed(f"{unpriv} ls notify/probe'")
+    assert "unknown" in denied, denied
+    machine.fail(f"{unpriv} cat notify/probe'")
   '';
 }
