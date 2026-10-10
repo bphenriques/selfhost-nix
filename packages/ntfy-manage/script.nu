@@ -24,8 +24,10 @@ def publisher_names [] { $cfg.publishers | columns }
 def declared_names [] { (publisher_names) | append "admin" }
 
 # `ntfy user hash` is interactive-only and asks twice; off a pipe it falls back to reading two lines.
+# Its prompts go to stderr with carriage returns, which journald would log as a blob per call.
 def hash_password [password: string] {
-  $"($password)\n($password)\n" | ntfy user hash | str trim
+  let hash = ($"($password)\n($password)\n" | ntfy user hash err> /dev/null)
+  $hash | str trim
 }
 
 def write_private [path: string, content: string] {
@@ -73,8 +75,13 @@ def reader_names [] {
   all_users | where role == "user" | get name | where {|n| $n not-in (declared_names) }
 }
 
+# ntfy marks the rows it provisioned itself `(server config)`. That is the server's own account of what
+# it owns, so `declared` needs no comparison against the Nix config to reach the same answer.
 def grants_for [name: string] {
-  ntfy access $name | lines | parse --regex '^- (?<permission>[\w-]+) access to topic (?<topic>\S+)'
+  ntfy access $name | lines
+  | parse --regex '^- (?<permission>[\w-]+) access to topic (?<topic>\S+)(?<marker>.*)$'
+  | insert declared {|g| $g.marker | str contains "server config" }
+  | reject marker
 }
 
 # --- Systemd: render the declarative half ---
@@ -133,7 +140,8 @@ def "main reader add" [
 
   let password = (random chars --length 24)
   with-env { NTFY_PASSWORD: $password } { ntfy user add --role=user $name }
-  for t in $wanted { ntfy access $name $t ro }
+  # Each grant echoes the whole accumulated ACL; the summary below is the useful view.
+  for t in $wanted { ntfy access $name $t ro | ignore }
 
   print $"($name) can read: ($wanted | str join ', ')"
   print $"password: ($password)"
@@ -180,12 +188,13 @@ def "main status" [] {
     print -e "  Publishers from an older config, not readers. Remove with `ntfy user del <name>`."
   }
 
-  let mismatched = ($cfg.publishers | columns | where {|n| $n in $known } | where {|n|
-    (grants_for $n | get topic | sort) != ($cfg.publishers | get $n | get topics | sort)
+  let undeclared = ($cfg.publishers | columns | where {|n| $n in $known } | where {|n|
+    (grants_for $n | any {|g| not $g.declared })
   })
-  if ($mismatched | is-not-empty) {
-    print -e $"\nWARNING: grants differ from config for: ($mismatched | str join ', ')"
-    print -e "  A topic this publisher was retargeted away from. Clear with `ntfy access --reset <user> <topic>`."
+  if ($undeclared | is-not-empty) {
+    print -e $"\nWARNING: grants ntfy did not provision, on: ($undeclared | str join ', ')"
+    print -e "  Hand-made, or a topic this publisher was retargeted away from before the server owned its rows."
+    print -e "  Clear with `ntfy access --reset <user> <topic>`."
   }
 }
 

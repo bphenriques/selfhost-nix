@@ -337,9 +337,10 @@ in
     # The task's identity, as opposed to its activation: a consumer that enables notify for the backup
     # task still needs a topic when every target is paused, or it fails on a missing one.
     (lib.mkIf (cfg.targets != { }) {
-      selfhost.notify.topics."homelab-backup".public = lib.mkDefault false;
-      selfhost.tasks.backup.integrations.notify.topic = lib.mkDefault "homelab-backup";
-      # Every host backing up publishes here, and the unit name is identical on each.
+      # No topic default: naming them is the consumer's, so that a topic cannot outlive the publisher
+      # that a default pointed at. Notify stays off until one is named.
+      #
+      # Every host backing up publishes to the same topic, and the unit name is identical on each.
       selfhost.tasks.backup.integrations.notify.titlePrefix = lib.mkDefault config.networking.hostName;
     })
     (lib.mkIf (activeTargets != { }) {

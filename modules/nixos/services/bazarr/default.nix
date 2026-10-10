@@ -287,11 +287,8 @@ in
       };
 
       # Surface reconcile failures — a Bazarr with no language profile silently fetches nothing.
-      notify.topics."homelab-provision".public = lib.mkDefault false;
-      tasks."bazarr-configure" = {
-        systemdServices = [ "bazarr-configure" ];
-        integrations.notify.topic = lib.mkDefault "homelab-provision";
-      };
+      # Name a topic for it; there is no default, so notify stays off until one is.
+      tasks."bazarr-configure".systemdServices = [ "bazarr-configure" ];
     };
 
     services.bazarr = {

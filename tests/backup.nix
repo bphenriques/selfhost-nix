@@ -38,6 +38,10 @@ pkgs.testers.runNixOSTest {
 
       selfhost = {
         notify.ntfy.enable = true;
+        # The backup task names no topic of its own, so the publisher token this test relies on only
+        # exists once one is pointed at it.
+        notify.topics.ops.public = false;
+        tasks.backup.integrations.notify.topic = "ops";
 
         backup = {
           package = pkgs.selfhost.rustic-manage;
@@ -45,6 +49,9 @@ pkgs.testers.runNixOSTest {
             test = {
               inherit repository passwordFile retention;
               bindings."/data" = "/srv/data";
+              # The notify provider declares a hook for its runtime-only state, and a service declaring
+              # one that no target includes is an assertion rather than a silent omission.
+              services = [ "ntfy" ];
               hooks.greet.package = pkgs.writeShellApplication {
                 name = "greet-hook";
                 text = ''echo "hook-output" > "$OUTPUT_DIR/greeting.txt"'';

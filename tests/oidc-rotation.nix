@@ -18,6 +18,9 @@ let
         port = 8081;
         access.model = "oidc";
       };
+      # Topics are the consumer's to name, so rotation only publishes once one is pointed at it.
+      notify.topics.ops.public = false;
+      tasks.oidc-rotate.integrations.notify.topic = "ops";
     };
   };
 in
@@ -27,10 +30,10 @@ assert lib.assertMsg (
   cfg.systemd.timers.oidc-rotate.timerConfig.OnCalendar == "monthly"
 ) "rotation schedule not wired to the timer";
 assert lib.assertMsg (cfg.selfhost.tasks ? oidc-rotate) "rotation failure-notify task missing";
-# Self-registered and defaulted, like oidc-provision: a silent rotation failure leaves clients holding
-# secrets the provider no longer accepts.
-assert lib.assertMsg (cfg.selfhost.notify.topics ? homelab-rotation) "rotation should register its own notify topic";
+# The task exists either way; pointing a topic at it is what arms the failure hook once a provider is
+# active, so a silent rotation failure (clients holding secrets the provider no longer accepts) is the
+# consumer's choice rather than a name this module picked.
 assert lib.assertMsg (
-  cfg.selfhost.tasks.oidc-rotate.integrations.notify.topic == "homelab-rotation"
+  cfg.selfhost.tasks.oidc-rotate.integrations.notify.topic == "ops"
 ) "rotation notify topic not wired";
 pkgs.runCommand "selfhost-oidc-rotation-eval" { } "touch $out"

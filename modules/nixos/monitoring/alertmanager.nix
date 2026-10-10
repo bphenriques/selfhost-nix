@@ -46,11 +46,13 @@ in
       integrations.homepage.group = "Admin";
       integrations.notify = {
         enable = true;
-        topic = lib.mkDefault "homelab-alert";
+        # Thrown rather than defaulted: the notify seam is Alertmanager's only receiver, so a missing
+        # topic is a misconfiguration, and naming one here would outlive any consumer who renamed it.
+        topic = lib.mkDefault (
+          throw "selfhost.services.alertmanager.integrations.notify.topic is unset, and the notify seam is Alertmanager's only receiver. Name the topic its alerts publish to."
+        );
       };
     };
-
-    selfhost.notify.topics."homelab-alert".public = lib.mkDefault false;
 
     services.prometheus = {
       alertmanagers = [

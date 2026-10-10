@@ -81,13 +81,9 @@ in
       };
 
       # Alert on failure via the notify integration (notify/notify.nix attaches the failure hook to this
-      # task's unit). Self-registered and defaulted like oidc-provision: a rotation that fails silently
-      # leaves clients holding secrets the provider no longer accepts.
-      selfhost.notify.topics."homelab-rotation".public = lib.mkDefault false;
-      selfhost.tasks.oidc-rotate = {
-        systemdServices = [ "oidc-rotate" ];
-        integrations.notify.topic = lib.mkDefault "homelab-rotation";
-      };
+      # task's unit). Name a topic for it: a rotation that fails silently leaves clients holding secrets
+      # the provider no longer accepts.
+      selfhost.tasks.oidc-rotate.systemdServices = [ "oidc-rotate" ];
     })
   ];
 }

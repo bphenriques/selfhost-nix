@@ -16,6 +16,8 @@ let
   # Not server.yml: that file is a world-readable store path, and these lines carry password hashes and
   # live tokens. systemd reads EnvironmentFile as root before dropping to the service's DynamicUser.
   authEnvFile = "${secretsDir}/notify-auth.env";
+  # Upstream's, so the backup hook reads whatever the server was told to use rather than guessing.
+  authFile = config.services.ntfy-sh.settings.auth-file;
 
   # A failure topic that differs from the summary one is a second grant, not a replacement.
   publisherTopics =
@@ -29,13 +31,15 @@ let
   }) (notifyServices // notifyTasks);
 
   remotePublishers = lib.mapAttrs (_: r: {
-    topics = [ r.topic ];
-    inherit (r) tokenFile;
+    inherit (r) topics tokenFile;
   }) cfg.notify.ntfy.remotePublishers;
 
   allPublishers = localPublishers // remotePublishers;
   shadowedPublishers = lib.intersectLists (lib.attrNames cfg.notify.ntfy.remotePublishers) (
     lib.attrNames localPublishers
+  );
+  unusedTopics = lib.subtractLists (lib.unique (lib.concatMap (p: p.topics) (lib.attrValues allPublishers))) (
+    lib.attrNames topics
   );
 
   configFile = pkgs.writeText "ntfy-manage-config.json" (
@@ -66,9 +70,9 @@ in
           { name, ... }:
           {
             options = {
-              topic = lib.mkOption {
-                type = lib.types.enum (lib.attrNames topics);
-                description = "Topic this publisher may write to.";
+              topics = lib.mkOption {
+                type = lib.types.nonEmptyListOf (lib.types.enum (lib.attrNames topics));
+                description = "Topics this publisher may write to. A remote task that routes failures separately needs both its topic and its failureTopic here, since this host cannot read the other one's config.";
               };
               tokenFile = lib.mkOption {
                 type = lib.types.str;
@@ -90,6 +94,12 @@ in
         assertion = shadowedPublishers == [ ];
         message = "Remote publishers shadow a local service/task publisher of the same name: ${toString shadowedPublishers}";
       }
+      {
+        # Nothing self-registers a topic, so a declared one no publisher writes to is dead weight. Checked
+        # here rather than in the neutral layer because only the provider sees the remote publishers too.
+        assertion = unusedTopics == [ ];
+        message = "selfhost.notify.topics declares topics no publisher writes to: ${toString unusedTopics}. Remove them, or point a publisher at them.";
+      }
     ];
 
     selfhost = {
@@ -110,12 +120,21 @@ in
         restartUnits = [ "ntfy-provision.service" ];
       };
 
-      # Reader accounts and their grants. The password hashes stay out: a leaked backup must not let
-      # anyone read the fleet's notifications, and losing this costs one `reader add` per device.
+      # Only what a rebuild cannot put back: reader accounts, and the per-account preferences that hold
+      # each client's subscription list. Publishers, grants and tokens are all reconciled from Nix, so
+      # dumping them would back up the repo. Password hashes and tokens stay out: a leaked backup must
+      # not read the fleet's notifications, and losing this costs one `reader add` per device.
       services.ntfy.backup.package = pkgs.writeShellApplication {
         name = "backup-ntfy";
-        runtimeInputs = [ ntfyManage ];
-        text = ''ntfy-manage status > "$OUTPUT_DIR/readers.txt"'';
+        runtimeInputs = [ pkgs.sqlite ];
+        text = ''
+          sqlite3 -readonly ${authFile} \
+            "select user, role, prefs from user where provisioned = 0 and user <> '*';" \
+            > "$OUTPUT_DIR/readers.txt"
+          sqlite3 -readonly ${authFile} \
+            "select u.user, a.topic, a.read, a.write from user_access a join user u on a.user_id = u.id where a.provisioned = 0;" \
+            > "$OUTPUT_DIR/reader-grants.txt"
+        '';
       };
     };
 

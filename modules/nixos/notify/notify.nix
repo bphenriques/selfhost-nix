@@ -53,6 +53,7 @@ let
     lib.listToAttrs (
       map (svc: lib.nameValuePair svc { onFailure = [ "${notifierUnit taskName}%n.service" ]; }) task.systemdServices
     );
+
 in
 {
   options.selfhost.notify = {
@@ -112,6 +113,21 @@ in
           message = "integrations.notify.enable is set without a topic for: ${lib.concatStringsSep ", " names}. Set integrations.notify.topic.";
         }
       ];
+
+    # Tasks only: a task's failure hook is the framework's own, so an unnamed topic means a failed unit
+    # reports to nobody. A service's notifications are domain events it sends itself, which having no
+    # topic is a normal answer to.
+    warnings =
+      let
+        unwired = lib.attrNames (
+          lib.filterAttrs (
+            _: t: t.integrations.notify.topic == null && t.systemdServices != [ ]
+          ) config.selfhost.tasks
+        );
+      in
+      lib.optional (
+        config.selfhost.notify.active && unwired != [ ]
+      ) "No notify topic, so a failure of these reports to nobody: ${lib.concatStringsSep ", " unwired}. Set tasks.<name>.integrations.notify.topic, or ignore if they should stay quiet.";
 
     systemd.services = lib.mkMerge (
       lib.attrValues (lib.mapAttrs mkFailureOverrides tasksWithNotify) ++ [ (lib.mapAttrs' mkNotifier tasksWithNotify) ]

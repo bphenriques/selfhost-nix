@@ -41,6 +41,10 @@ let
         };
 
         notify.ntfy.enable = true;
+        # Nothing self-registers a topic, so the provider has exactly the names declared here, and
+        # Alertmanager throws until one is pointed at it.
+        notify.topics.ops.public = false;
+        services.alertmanager.integrations.notify.topic = "ops";
 
         monitoring = {
           enable = true;

@@ -305,11 +305,8 @@ in
       };
 
       # Surface reconcile failures (else a broken library config is silent until you notice missing media).
-      notify.topics."homelab-provision".public = lib.mkDefault false;
-      tasks."${name}-configure" = {
-        systemdServices = [ "${name}-configure" ];
-        integrations.notify.topic = lib.mkDefault "homelab-provision";
-      };
+      # Name a topic for it; there is no default, so notify stays off until one is.
+      tasks."${name}-configure".systemdServices = [ "${name}-configure" ];
     };
 
     services.${name} = {
