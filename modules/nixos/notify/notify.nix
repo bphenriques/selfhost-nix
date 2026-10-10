@@ -30,7 +30,7 @@ let
       serviceConfig = {
         Type = "oneshot";
         ExecStart = ''
-          ${sendNotification} --topic ${lib.escapeShellArg task.integrations.notify.topic} \
+          ${sendNotification} --topic ${lib.escapeShellArg task.integrations.notify.failureTopic} \
             --title ${lib.escapeShellArg title} --message "%i failed" --priority high --tags x
         '';
         LoadCredential = [ "notify-token:${task.integrations.notify.tokenFile}" ];

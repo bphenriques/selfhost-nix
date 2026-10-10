@@ -59,17 +59,20 @@ sonarr           3  ok
 ```
 
 An argument matches both app and name, so `ls radicale` drills into one app and `ls alice` finds every
-secret belonging to one person. `cat` takes the name `ls` printed and needs root:
+secret belonging to one person. `cat` is the only command that needs root, and it takes the name `ls`
+printed:
 
 ```console
 $ sudo homelab-secrets cat radicale-password-alice
 ```
 
 `STATUS` is worth reading. `missing` means the file is not there, and the error from `cat` names the unit
-that should have generated it. `unknown` means you lack the rights to look, which is not the same answer.
-`drift` means the owner or mode on disk is not what was declared, which is what a hand-restored key with
-the wrong ownership looks like — `ls -l` shows both values. The generator fixes the mode on its next run,
-but it is a `RemainAfterExit` oneshot, so that run is the next reboot unless you restart it yourself.
+that should have generated it. `unknown` means the file sits under a root-only directory, so its state is
+unknowable from where you are rather than absent. Running `ls` as yourself still gives you the whole
+inventory, and it says how many rows a `sudo ls` would resolve. `drift` means the owner or mode on disk is
+not what was declared, which is what a hand-restored key with the wrong ownership looks like — `ls -l`
+shows both values. The generator fixes the mode on its next run, but it is a `RemainAfterExit` oneshot, so
+that run is the next reboot unless you restart it yourself.
 
 ## Handing out a generated account password
 

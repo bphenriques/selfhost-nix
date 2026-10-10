@@ -47,7 +47,15 @@ services can't silently collide.
 `selfhost.tasks.<name>` is the same shape for work that runs on a schedule rather than serving traffic â
 backups, provisioning, DNS updates. It names the units it owns and requests the same storage and notify
 integrations. Opting into notify gets it a failure alert, which fires once systemd has given up rather
-than on an attempt it is about to retry.
+than on an attempt it is about to retry. `failureTopic` routes those alerts away from the task's routine
+summaries, since the topic is the only thing a subscriber can mute.
+
+Notifications split by who owns the principal. Publishers and topic visibility are declared here and
+reconciled by ntfy on every start, so a retargeted topic leaves no stale grant behind and a topic turned
+private is actually revoked. Readers are people: `ntfy-manage reader add <name>` grants read on every
+private topic and prints a password once, `reader remove` revokes it with no deploy, and `ntfy-manage
+status` lists the topics. Readers are deliberately not declarative, and stay safe because ntfy only
+reconciles the rows it provisioned itself.
 
 Anything that renders your services — a landing page, a fleet view across hosts — reads the registry
 directly. An entry already carries `displayName`, `meta.*`, `ingress.enable` and `publicUrl`, and

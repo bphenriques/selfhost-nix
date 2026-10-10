@@ -27,6 +27,15 @@ in
             description = "Notification topic this service/task publishes to (null = none).";
           };
 
+          # Topic is the only granularity a subscriber can mute or prioritise, so a daily "backup OK"
+          # and a failed unit belong apart far more than two subsystems do.
+          failureTopic = lib.mkOption {
+            type = lib.types.nullOr (lib.types.enum (lib.attrNames selfhostCfg.notify.topics));
+            default = config.topic;
+            defaultText = lib.literalMD "`topic`";
+            description = "Topic for task-failure notifications. Defaults to `topic`; point it somewhere louder to separate failures from routine summaries. The publisher is granted write on both.";
+          };
+
           titlePrefix = lib.mkOption {
             type = lib.types.str;
             default = "";

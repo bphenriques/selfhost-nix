@@ -66,6 +66,16 @@ def missing_hint [entry: record] {
   }
 }
 
+# Only `cat` needs root. `ls` runs as anyone, but a file under a root-only directory (the OIDC
+# credentials dir, the publisher token dir) cannot be stat'd without traversing it, so its status is
+# unknowable rather than missing. Say that outright instead of leaving an `unknown` to interpret.
+def note_unknown [entries: list] {
+  let n = ($entries | where status == "unknown" | length)
+  if $n > 0 {
+    print --stderr $"($n) under a root-only directory, so their status is unknown here. `sudo homelab-secrets ls` checks them."
+  }
+}
+
 # No argument lists the apps holding secrets, so you can find one without knowing a name. An argument
 # matches app and name alike: `ls radicale` reads as drilling into a group, `ls alice` crosses groups
 # and finds every secret belonging to one person.
@@ -75,13 +85,19 @@ def "main ls" [
 ] {
   let all = (inspected)
   if $filter == null {
-    if $long { return (detail ($all | sort-by app name) true) }
-    $all
-    | group-by app
-    | transpose app entries
-    | each {|g| { APP: $g.app, SECRETS: ($g.entries | length), STATUS: (rollup $g.entries) } }
-    | sort-by APP
-    | render
+    if $long {
+      print (detail ($all | sort-by app name) true)
+    } else {
+      print (
+        $all
+        | group-by app
+        | transpose app entries
+        | each {|g| { APP: $g.app, SECRETS: ($g.entries | length), STATUS: (rollup $g.entries) } }
+        | sort-by APP
+        | render
+      )
+    }
+    note_unknown $all
   } else {
     let needle = ($filter | str lowercase)
     let hits = (
@@ -93,7 +109,8 @@ def "main ls" [
       print --stderr $"No secret matches '($filter)'. Run `homelab-secrets ls` to see the apps."
       return
     }
-    detail ($hits | sort-by app name) $long
+    print (detail ($hits | sort-by app name) $long)
+    note_unknown $hits
   }
 }
 
@@ -119,7 +136,7 @@ def main [] {
   print "  ls                 apps holding secrets, with status"
   print "  ls <text>          secrets matching <text>, in app or name"
   print "  ls -l              every secret, with actual and declared ownership"
-  print "  cat <name>         print one secret (needs root)"
+  print "  cat <name>         print one secret — the only command needing root"
   print ""
   print "  homelab-secrets ls radicale"
   print "  sudo homelab-secrets cat radicale-password-alice"

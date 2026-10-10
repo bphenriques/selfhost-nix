@@ -1,4 +1,5 @@
-# Runs the ntfy-sh server and provisions topics/publisher tokens.
+# Runs the ntfy-sh server. Publishers and topic visibility are declared here and reconciled by ntfy
+# itself; readers are runtime state that ntfy-manage owns.
 {
   config,
   lib,
@@ -10,26 +11,50 @@ let
   serviceCfg = cfg.services.ntfy;
   inherit (cfg.notify) topics;
 
-  tokenDir = "/var/lib/homelab-secrets/notify-publishers";
+  secretsDir = "/var/lib/homelab-secrets";
+  tokenDir = "${secretsDir}/notify-publishers";
+  # Not server.yml: that file is a world-readable store path, and these lines carry password hashes and
+  # live tokens. systemd reads EnvironmentFile as root before dropping to the service's DynamicUser.
+  authEnvFile = "${secretsDir}/notify-auth.env";
+
+  # A failure topic that differs from the summary one is a second grant, not a replacement.
+  publisherTopics =
+    p: lib.unique (lib.filter (t: t != null) [ p.integrations.notify.topic p.integrations.notify.failureTopic ]);
 
   notifyServices = lib.filterAttrs (_: s: s.integrations.notify.enable) cfg.services;
-  servicePublishers = lib.mapAttrs (_: s: { inherit (s.integrations.notify) topic tokenFile; }) notifyServices;
-
   notifyTasks = lib.filterAttrs (_: t: t.integrations.notify.enable) cfg.tasks;
-  taskPublishers = lib.mapAttrs (_: t: { inherit (t.integrations.notify) topic tokenFile; }) notifyTasks;
+  localPublishers = lib.mapAttrs (_: p: {
+    topics = publisherTopics p;
+    inherit (p.integrations.notify) tokenFile;
+  }) (notifyServices // notifyTasks);
 
-  localPublishers = servicePublishers // taskPublishers;
-  allPublishers = localPublishers // cfg.notify.ntfy.remotePublishers;
+  remotePublishers = lib.mapAttrs (_: r: {
+    topics = [ r.topic ];
+    inherit (r) tokenFile;
+  }) cfg.notify.ntfy.remotePublishers;
+
+  allPublishers = localPublishers // remotePublishers;
   shadowedPublishers = lib.intersectLists (lib.attrNames cfg.notify.ntfy.remotePublishers) (
     lib.attrNames localPublishers
   );
 
-  configFile = pkgs.writeText "ntfy-configure.json" (
+  configFile = pkgs.writeText "ntfy-manage-config.json" (
     builtins.toJSON {
-      publicTopics = lib.attrNames (lib.filterAttrs (_: t: t.public) topics);
+      adminPasswordFile = cfg.runtimeSecrets.ntfy-admin-password.path;
       publishers = allPublishers;
+      topics = lib.mapAttrs (_: t: { inherit (t) public; }) topics;
+      inherit authEnvFile tokenDir;
     }
   );
+
+  ntfyManage = pkgs.writeShellApplication {
+    name = "ntfy-manage";
+    runtimeInputs = [ pkgs.selfhost.ntfy-manage ];
+    text = ''
+      export NTFY_MANAGE_CONFIG=${configFile}
+      exec ntfy-manage-bin "$@"
+    '';
+  };
 in
 {
   options.selfhost.notify.ntfy = {
@@ -79,13 +104,18 @@ in
       };
 
       notify.url = serviceCfg.url;
-      notify.provisioningUnit = "ntfy-configure.service";
+      notify.provisioningUnit = "ntfy-provision.service";
 
       runtimeSecrets.ntfy-admin-password = {
-        restartUnits = [
-          "ntfy-sh.service"
-          "ntfy-configure.service"
-        ];
+        restartUnits = [ "ntfy-provision.service" ];
+      };
+
+      # Reader accounts and their grants. The password hashes stay out: a leaked backup must not let
+      # anyone read the fleet's notifications, and losing this costs one `reader add` per device.
+      services.ntfy.backup.package = pkgs.writeShellApplication {
+        name = "backup-ntfy";
+        runtimeInputs = [ ntfyManage ];
+        text = ''ntfy-manage status > "$OUTPUT_DIR/readers.txt"'';
       };
     };
 
@@ -105,35 +135,35 @@ in
       RestartSec = "10s";
       RestartMaxDelaySec = "5min";
       RestartSteps = 5;
+      EnvironmentFile = [ authEnvFile ];
     };
+
+    # The declared set changes only on a deploy, and the env file is what carries it into the server.
+    systemd.services.ntfy-sh.restartTriggers = [ configFile ];
 
     systemd.tmpfiles.rules = [
       # 0700: tokens are root-owned and reach non-root consumers via LoadCredential, so nothing else traverses here.
       "d ${tokenDir} 0700 root root -"
     ];
 
-    systemd.services.ntfy-configure = {
-      description = "ntfy setup";
-      wantedBy = [ "ntfy-sh.service" ];
-      after = [ "ntfy-sh.service" ];
-      requires = [ "ntfy-sh.service" ];
-      partOf = [ "ntfy-sh.service" ];
+    # Runs before the server rather than after it: rendering the env file needs no DB, since
+    # `ntfy token generate` and `ntfy user hash` are both offline. ntfy then provisions from the env at
+    # startup, so there is no health-poll and no second pass.
+    systemd.services.ntfy-provision = {
+      description = "ntfy declarative auth";
+      before = [ "ntfy-sh.service" ];
+      requiredBy = [ "ntfy-sh.service" ];
       restartTriggers = [
         configFile
         pkgs.selfhost.ntfy-manage
       ];
-      startLimitIntervalSec = 300;
-      startLimitBurst = 3;
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        TimeoutStartSec = 600;
-        Restart = "on-failure";
-        RestartSec = 10;
         UMask = "0077";
-        # No filesystem sandbox: `ntfy user`/`token add` writes the server's auth DB, whose path is
-        # upstream's to move, and a ReadWritePaths that misses it fails at provisioning rather than at
-        # start. The rest costs nothing to keep correct.
+        ExecStart = "${lib.getExe ntfyManage} provision";
+        ReadWritePaths = [ secretsDir ];
+        ProtectSystem = "strict";
         ProtectHome = true;
         PrivateTmp = true;
         NoNewPrivileges = true;
@@ -141,14 +171,8 @@ in
         ProtectControlGroups = true;
         RestrictSUIDSGID = true;
       };
-      environment = {
-        NTFY_ADMIN_PASSWORD_FILE = cfg.runtimeSecrets.ntfy-admin-password.path;
-        NTFY_PROVISION_FILE = configFile;
-        # `ntfy user add` needs the server's auth DB, which only exists once it has started;
-        # `after = ntfy-sh.service` isn't enough, so the script polls this health endpoint first.
-        NTFY_BASE_URL = serviceCfg.url;
-      };
-      script = lib.getExe pkgs.selfhost.ntfy-manage;
     };
+
+    environment.systemPackages = [ ntfyManage ];
   };
 }
