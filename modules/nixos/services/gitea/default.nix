@@ -123,7 +123,6 @@ in
           HTTP_ADDR = "127.0.0.1";
           HTTP_PORT = serviceCfg.port;
           ROOT_URL = serviceCfg.publicUrl;
-          DOMAIN = serviceCfg.publicHost;
         }
         // lib.optionalAttrs app.ssh.enable {
           START_SSH_SERVER = true;
