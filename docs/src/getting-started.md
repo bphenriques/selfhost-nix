@@ -21,7 +21,9 @@ imports = [ inputs.selfhost-nix.nixosModules.default ];
 ## Turn things on
 
 Set `selfhost.ingress.domain` if you route anything publicly, then enable the providers you want:
-`ingress.traefik.enable`, `auth.oidc.pocket-id.enable`, `notify.ntfy.enable`, `monitoring.enable`. Now
+`ingress.traefik.enable`, `auth.oidc.pocket-id.enable`, `notify.ntfy.enable`, `monitoring.enable`. The
+notify provider names no topics, so declare at least one (`notify.topics.<name>`) and point
+`notify.defaultTopic` at it. Now
 register services with `selfhost.services.<name>`. Registering wires the cross-cutting parts (route,
 auth, dashboard tile, healthcheck, secrets). It does **not** run the service. You enable the upstream
 `services.<name>` and connect the values it derives.

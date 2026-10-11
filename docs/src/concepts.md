@@ -20,8 +20,9 @@ You enable the upstream `services.<name>` and wire the values and secret files i
 - `systemdServices`: the units concerns attach to, such as storage automount guards. Defaults to the
   service's own name, or its container's unit.
 - `integrations.homepage` / `.monitoring` / `.notify`: a dashboard tile, health and metrics probes, and a
-  publishing credential for notifications. These **default to their concern**. Enable monitoring or a
-  notify provider globally and every service opts in (a tile follows having a route).
+  publishing credential for notifications. The first two **default to their concern**: enable monitoring
+  globally and every service opts in (a tile follows having a route). Notify does not, since most
+  services have nothing to send: one publishes once it has a topic.
 - `backup.package`: a pre-backup hook a target picks up.
 
 That split holds for services you register. It does **not** hold for bundled apps (`selfhost.apps.<name>`)
@@ -47,15 +48,18 @@ services can't silently collide.
 `selfhost.tasks.<name>` is the same shape for work that runs on a schedule rather than serving traffic â
 backups, provisioning, DNS updates. It names the units it owns and requests the same storage and notify
 integrations. Opting into notify gets it a failure alert, which fires once systemd has given up rather
-than on an attempt it is about to retry. `failureTopic` routes those alerts away from the task's routine
-summaries, since the topic is the only thing a subscriber can mute.
+than on an attempt it is about to retry.
 
-Notifications split by who owns the principal. Publishers and topic visibility are declared here and
-reconciled by ntfy on every start, so a retargeted topic leaves no stale grant behind and a topic turned
-private is actually revoked. Readers are people: `ntfy-manage reader add <name>` grants read on every
-private topic and prints a password once, `reader remove` revokes it with no deploy, and `ntfy-manage
-status` lists the topics. Readers are deliberately not declarative, and stay safe because ntfy only
-reconciles the rows it provisioned itself.
+Topics are yours to name: nothing here registers or defaults one, and a topic in `notify.topics` that no
+publisher writes to is an error. `notify.defaultTopic` is the fallback every task takes; a service names
+its own, since most have nothing to send. `failureTopic` splits a task's alerts from its routine
+summaries, the topic being all a subscriber can mute.
+
+ntfy reconciles the declared half on every start, deleting the rows it provisioned and rebuilding them:
+retargeting leaves no stale grant, and making a topic private revokes it. Readers are runtime, so
+`ntfy-manage reader add <name>` grants read on the private topics and shows a password once, `reader
+remove` revokes with no deploy, and `status` lists the lot. They survive the reconcile, which only
+deletes rows ntfy owns.
 
 Anything that renders your services — a landing page, a fleet view across hosts — reads the registry
 directly. An entry already carries `displayName`, `meta.*`, `ingress.enable` and `publicUrl`, and
