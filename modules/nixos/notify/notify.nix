@@ -76,7 +76,13 @@ in
         }
       );
       default = { };
-      description = "Notification topics and their visibility (framework subsystems self-register their own homelab-* topics).";
+      description = "Notification topics and their visibility. Naming them is the consumer's: no framework subsystem registers or defaults one, so a topic cannot outlive the publisher a default pointed at.";
+    };
+
+    defaultTopic = lib.mkOption {
+      type = lib.types.nullOr (lib.types.enum (lib.attrNames config.selfhost.notify.topics));
+      default = null;
+      description = "Topic a publisher falls back to when it names none. This is the consumer's own default, not the framework's, so it creates no topic nobody asked for; what it changes is whether forgetting to route something means silence or means hearing about it on one known topic.";
     };
 
     url = lib.mkOption {

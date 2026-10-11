@@ -2,6 +2,8 @@
   name,
   lib,
   selfhostCfg,
+  # notify.defaultTopic for a task, null for a service: see the comments where each registry passes it.
+  notifyDefaultTopic,
   ...
 }:
 let
@@ -23,8 +25,9 @@ in
 
           topic = lib.mkOption {
             type = lib.types.nullOr (lib.types.enum (lib.attrNames selfhostCfg.notify.topics));
-            default = null;
-            description = "Notification topic this service/task publishes to (null = none).";
+            default = notifyDefaultTopic;
+            defaultText = lib.literalMD "`notify.defaultTopic` for a task, null for a service";
+            description = "Notification topic this service/task publishes to (null = none). A task falls back to `notify.defaultTopic`, since the hook reporting its failure is the framework's own; a service names one when it has something to say.";
           };
 
           # Topic is the only granularity a subscriber can mute or prioritise, so a daily "backup OK"

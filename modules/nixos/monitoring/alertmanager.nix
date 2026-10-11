@@ -44,13 +44,12 @@ in
       access.model = "forwardAuth"; # Alertmanager authenticates nobody
       access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
       integrations.homepage.group = "Admin";
+      # Alerting is the whole point of this service, so unlike other services it opts into the
+      # consumer's fallback rather than waiting to be named. Having neither is reported by the
+      # assertion in notify.nix, since enable is forced here.
       integrations.notify = {
         enable = true;
-        # Thrown rather than defaulted: the notify seam is Alertmanager's only receiver, so a missing
-        # topic is a misconfiguration, and naming one here would outlive any consumer who renamed it.
-        topic = lib.mkDefault (
-          throw "selfhost.services.alertmanager.integrations.notify.topic is unset, and the notify seam is Alertmanager's only receiver. Name the topic its alerts publish to."
-        );
+        topic = lib.mkDefault cfg.notify.defaultTopic;
       };
     };
 
@@ -80,7 +79,9 @@ in
               name = "notify";
               webhook_configs = [
                 {
-                  url = "${cfg.notify.url}/${alertmanagerCfg.integrations.notify.topic}?template=alertmanager";
+                  # toString so a missing topic surfaces as the assertion naming it rather than as a
+                  # null coercion from inside this attrset, whichever the evaluator reaches first.
+                  url = "${cfg.notify.url}/${toString alertmanagerCfg.integrations.notify.topic}?template=alertmanager";
                   send_resolved = true;
                   http_config.authorization = {
                     type = "Bearer";

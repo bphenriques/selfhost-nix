@@ -191,6 +191,9 @@ in
         lib.types.submoduleWith {
           specialArgs = {
             selfhostCfg = cfg;
+            # A service's notifications are domain events it sends itself and most have none, so there is
+            # no fallback here: it names a topic when it has something to say. Contrast tasks-registry.
+            notifyDefaultTopic = null;
           };
           modules = [
             ./schemas/metadata.nix
