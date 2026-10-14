@@ -1,6 +1,6 @@
-# Bazarr end-to-end: the seed hands Bazarr a known API key and localhost bind before it starts, then the
-# reconcile applies the *arr link, language profiles and freeform settings. bazarr-configure errors on any
-# failed call, so reaching `active` proves it; the queries confirm both config.yaml and the database.
+# Bazarr end-to-end: services.bazarr.settings pins the API key, localhost bind, *arr link and freeform
+# settings at start, then the reconcile applies language profiles. bazarr-configure errors on any failed
+# call, so reaching `active` proves it; the queries confirm both the settings and the database.
 { pkgs, common, ... }:
 pkgs.testers.runNixOSTest {
   name = "selfhost-bazarr";
@@ -27,7 +27,6 @@ pkgs.testers.runNixOSTest {
 
     selfhost.apps.bazarr = {
       enable = true;
-      configureAfter = [ "sonarr.service" ];
       sonarr.apiKeyFile = "/var/lib/homelab-secrets/sonarr-api-key";
       languageProfiles = [
         {
@@ -44,9 +43,10 @@ pkgs.testers.runNixOSTest {
         }
       ];
       defaultProfile = "English";
-      # Stands in for provider config: a plain freeform setting the framework knows nothing about.
-      settings.general.minimum_score = 92;
     };
+
+    # Stands in for provider config: a plain freeform setting the framework knows nothing about.
+    services.bazarr.settings.general.minimum_score = 92;
   };
 
   testScript =
@@ -55,7 +55,6 @@ pkgs.testers.runNixOSTest {
       port = toString nodes.machine.selfhost.services.bazarr.port;
       api = "http://127.0.0.1:${port}/api";
       exporterPort = toString nodes.machine.selfhost.apps.bazarr.exporterPort;
-      configFile = "${nodes.machine.selfhost.apps.bazarr.dataDir}/config/config.yaml";
     in
     ''
       import json
@@ -63,10 +62,8 @@ pkgs.testers.runNixOSTest {
       machine.wait_for_unit("bazarr.service")
       machine.wait_for_open_port(${port})
 
-      # The seed is what makes the rest possible: without a known key the reconcile cannot authenticate.
+      # The pinned key is what makes the rest possible: without it the reconcile cannot authenticate.
       key = machine.succeed("cat /var/lib/homelab-secrets/bazarr-api-key").strip()
-      machine.succeed(f"grep -q {key} ${configFile}")
-      machine.succeed("grep -q '127.0.0.1' ${configFile}")
       machine.succeed(f"curl -sf -H 'X-API-KEY: {key}' ${api}/system/status >/dev/null")
 
       machine.wait_for_unit("bazarr-configure.service")
@@ -83,15 +80,17 @@ pkgs.testers.runNixOSTest {
       assert english["cutoff"] == english["items"][0]["id"], f"cutoff not mapped to the item id: {english}"
       assert by_name["Multi"]["cutoff"] is None, "profile without a cutoff should keep searching"
 
-      # ...and the other half: settings that do land in config.yaml, including the freeform passthrough.
+      # ...and the other half: settings that live in config.yaml, including the freeform passthrough.
       settings = json.loads(machine.succeed(f"curl -sf -H 'X-API-KEY: {key}' ${api}/system/settings"))
+      assert settings["general"]["ip"] == "127.0.0.1", "not bound to localhost"
+      assert settings["auth"]["type"] is None, "login page enabled behind forward-auth"
       assert settings["general"]["use_sonarr"] is True, "sonarr link not enabled"
       assert settings["sonarr"]["port"] == ${toString nodes.machine.selfhost.services.sonarr.port}
       assert settings["general"]["minimum_score"] == 92, "freeform setting not applied"
       assert settings["general"]["serie_default_enabled"] is True, "default profile not enabled"
       assert settings["general"]["serie_default_profile"] == english["profileId"]
 
-      # Sonarr's key must have been read from disk at reconcile time, never baked into the store.
+      # Sonarr's key must have been read from disk at start, never baked into the store.
       sonarr_key = machine.succeed("cat /var/lib/homelab-secrets/sonarr-api-key").strip()
       assert settings["sonarr"]["apikey"] == sonarr_key, "sonarr api key not wired through"
 

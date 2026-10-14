@@ -13,45 +13,41 @@ let
   apiKeySecret = "bazarr-api-key";
   exporterUnit = "prometheus-exportarr-bazarr-exporter";
 
-  configDir = "${app.dataDir}/config";
-  configFile = "${configDir}/config.yaml";
-
   builders = import ../../builders.nix { inherit pkgs lib; };
-  seedConfig = builders.writeNushellApplication {
-    name = "bazarr-seed-config";
-    script = ./seed-config.nu;
-  };
   configure = builders.writeNushellApplication {
     name = "bazarr-configure";
     script = ./configure.nu;
   };
 
-  arrLink =
+  arrSettings =
     name:
-    lib.optionalAttrs (app.${name} != null) {
+    let
+      arr = app.${name};
+    in
+    {
+      general."use_${name}" = arr != null;
+    }
+    // lib.optionalAttrs (arr != null) {
       ${name} = {
-        inherit (app.${name})
-          host
-          port
-          baseUrl
-          apiKeyFile
-          ;
+        ip = arr.host;
+        inherit (arr) port;
+        base_url = arr.baseUrl;
+        ssl = false;
+        apikey._secret = arr.apiKeyFile;
       };
     };
 
+  localArrUnits = map (name: "${name}.service") (
+    lib.filter (name: app.${name} != null && cfg.apps.${name}.enable) [
+      "sonarr"
+      "radarr"
+    ]
+  );
+
   reconcileJson = pkgs.writeText "bazarr-config.json" (
-    builtins.toJSON (
-      {
-        inherit (app)
-          languageProfiles
-          defaultProfile
-          settings
-          secretSettings
-          ;
-      }
-      // arrLink "sonarr"
-      // arrLink "radarr"
-    )
+    builtins.toJSON {
+      inherit (app) languageProfiles defaultProfile;
+    }
   );
 
   # When the matching first-party *arr runs here, its registry entry and generated key already hold
@@ -165,35 +161,6 @@ in
       default = null;
       description = "Profile name applied to newly-added series and movies. Null leaves new media unassigned (nothing is fetched for it).";
     };
-
-    settings = lib.mkOption {
-      type = lib.types.attrsOf (lib.types.attrsOf lib.types.anything);
-      default = { };
-      description = ''
-        Freeform `config.yaml` sections merged into the reconcile, as `<section>.<key>`. This is the seam
-        for acquisition config: enabled providers and their per-provider options. Values that are secrets
-        belong in `secretSettings`, not here — this lands in the world-readable Nix store.
-      '';
-      example = lib.literalExpression ''
-        { general.enabled_providers = [ "someprovider" ]; }
-      '';
-    };
-
-    secretSettings = lib.mkOption {
-      type = lib.types.attrsOf lib.types.str;
-      default = { };
-      description = "Settings whose values are read from a file at reconcile time, as `\"<section>.<key>\" = \"/path/to/secret\"`. For provider credentials.";
-      example = lib.literalExpression ''
-        { "someprovider.password" = "/run/secrets/someprovider-password"; }
-      '';
-    };
-
-    configureAfter = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ ];
-      example = [ "sonarr.service" ];
-      description = "Extra units the reconcile must start after and want — Bazarr connection-tests the *arrs it is given.";
-    };
   };
 
   config = lib.mkIf app.enable {
@@ -293,35 +260,40 @@ in
 
     services.bazarr = {
       enable = true;
-      listenPort = serviceCfg.port;
       inherit (app) dataDir;
+      settings = lib.mkMerge [
+        {
+          general = {
+            inherit (serviceCfg) port;
+            ip = "127.0.0.1"; # no --ip flag exists; ingress is the only intended entrypoint
+          };
+          auth = {
+            apikey._secret = cfg.runtimeSecrets.${apiKeySecret}.path;
+            type = null; # no login page: forward-auth in front of the app is the gate
+          };
+        }
+        (arrSettings "sonarr")
+        (arrSettings "radarr")
+      ];
     };
 
     systemd.services.bazarr = {
-      after = [ "network-online.target" ];
+      after = [ "network-online.target" ] ++ localArrUnits;
       wants = [ "network-online.target" ];
       serviceConfig = {
-        ExecStartPre = lib.getExe seedConfig;
-        # Bazarr runs unprivileged and the secret is root-only; LoadCredential also covers ExecStartPre.
-        LoadCredential = [ "api-key:${cfg.runtimeSecrets.${apiKeySecret}.path}" ];
         Restart = "on-failure";
         RestartSec = "10s";
         RestartMaxDelaySec = "5min";
         RestartSteps = 5;
       };
-      environment = {
-        BAZARR_CONFIG_FILE = configFile;
-        BAZARR_API_KEY_FILE = "%d/api-key";
-      };
     };
 
     systemd.services.bazarr-configure = {
-      description = "Bazarr reconcile (*arr links, language profiles, providers)";
+      description = "Bazarr reconcile (language profiles)";
       # Activation only restarts running units, so a reconcile left stopped would never pick up its fix.
       wantedBy = [ "multi-user.target" ];
-      after = [ "bazarr.service" ] ++ app.configureAfter;
+      after = [ "bazarr.service" ];
       requires = [ "bazarr.service" ];
-      wants = app.configureAfter;
       partOf = [ "bazarr.service" ];
       restartTriggers = [
         reconcileJson

@@ -135,6 +135,8 @@ in
         ENCRYPTION_KEY_FILE = cfg.runtimeSecrets.pocket-id-encryption-key.path;
         STATIC_API_KEY_FILE = apiKeyFile;
         UI_CONFIG_DISABLED = true;
+        # pocket-id-manage mints each client's secret itself; an auto-created one would be live and unrecorded.
+        AUTO_CREATE_OIDC_CLIENT_SECRET = false;
 
         # Invite only
         ALLOW_USER_SIGNUPS = "withToken";

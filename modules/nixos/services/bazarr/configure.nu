@@ -1,6 +1,6 @@
 #!/usr/bin/env nu
-# Idempotent Bazarr reconcile. POST /api/system/settings writes both config.yaml and the language-profile
-# table, so the whole reconcile is one form post. Providers are acquisition config, supplied by the caller.
+# Idempotent Bazarr reconcile for what lives in the database: language profiles and the default profile id.
+# config.yaml keys are pinned by services.bazarr.settings instead.
 let base_url = $env.BAZARR_URL
 let api_key = open $env.BAZARR_API_KEY_FILE | str trim
 let config = open $env.BAZARR_CONFIG_FILE
@@ -71,21 +71,6 @@ def settings_form [section: string, values: record] {
   }
 }
 
-def arr_form [name: string] {
-  let arr = $config | get -o $name
-  if $arr == null { return ({} | insert $"settings-general-use_($name)" "false") }
-  let key = open $arr.apiKeyFile | str trim
-  {}
-  | insert $"settings-general-use_($name)" "true"
-  | merge (settings_form $name {
-      ip: $arr.host
-      port: $arr.port
-      base_url: $arr.baseUrl
-      ssl: false
-      apikey: $key
-    })
-}
-
 def main [] {
   wait_ready
   print "Bazarr is ready"
@@ -110,25 +95,12 @@ def main [] {
     }
   }
 
-  # Secrets are read here rather than baked into the config: the Nix store is world-readable.
-  let secrets = ($config | get -o secretSettings | default {}) | transpose key file | reduce --fold {} { |it, acc|
-    $acc | insert $"settings-($it.key | str replace '.' '-')" (open $it.file | str trim)
-  }
-
-  let extra = ($config | get -o settings | default {}) | transpose section values | reduce --fold {} { |it, acc|
-    $acc | merge (settings_form $it.section $it.values)
-  }
-
   let form = {}
-  | merge (arr_form "sonarr")
-  | merge (arr_form "radarr")
   | merge {"languages-enabled": $languages}
   | merge (if ($profiles | is-empty) { {} } else { {
     "languages-profiles": ($profiles | to json --raw)
   } })
   | merge $defaults
-  | merge $extra
-  | merge $secrets
 
   print $"Applying ($form | columns | length) settings, ($profiles | length) language profile\(s\)..."
   # Hand-encoded: the --content-type flag rejects list values, which getlist() keys need.

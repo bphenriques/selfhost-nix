@@ -37,12 +37,12 @@ once a forward-auth provider is active. Without one it stays on localhost rather
 download clients. Its indexer list and app-sync are acquisition and live in your config, reading the
 apps' `apiKeyFile`.
 
-`apps.bazarr` fetches subtitles for what Radarr/Sonarr already track. The framework seeds the API key and
-the localhost bind before Bazarr starts (it rewrites its own `config.yaml`, so that file can never be a
-store symlink), then reconciles the `sonarr`/`radarr` links and `languageProfiles` through Bazarr's
-settings API. **Which providers to search, and with whose credentials, is acquisition** — it arrives via
-the freeform `settings` seam, with credentials in `secretSettings` (read from a file at reconcile time,
-never through the store). No provider is named anywhere in the framework.
+`apps.bazarr` fetches subtitles for what Radarr/Sonarr already track. The framework pins the API key, the
+localhost bind and the `sonarr`/`radarr` links through nixpkgs' `services.bazarr.settings`, which
+overrides `config.yaml` on every start, then reconciles `languageProfiles` (they live in the database)
+through Bazarr's settings API. **Which providers to search, and with whose credentials, is acquisition**:
+set it in `services.bazarr.settings` yourself, with credentials as `_secret` file paths so they never
+pass through the store. No provider is named anywhere in the framework.
 
 `languageProfiles` defaults to empty, and Bazarr with no profile downloads nothing — so wanting subtitles
 at all is an explicit choice you make, not one the framework makes for you.
