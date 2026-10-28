@@ -78,9 +78,10 @@ pkgs.testers.runNixOSTest {
       # alice reconciled to site-admin from the fleet isAdmin — proves the admin-API PATCH works here.
       machine.succeed("runuser -u gitea -- ${gitea} admin user list --admin | grep -qw alice")
 
-      # The service account came from selfhost.serviceAccounts, not an app-scoped list, and is not an admin.
-      machine.succeed("runuser -u gitea -- ${gitea} admin user list | grep -qw ci")
-      machine.fail("runuser -u gitea -- ${gitea} admin user list --admin | grep -qw ci")
+      # The service account came from selfhost.serviceAccounts and is a bot: `admin user list` shows only
+      # individuals, so it is absent there while its keys view below proves it exists.
+      machine.fail("runuser -u gitea -- ${gitea} admin user list | grep -qw ci")
+      machine.succeed("journalctl -u gitea-configure.service | grep \"Created bot 'ci'\"")
       # unixAccount.enable is off for it, so no Unix user was created alongside.
       machine.fail("getent passwd ci")
 
@@ -113,5 +114,18 @@ pkgs.testers.runNixOSTest {
       machine.wait_for_unit("gitea-configure.service")
       after = machine.succeed("journalctl -u gitea-configure.service | grep -c 'Ephemeral admin token left in place' || true").strip()
       assert after == before, f"steady-state reconcile minted a token (before={before}, after={after})"
+      # The bot is invisible to `admin user list`, so this proves the reconcile found it rather than recreating it.
+      created = machine.succeed("journalctl -u gitea-configure.service | grep -c \"Created bot 'ci'\"").strip()
+      assert created == "1", f"bot ci was created {created} times"
+
+      # A service account that predates bots is an individual: the reconcile converts it, keeping its key.
+      machine.succeed("runuser -u gitea -- ${gitea} admin user change-type --username ci --user-type User")
+      machine.succeed("runuser -u gitea -- ${gitea} admin user list | grep -qw ci")
+      machine.succeed("systemctl reset-failed gitea-configure.service")  # this is the test's fourth start: past the unit's burst
+      machine.systemctl("restart gitea-configure.service")
+      machine.wait_for_unit("gitea-configure.service")
+      machine.succeed("journalctl -u gitea-configure.service | grep \"Converted 'ci' to a bot\"")
+      machine.fail("runuser -u gitea -- ${gitea} admin user list | grep -qw ci")
+      machine.succeed("${pkgs.curl}/bin/curl -sf ${giteaUrl}/ci.keys | grep AAAAC3NzaC1lZDI1NTE5AAAAIMdeA2 >/dev/null")
     '';
 }

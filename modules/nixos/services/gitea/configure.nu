@@ -1,5 +1,5 @@
 #!/usr/bin/env nu
-# Gitea post-start setup: admin, user accounts, and service-account SSH keys (admin API + an ephemeral
+# Gitea post-start setup: admin, user accounts, service-account bots and their SSH keys (admin API + an ephemeral
 # token). The OIDC auth source is provisioned separately, before the server starts (oidc-source.nu).
 let base_url = $env.GITEA_URL
 let config_flag = $"-c=($env.GITEA_CONFIG)"
@@ -103,8 +103,24 @@ def list_usernames [--admin] {
   | where ($it | is-not-empty)
 }
 
-# Creates the account if missing (admin status and SSH keys are reconciled separately, in main).
+# `admin user list` leaves bots out, so the public keys view (404 when absent) is what proves one exists.
+def account_exists [username: string] {
+  (http get $"($base_url)/($username).keys" --full --allow-errors).status == 200
+}
+
+# Creates the account if missing (admin status and SSH keys are reconciled separately, in main). A service
+# account is a bot: no password, so no web login, while git over SSH still works.
 def ensure_user [user: record, existing: list<string>] {
+  if $user.bot {
+    if $user.username in $existing {
+      gitea $config_flag admin user change-type --username $user.username --user-type Bot
+      print $"Converted '($user.username)' to a bot"
+    } else if not (account_exists $user.username) {
+      gitea $config_flag admin user create --username $user.username --email $user.email --user-type Bot
+      print $"Created bot '($user.username)'"
+    }
+    return
+  }
   if $user.username in $existing { return }
   let password = (random chars --length 32)
   gitea $config_flag admin user create --username $user.username --password $password --email $user.email --must-change-password=false

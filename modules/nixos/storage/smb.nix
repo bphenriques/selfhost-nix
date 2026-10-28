@@ -165,6 +165,10 @@ in
         text = ''
           [Unit]
           StartLimitIntervalSec=0
+
+          # A busy share would otherwise outlive the network into the final unmount and hang shutdown.
+          [Mount]
+          LazyUnmount=yes
         '';
       }
     ) cfg.shares;

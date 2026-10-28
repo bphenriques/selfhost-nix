@@ -25,6 +25,7 @@ let
           lastName
           ;
         isAdmin = u.services.gitea.admin;
+        bot = false;
         sshKeys = [ ];
       }) enabledUsers)
       ++ (lib.mapAttrsToList (name: a: {
@@ -33,6 +34,7 @@ let
         firstName = name;
         lastName = "Service";
         isAdmin = false;
+        bot = true;
         sshKeys = map (k: { inherit (k) key readOnly; }) a.services.gitea.sshKeys;
       }) serviceAccounts)
     )
