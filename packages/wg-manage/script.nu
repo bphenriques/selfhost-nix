@@ -24,6 +24,24 @@ def save_peers [peers: list] {
   mv -f $tmp $cfg.peersFile
 }
 
+# Full sync of the peer file onto the interface. Under networkd the peers live in a netdev drop-in, so
+# networkd itself re-applies them whenever it restarts instead of replacing them with none.
+def sync_peers [] {
+  let peers = (load_peers)
+  if $cfg.peersDropIn != null {
+    $peers
+    | each {|p| $"[WireGuardPeer]\nPublicKey=($p.publicKey)\nAllowedIPs=($p.ip)/32\n" }
+    | str join "\n"
+    | save -f $cfg.peersDropIn
+    networkctl reload
+  } else {
+    let live = (try { wg show $cfg.interface peers | lines | where {|l| $l != "" } } catch { [] })
+    for p in $peers { wg set $cfg.interface peer $p.publicKey allowed-ips $"($p.ip)/32" }
+    let keys = ($peers | get -o publicKey)
+    for k in $live { if $k not-in $keys { wg set $cfg.interface peer $k remove } }
+  }
+}
+
 def ip_to_int [ip: string] {
   $ip | split row "." | into int | reduce -f 0 {|o, acc| $acc * 256 + $o }
 }
@@ -87,7 +105,7 @@ def register [name: string, ip: string, pubkey: string] {
   if ($peers | any {|p| $p.ip == $ip }) { error make {msg: $"($ip) is already taken"} }
   if ($peers | any {|p| $p.publicKey == $pubkey }) { error make {msg: $"($pubkey) is already registered"} }
   save_peers ($peers | append {name: $name, ip: $ip, publicKey: $pubkey, added: (date now | format date "%Y-%m-%d")})
-  wg set $cfg.interface peer $pubkey allowed-ips $"($ip)/32"
+  sync_peers
 }
 
 # Mints the key, brings the peer up, and renders its QR once. `--conf` prints the config instead, for
@@ -103,32 +121,27 @@ def "main add" [name: string, --full-access, --conf] {
 }
 
 # Forget before cutting. The other order means a failed write leaves the peer in the file, and the next
-# boot quietly hands the access back. A live peer with no entry has no name to give here; `apply` drops
-# those.
+# boot quietly hands the access back.
 def "main remove" [name: string] {
   require_root
   let peers = (load_peers)
   let match = ($peers | where name == $name | get -o 0)
   if $match == null { error make {msg: $"($name) is not registered"} }
   save_peers ($peers | where name != $name)
-  wg set $cfg.interface peer $match.publicKey remove
+  sync_peers
   print -e $"Removed ($name)."
 }
 
-# Full sync in both directions, so it restores the interface when it appears and also picks up a
-# hand-edited file. An absent file is not an empty one: it means leave the interface alone.
+# Restores the interface when it appears and picks up a hand-edited file. An absent file is not an empty
+# one: it means leave the interface alone.
 def "main apply" [] {
   require_root
   if not ($cfg.peersFile | path exists) {
     print -e $"No ($cfg.peersFile); leaving ($cfg.interface) alone."
     return
   }
-  let want = (load_peers)
-  let live = (try { wg show $cfg.interface peers | lines | where {|l| $l != "" } } catch { [] })
-  for p in $want { wg set $cfg.interface peer $p.publicKey allowed-ips $"($p.ip)/32" }
-  let keys = ($want | get -o publicKey)
-  for k in $live { if $k not-in $keys { wg set $cfg.interface peer $k remove } }
-  print -e $"Applied ($want | length) peers."
+  sync_peers
+  print -e $"Applied (load_peers | length) peers."
 }
 
 def "main status" [] {

@@ -1,10 +1,10 @@
 # apps.wireguard peer lifecycle: wg-manage owns the peer file and applies it live, and the boot unit
-# restores it when the interface reappears. The eval test covers the ruleset; this covers the state.
+# restores it when the interface reappears. Both backends: scripted (`wg set`) and networkd (a netdev
+# drop-in, so a networkd restart re-applies the peers instead of wiping them). The eval test covers the
+# ruleset; this covers the state.
 { pkgs, common, ... }:
-pkgs.testers.runNixOSTest {
-  name = "selfhost-wireguard";
-
-  nodes.machine = {
+let
+  wireguard = {
     imports = [ common ];
     selfhost.apps.wireguard = {
       enable = true;
@@ -14,6 +14,15 @@ pkgs.testers.runNixOSTest {
       endpoint = "vpn.test.local";
       dns = "1.1.1.1";
     };
+  };
+in
+pkgs.testers.runNixOSTest {
+  name = "selfhost-wireguard";
+
+  nodes.machine = wireguard;
+  nodes.networkd = {
+    imports = [ wireguard ];
+    networking.useNetworkd = true;
   };
 
   testScript = ''
@@ -61,5 +70,22 @@ pkgs.testers.runNixOSTest {
     machine.succeed("mv /var/lib/wireguard/peers.json /var/lib/wireguard/peers.json.bak")
     machine.succeed("wg-manage apply")
     machine.succeed("wg show wg0 allowed-ips | grep -q '10.100.0.2/32'")
+
+    # networkd re-applies the netdev whenever it restarts, which replaced the peer list with none until
+    # the peers moved into a drop-in on it.
+    networkd.wait_for_unit("wireguard-apply-peers.service")
+    networkd.succeed("wg-manage add mine --full-access >/dev/null")
+    networkd.wait_until_succeeds("wg show wg0 allowed-ips | grep -q '10.100.0.2/32'", timeout=30)
+
+    # A stray peer gone after the restart proves networkd rebuilt the list, so the registered one
+    # surviving came from the drop-in rather than being left alone.
+    stray = networkd.succeed("wg genkey | wg pubkey").strip()
+    networkd.succeed(f"wg set wg0 peer {stray} allowed-ips 10.100.0.99/32")
+    networkd.succeed("systemctl restart systemd-networkd")
+    networkd.wait_until_fails(f"wg show wg0 peers | grep -q {stray}", timeout=30)
+    networkd.succeed("wg show wg0 allowed-ips | grep -q '10.100.0.2/32'")
+
+    networkd.succeed("wg-manage remove mine")
+    networkd.wait_until_fails("wg show wg0 allowed-ips | grep -q '10.100.0.2/32'", timeout=30)
   '';
 }

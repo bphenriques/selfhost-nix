@@ -18,6 +18,11 @@ let
   serverPubKeyFile = "${dataDir}/server/public.key";
   peersFile = "${dataDir}/peers.json";
 
+  # Under networkd the peers are a runtime drop-in on its netdev, named as nixpkgs names it.
+  useNetworkd = config.networking.wireguard.useNetworkd;
+  netdevName = "40-${wg.interface}";
+  peersDropInDir = "/run/systemd/network/${netdevName}.netdev.d";
+
   # Ahead of nixos-fw so it polices what those services opened on the tunnel, and new connections only,
   # so traffic the server itself initiated is untouched. An accept here skips this chain's drop, not
   # nixos-fw: every base chain on the hook still runs. The v6 drop is not redundant, since `ip saddr`
@@ -123,12 +128,16 @@ let
         restricted = lib.concatStringsSep "," allowedIPsRestricted;
       };
       inherit peersFile;
+      peersDropIn = if useNetworkd then "${peersDropInDir}/peers.conf" else null;
     }
   );
 
   wgManage = pkgs.writeShellApplication {
     name = "wg-manage";
-    runtimeInputs = [ pkgs.selfhost.wg-manage ];
+    runtimeInputs = [
+      pkgs.selfhost.wg-manage
+      config.systemd.package
+    ];
     text = ''
       export WG_CONFIG_FILE=${manageConfigFile}
       exec wg-manage-bin "$@"
@@ -236,6 +245,10 @@ in
             assertion = wg.fullAccessSubnet == null || within wg.fullAccessSubnet wg.clientSubnet;
             message = "selfhost.apps.wireguard.fullAccessSubnet (${toString wg.fullAccessSubnet}) must be a block within clientSubnet (${wg.clientSubnet}); a device's tier is its address, so an address outside the client subnet is one nothing routes.";
           }
+          {
+            assertion = !useNetworkd || config.systemd.network.netdevs ? ${netdevName};
+            message = "selfhost.apps.wireguard: no systemd.network.netdevs.${netdevName}, so the peers drop-in would attach to nothing. nixpkgs renamed the WireGuard netdev; update netdevName.";
+          }
         ];
 
         selfhost.services.wireguard = {
@@ -292,7 +305,8 @@ in
         systemd.tmpfiles.rules = [
           "d ${dataDir} 0700 root root -"
           "d ${dataDir}/server 0700 root root -"
-        ];
+        ]
+        ++ lib.optional useNetworkd "d ${peersDropInDir} 0755 root root -";
 
         systemd.services.wireguard-keygen = {
           description = "WireGuard keygen";
@@ -335,9 +349,9 @@ in
 
         networking.firewall.allowedUDPPorts = lib.optionals wg.openFirewall [ wg.listenPort ];
 
-        # Peers are runtime state that `wg-manage` writes and applies live, so this only restores them
-        # after the interface is recreated. Bound to the device rather than the target: networkd being
-        # up does not mean wg0 exists yet, and this way a reconfigure re-applies too.
+        # Peers are runtime state that `wg-manage` writes and applies live, so this restores them when the
+        # interface appears: bound to the device, since networkd being up does not mean wg0 exists yet.
+        # A networkd restart keeps the device and re-applies its netdev, peers drop-in included.
         systemd.services.wireguard-apply-peers = {
           description = "Apply ${wg.interface} peers from ${peersFile}";
           after = [
@@ -357,6 +371,7 @@ in
             ProtectKernelTunables = true;
             ProtectControlGroups = true;
             RestrictSUIDSGID = true;
+            ReadWritePaths = lib.optional useNetworkd peersDropInDir;
           };
           script = "wg-manage apply";
         };
