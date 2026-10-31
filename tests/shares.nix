@@ -1,5 +1,5 @@
-# storage.shares.smb (eval-only): samba config, share groups and the guards are generated from the two
-# principal registries. The VM test covers the running server; this covers what refuses to build.
+# storage.shares.smb (eval-only): samba config and the guards are generated from the two principal
+# registries. The VM test covers the running server; this covers what refuses to build.
 { pkgs, evalConfig }:
 let
   inherit (pkgs) lib;
@@ -37,18 +37,14 @@ let
       shares = {
         media = {
           path = "/srv/storage/media";
-          owner = "ada";
-          gid = 990;
-          directories = [ "movies" ];
           access = {
             groups.family = "rw";
-            users.machine-backup = "ro";
+            serviceAccounts.machine-backup = "ro";
           };
         };
         # A user grant downgrades what the group gave.
         photos = {
           path = "/srv/storage/photos";
-          gid = 991;
           access = {
             groups.family = "rw";
             users.bob = "ro";
@@ -57,7 +53,6 @@ let
         # ...and `none` revokes it outright.
         vault = {
           path = "/srv/storage/vault";
-          gid = 992;
           access = {
             groups.family = "rw";
             users.bob = "none";
@@ -66,7 +61,6 @@ let
         # Several groups on one share: the most permissive wins.
         archive = {
           path = "/srv/storage/archive";
-          gid = 993;
           access.groups = {
             family = "ro";
             admin = "rw";
@@ -75,7 +69,6 @@ let
         # A user grant upgrades as readily as it downgrades.
         boost = {
           path = "/srv/storage/boost";
-          gid = 994;
           access = {
             groups.family = "ro";
             users.bob = "rw";
@@ -84,7 +77,6 @@ let
         # A personal share: nothing is implicit, not even for a holder of the admin group.
         home-bob = {
           path = "/srv/storage/home/bob";
-          gid = 995;
           access.users.bob = "rw";
         };
       };
@@ -122,9 +114,7 @@ let
   };
 
   share = name: cfg.services.samba.settings.${name};
-  members = name: cfg.users.groups."storage-${name}".members;
   passwords = cfg.systemd.services.selfhost-smb-passwords;
-  permissions = cfg.systemd.services.selfhost-smb-permissions;
 
   fires =
     module: infix:
@@ -140,7 +130,23 @@ let
       storage.shares.smb.shares.media.access.users.stranger = "rw";
     };
     imports = [ unixUsers ];
-  } "no SMB account";
+  } "not people with an SMB account";
+
+  # Each grant names its own registry, so a machine under `users` is refused, and a person under
+  # `serviceAccounts` too.
+  machineAsUser = fires {
+    selfhost = lib.recursiveUpdate base {
+      storage.shares.smb.shares.media.access.users.machine-backup = "rw";
+    };
+    imports = [ unixUsers ];
+  } "not people with an SMB account";
+
+  personAsServiceAccount = fires {
+    selfhost = lib.recursiveUpdate base {
+      storage.shares.smb.shares.media.access.serviceAccounts.ada = "rw";
+    };
+    imports = [ unixUsers ];
+  } "not service accounts with an SMB account";
 
   unknownGroup = fires {
     selfhost = lib.recursiveUpdate base {
@@ -178,11 +184,6 @@ let
     };
     imports = [ unixUsers ];
   } "no SMB principal holds";
-
-  unpinned = warns {
-    selfhost = lib.recursiveUpdate base { storage.shares.smb.shares.media.gid = null; };
-    imports = [ unixUsers ];
-  } "no pinned gid";
 in
 assert lib.assertMsg (
   (share "media")."valid users" == "ada bob machine-backup"
@@ -194,17 +195,16 @@ assert lib.assertMsg ((share "vault")."valid users" == "ada") "`none` should rev
 assert lib.assertMsg (!((share "vault") ? "read list")) "no ro principal should mean no read list";
 assert lib.assertMsg ((share "archive")."valid users" == "ada bob") "both group members should be admitted";
 assert lib.assertMsg ((share "archive")."read list" == "bob") "the most permissive of several groups should win";
-assert lib.assertMsg ((share "media")."force group" == "storage-media") "share group default not applied";
-assert lib.assertMsg (!((share "media") ? "vfs objects")) "module must leave samba-native keys to the host";
-assert lib.assertMsg (cfg.users.groups.storage-media.gid == 990) "share group not created with its gid";
 assert lib.assertMsg (
-  members "media" == [
-    "ada"
-    "bob"
-    "machine-backup"
-  ]
-) "share group members should be its resolved access list";
-assert lib.assertMsg (members "vault" == [ "ada" ]) "a revoked principal must not stay in the share group";
+  cfg.selfhost.storage.shares.smb.shares.media.resolvedAccess == {
+    ada = "rw";
+    bob = "rw";
+    machine-backup = "ro";
+  }
+) "resolvedAccess should be exactly what reaches samba";
+assert lib.assertMsg (!((share "media") ? "vfs objects")) "module must leave samba-native keys to the host";
+assert lib.assertMsg (!((share "media") ? "force group")) "ownership is the host's, not this module's";
+assert lib.assertMsg (!(cfg.users.groups ? storage-media)) "the module must not create share groups";
 assert lib.assertMsg (!cfg.services.samba.openFirewall) "samba's own openFirewall opens netbios ports";
 assert lib.assertMsg (lib.elem 445 cfg.networking.firewall.allowedTCPPorts) "445 not opened";
 assert lib.assertMsg (cfg.services.samba.settings.global."smb ports" == "445") "smbd should not listen on 139";
@@ -212,11 +212,11 @@ assert lib.assertMsg (lib.elem "ada:${password}" passwords.serviceConfig.LoadCre
   "principal password not loaded as a credential";
 assert lib.assertMsg (lib.elem "machine-backup:${password}" passwords.serviceConfig.LoadCredential)
   "service-account password not loaded as a credential";
-assert lib.assertMsg (lib.elem "/srv/storage/media/movies" permissions.unitConfig.RequiresMountsFor)
-  "permissions unit must wait for every owned path";
-assert lib.assertMsg (lib.elem "selfhost-smb-permissions.service" cfg.systemd.services.samba-smbd.requires)
-  "smbd should require the permissions unit";
-assert lib.assertMsg ungranted "grant to a principal with no SMB account did not fire";
+assert lib.assertMsg (lib.elem "/srv/storage/media" cfg.systemd.services.samba-smbd.unitConfig.RequiresMountsFor)
+  "smbd must wait for every share path";
+assert lib.assertMsg ungranted "grant to a person with no SMB account did not fire";
+assert lib.assertMsg machineAsUser "service account granted under `users` did not fire";
+assert lib.assertMsg personAsServiceAccount "person granted under `serviceAccounts` did not fire";
 assert lib.assertMsg unknownGroup "grant to an unknown group did not fire";
 assert lib.assertMsg noUnixUser "principal with no Unix user did not fire";
 assert lib.assertMsg (
@@ -232,5 +232,4 @@ assert lib.assertMsg bothRegistries "name in both registries did not fire";
 assert lib.assertMsg emptyAccess "share with no grants did not fire; an empty `valid users` admits everyone";
 assert lib.assertMsg reservedName "share named `global` did not fire";
 assert lib.assertMsg unheldGroup "group grant that resolves to nobody did not warn";
-assert lib.assertMsg unpinned "unpinned gid warning missing";
 pkgs.runCommand "selfhost-shares-eval" { } "touch $out"

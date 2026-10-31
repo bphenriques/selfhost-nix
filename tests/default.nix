@@ -12,8 +12,11 @@ let
     (import nixpkgs {
       inherit (pkgs.stdenv.hostPlatform) system;
       config.allowUnfree = true;
+      overlays = [ nixpkgsFixes ];
     }).extend
       self.overlays.default;
+
+  nixpkgsFixes = import ./nixpkgs-fixes.nix;
 
   # Minimal valid selfhost base shared by every test (framework + one required admin user).
   common =
@@ -79,6 +82,7 @@ let
           boot.isContainer = true;
           system.stateVersion = "25.11";
           nixpkgs.config.allowUnfree = true;
+          nixpkgs.overlays = [ nixpkgsFixes ];
           selfhost = {
             ingress.domain = "test.local";
             users.admin = {

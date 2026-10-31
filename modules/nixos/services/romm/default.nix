@@ -35,23 +35,6 @@ let
 
   turn = cfg.apps.coturn;
   turnLogin = "romm";
-
-  # RomM has two roles, admin and everyone else, so EDITOR and VIEWER are interchangeable seats for
-  # naming a group. A group with no seat is refused at login even where the provider allows it, and
-  # the registry's "empty means unrestricted" is RomM's `*` wildcard.
-  roleSeats = lib.filter (group: group != cfg.groups.admin) serviceCfg.access.allowedGroups;
-  roleEnv =
-    if serviceCfg.access.allowedGroups == [ ] then
-      {
-        OIDC_ROLE_ADMIN = cfg.groups.admin;
-        OIDC_ROLE_VIEWER = "*";
-      }
-    else
-      lib.optionalAttrs (lib.elem cfg.groups.admin serviceCfg.access.allowedGroups) {
-        OIDC_ROLE_ADMIN = cfg.groups.admin;
-      }
-      // lib.optionalAttrs (roleSeats != [ ]) { OIDC_ROLE_EDITOR = lib.head roleSeats; }
-      // lib.optionalAttrs (lib.length roleSeats > 1) { OIDC_ROLE_VIEWER = lib.elemAt roleSeats 1; };
 in
 {
   options.selfhost.apps.romm = {
@@ -76,10 +59,6 @@ in
   };
 
   config = lib.mkIf app.enable {
-    warnings =
-      lib.optional (federated && lib.length roleSeats > 2)
-        "selfhost.services.romm.access.allowedGroups names ${toString (lib.length roleSeats)} non-admin groups, but RomM maps only two, so ${lib.concatStringsSep ", " (lib.drop 2 roleSeats)} is refused at login.";
-
     assertions = [
       {
         assertion = app.netplay.enable -> turn.enable;
@@ -165,18 +144,18 @@ in
         ROMM_BASE_URL = lib.mkDefault serviceCfg.publicUrl;
         ROMM_SESSION_SECURE_COOKIE = lib.mkDefault (lib.boolToString publicIsTls);
       }
-      // lib.optionalAttrs federated (
-        {
-          OIDC_ENABLED = "true";
-          OIDC_PROVIDER = oidcCfg.provider.displayName;
-          OIDC_SERVER_APPLICATION_URL = oidcCfg.provider.issuerUrl;
-          OIDC_REDIRECT_URI = builtins.head serviceCfg.access.oidc.callbackURLs;
-          OIDC_CLAIM_ROLES = lib.mkDefault "groups";
-          # The provider's roles make the first admin, so the wizard is an unauthenticated way to make one.
-          DISABLE_SETUP_WIZARD = lib.mkDefault "true";
-        }
-        // lib.mapAttrs (_: lib.mkDefault) roleEnv
-      );
+      // lib.optionalAttrs federated {
+        OIDC_ENABLED = "true";
+        OIDC_PROVIDER = oidcCfg.provider.displayName;
+        OIDC_SERVER_APPLICATION_URL = oidcCfg.provider.issuerUrl;
+        OIDC_REDIRECT_URI = builtins.head serviceCfg.access.oidc.callbackURLs;
+        OIDC_CLAIM_ROLES = lib.mkDefault "groups";
+        # The provider already enforces allowedGroups, so RomM only tells admins from everyone else.
+        OIDC_ROLE_ADMIN = lib.mkDefault cfg.groups.admin;
+        OIDC_ROLE_VIEWER = lib.mkDefault "*";
+        # The provider's roles make the first admin, so the wizard is an unauthenticated way to make one.
+        DISABLE_SETUP_WIZARD = lib.mkDefault "true";
+      };
     };
 
     # Upstream fixes the path at `/config/config.yml`.

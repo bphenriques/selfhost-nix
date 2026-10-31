@@ -57,11 +57,9 @@ pkgs.testers.runNixOSTest {
     # Federated, so the wizard's local-admin form is off even with no admin user yet.
     machine.succeed("curl -fsS http://127.0.0.1:8095/api/heartbeat | grep '\"SHOW_SETUP_WIZARD\":false' >/dev/null")
 
-    # One seat per allowed group, and no seat for a group the provider refuses: RomM 403s it rather
-    # than falling back to its non-admin role.
+    # Pocket-ID gates the groups, so RomM only maps the admin group.
     env = machine.succeed("systemctl show romm.service -p Environment")
     assert "OIDC_ROLE_ADMIN=admin" in env, env
-    assert "OIDC_ROLE_EDITOR=users" in env, env
-    assert "OIDC_ROLE_VIEWER" not in env, env
+    assert "OIDC_ROLE_VIEWER=*" in env, env
   '';
 }

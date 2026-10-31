@@ -59,7 +59,6 @@ let
         openFirewall = true;
         shares.media = {
           path = "/srv/storage/media";
-          gid = 990;
           access.users.ada = "rw";
         };
       };

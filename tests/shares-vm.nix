@@ -1,11 +1,15 @@
-# storage.shares.smb (VM): a real smbd and a real CIFS mount. Covers what eval cannot — the passdb is
-# provisioned from the credential files, the permissions unit lands setgid ownership on the share, and
-# the resolved access list actually denies a write or a whole mount.
+# storage.shares.smb (VM): a real smbd and a real CIFS mount. Covers what eval cannot: the passdb is
+# provisioned from the credential files, the resolved access list actually denies a write or a whole
+# mount, and a second door into one tree stays confined to its subdirectory. Ownership is the host's, so
+# the node sets it up the way a consumer would.
 { pkgs, common, ... }:
 let
+  inherit (pkgs) lib;
+
   adaPassword = "ada-secret";
   bobPassword = "bob-secret";
   backupPassword = "backup-secret";
+  agentPassword = "agent-secret";
 
   person = groups: passwordFile: {
     email = "person@test.local";
@@ -18,12 +22,46 @@ let
       inherit passwordFile;
     };
   };
+
+  machine = uid: passwordFile: {
+    unixAccount = {
+      enable = true;
+      inherit uid;
+      gid = uid;
+    };
+    storage.smb = {
+      enable = true;
+      inherit passwordFile;
+    };
+  };
+
+  # The host's side: one group per tree, setgid roots, and samba forcing that group on every door into it.
+  trees = {
+    media = {
+      gid = 990;
+      doors = [
+        "media"
+        "movies"
+      ];
+    };
+    photos = {
+      gid = 991;
+      doors = [ "photos" ];
+    };
+    vault = {
+      gid = 992;
+      doors = [ "vault" ];
+    };
+  };
 in
 pkgs.testers.runNixOSTest {
   name = "selfhost-shares";
 
   nodes.machine =
     { config, ... }:
+    let
+      shares = config.selfhost.storage.shares.smb.shares;
+    in
     {
       imports = [ common ];
 
@@ -31,9 +69,6 @@ pkgs.testers.runNixOSTest {
         pkgs.cifs-utils
         config.services.samba.package
       ];
-
-      # Stands in for the backing store: on a real host this path is a dataset the host mounted.
-      systemd.tmpfiles.rules = [ "d /srv/storage 0700 root root -" ];
 
       users.users.ada = {
         isNormalUser = true;
@@ -49,46 +84,63 @@ pkgs.testers.runNixOSTest {
         group = "nogroup";
       };
 
+      users.groups = lib.mapAttrs' (
+        tree: t:
+        lib.nameValuePair "storage-${tree}" {
+          inherit (t) gid;
+          members = lib.unique (lib.concatMap (door: lib.attrNames shares.${door}.resolvedAccess) t.doors);
+        }
+      ) trees;
+
+      systemd.tmpfiles.rules = [
+        "d /srv/storage 0755 root root -"
+        "d /srv/storage/media/movies 2770 ada storage-media -"
+        "d /srv/storage/media/private 2770 ada storage-media -"
+      ]
+      ++ map (tree: "d /srv/storage/${tree} 2770 ada storage-${tree} -") (lib.attrNames trees);
+
+      services.samba.settings = lib.concatMapAttrs (
+        tree: t:
+        lib.genAttrs t.doors (_: {
+          "force group" = "storage-${tree}";
+          "create mask" = "0660";
+          "directory mask" = "2770";
+          "force create mode" = "0660";
+          "force directory mode" = "2770";
+        })
+      ) trees;
+
       environment.etc = {
         "smb/ada".text = adaPassword;
         "smb/bob".text = bobPassword;
         "smb/machine-backup".text = backupPassword;
+        "smb/machine-agent".text = agentPassword;
       };
 
       selfhost = {
         users.ada = person [ "family" ] "/etc/smb/ada";
         users.bob = person [ "family" ] "/etc/smb/bob";
 
-        serviceAccounts.machine-backup = {
-          description = "Backup principal";
-          unixAccount = {
-            enable = true;
-            uid = 977;
-            gid = 977;
-          };
-          storage.smb = {
-            enable = true;
-            passwordFile = "/etc/smb/machine-backup";
-          };
-        };
+        serviceAccounts.machine-backup = machine 977 "/etc/smb/machine-backup";
+        serviceAccounts.machine-agent = machine 976 "/etc/smb/machine-agent";
 
         storage.shares.smb = {
           enable = true;
           shares = {
             media = {
               path = "/srv/storage/media";
-              owner = "ada";
-              gid = 990;
-              directories = [ "movies" ];
               access = {
                 groups.family = "rw";
-                users.machine-backup = "ro";
+                serviceAccounts.machine-backup = "ro";
               };
+            };
+            # A second door into the media tree, for a principal that must see nothing else of it.
+            movies = {
+              path = "/srv/storage/media/movies";
+              access.serviceAccounts.machine-agent = "rw";
             };
             photos = {
               path = "/srv/storage/photos";
-              owner = "ada";
-              gid = 991;
               access = {
                 groups.family = "rw";
                 users.bob = "ro";
@@ -96,8 +148,6 @@ pkgs.testers.runNixOSTest {
             };
             vault = {
               path = "/srv/storage/vault";
-              owner = "ada";
-              gid = 992;
               access = {
                 groups.family = "rw";
                 users.bob = "none";
@@ -112,12 +162,9 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_unit("samba-smbd.service")
     machine.wait_for_open_port(445)
 
-    with subtest("permissions unit prepares the share"):
-        # The parent must stay traversable even though tmpfiles asked for 0700: smbd drops to the
-        # connecting user, so a private parent would deny every session.
-        assert machine.succeed("stat -c %a /srv/storage").strip() == "755"
-        assert machine.succeed("stat -c %a:%U:%G /srv/storage/media").strip() == "2770:ada:storage-media"
-        assert machine.succeed("stat -c %a:%U:%G /srv/storage/media/movies").strip() == "2770:ada:storage-media"
+    def mount(share, user, password, at):
+        machine.succeed(f"mkdir -p {at}")
+        machine.succeed(f"mount -t cifs //localhost/{share} {at} -o username={user},password={password},vers=3.1.1")
 
     with subtest("both registries are provisioned into the passdb"):
         accounts = machine.succeed("pdbedit -L")
@@ -142,21 +189,13 @@ pkgs.testers.runNixOSTest {
         )
 
     with subtest("a granted principal writes"):
-        machine.succeed(
-            "mount -t cifs //localhost/media /mnt/rw"
-            " -o username=ada,password=${adaPassword},vers=3.1.1"
-        )
-        machine.succeed("touch /mnt/rw/movies/hello")
-        # force group + create mask, so the share's group owns what lands in it.
+        mount("media", "ada", "${adaPassword}", "/mnt/rw")
+        machine.succeed("touch /mnt/rw/movies/hello /mnt/rw/private/secret")
         assert machine.succeed("stat -c %G /srv/storage/media/movies/hello").strip() == "storage-media"
         machine.succeed("umount /mnt/rw")
 
     with subtest("a read-only principal reads but cannot write"):
-        machine.succeed("mkdir -p /mnt/ro")
-        machine.succeed(
-            "mount -t cifs //localhost/media /mnt/ro"
-            " -o username=machine-backup,password=${backupPassword},vers=3.1.1"
-        )
+        mount("media", "machine-backup", "${backupPassword}", "/mnt/ro")
         machine.succeed("test -f /mnt/ro/movies/hello")
         machine.fail("touch /mnt/ro/denied")
         machine.succeed("umount /mnt/ro")
@@ -164,25 +203,40 @@ pkgs.testers.runNixOSTest {
     with subtest("a principal admitted only by a group grant writes"):
         # bob holds no `users` entry on media; `groups.family = "rw"` is his whole claim to it.
         assert "bob" in machine.succeed("getent group storage-media")
-        machine.succeed(
-            "mount -t cifs //localhost/media /mnt/rw"
-            " -o username=bob,password=${bobPassword},vers=3.1.1"
-        )
+        mount("media", "bob", "${bobPassword}", "/mnt/rw")
         machine.succeed("touch /mnt/rw/movies/from-bob")
         machine.succeed("umount /mnt/rw")
 
-    with subtest("a user grant downgrades the group grant"):
-        machine.succeed(
-            "mount -t cifs //localhost/photos /mnt/ro"
-            " -o username=bob,password=${bobPassword},vers=3.1.1"
+    with subtest("a second door into one tree shares its files both ways"):
+        mount("movies", "machine-agent", "${agentPassword}", "/mnt/agent")
+        machine.succeed("test -f /mnt/agent/hello")
+        machine.succeed("touch /mnt/agent/from-agent")
+        machine.succeed("umount /mnt/agent")
+        assert machine.succeed("stat -c %G /srv/storage/media/movies/from-agent").strip() == "storage-media"
+        mount("media", "ada", "${adaPassword}", "/mnt/rw")
+        machine.succeed("echo edit >> /mnt/rw/movies/from-agent")
+        machine.succeed("umount /mnt/rw")
+
+    with subtest("the second door confines its principal to the subdirectory"):
+        machine.fail(
+            "mount -t cifs //localhost/media /mnt/agent"
+            " -o username=machine-agent,password=${agentPassword},vers=3.1.1"
         )
+        # Samba refuses to follow a link out of the share unless `wide links` is set. The link that
+        # stays inside proves the refusal is samba's, not a client that follows no links at all.
+        machine.succeed("ln -s /srv/storage/media/private /srv/storage/media/movies/escape")
+        machine.succeed("ln -s /srv/storage/media/movies/hello /srv/storage/media/movies/inside")
+        mount("movies", "machine-agent", "${agentPassword}", "/mnt/agent")
+        machine.succeed("test -f /mnt/agent/inside")
+        machine.fail("ls /mnt/agent/escape/secret")
+        machine.succeed("umount /mnt/agent")
+
+    with subtest("a user grant downgrades the group grant"):
+        mount("photos", "bob", "${bobPassword}", "/mnt/ro")
         machine.fail("touch /mnt/ro/denied")
         machine.succeed("umount /mnt/ro")
         # ada, same group, no `users` entry, keeps the rw the group gave.
-        machine.succeed(
-            "mount -t cifs //localhost/photos /mnt/rw"
-            " -o username=ada,password=${adaPassword},vers=3.1.1"
-        )
+        mount("photos", "ada", "${adaPassword}", "/mnt/rw")
         machine.succeed("touch /mnt/rw/from-ada")
         machine.succeed("umount /mnt/rw")
 
@@ -192,10 +246,7 @@ pkgs.testers.runNixOSTest {
             "mount -t cifs //localhost/vault /mnt/ro"
             " -o username=bob,password=${bobPassword},vers=3.1.1"
         )
-        machine.succeed(
-            "mount -t cifs //localhost/vault /mnt/rw"
-            " -o username=ada,password=${adaPassword},vers=3.1.1"
-        )
+        mount("vault", "ada", "${adaPassword}", "/mnt/rw")
         machine.succeed("umount /mnt/rw")
   '';
 }

@@ -1,6 +1,6 @@
 # Users
 
-selfhost-nix models people and service identities as `selfhost.users.<name>`, across three access tiers
+selfhost-nix models people as `selfhost.users.<name>`, across three access tiers
 via `groups`: `admin`, `users`, `guests`. The same groups gate services
 (`access.allowedGroups`) and SMB shares (`storage.shares.smb.shares.<name>.access.groups`). At least one admin user is asserted (more is your call). Per-user
 attributes **mirror the framework's registry**, so where an option lives tells you what it touches:
@@ -24,8 +24,8 @@ selfhost.users.alice = {
 
 ## Service accounts
 
-`selfhost.serviceAccounts.<name>` is the same registry for non-human principals. They hold no groups, so
-grants name them directly, and the framework provisions **identity and the credentials you declare, never
+`selfhost.serviceAccounts.<name>` is the registry for non-human principals. They hold no groups, so
+grants name them under their own registry (`access.serviceAccounts` on a share), and the framework provisions **identity and the credentials you declare, never
 authorization inside the application**: whatever the account is then allowed to do is set where that
 application keeps its permissions.
 
