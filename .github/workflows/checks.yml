@@ -18,11 +18,11 @@ jobs:
   # Cheap, fast feedback: everything that isn't a VM test (formatting, eval checks, package builds).
   fast:
     name: eval + format
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
-      - uses: nix-community/cache-nix-action@v6
+      - uses: nix-community/cache-nix-action@v7
         with:
           primary-key: nix-fast-${{ hashFiles('flake.lock') }}
           restore-prefixes-first-match: nix-fast-
@@ -42,9 +42,9 @@ jobs:
   # are picked up without touching this file.
   vm:
     name: nixos vm tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
@@ -56,7 +56,7 @@ jobs:
           extra_nix_config: |
             system-features = nixos-test benchmark big-parallel kvm
       # The VM matrix otherwise rebuilds every image from scratch on each push.
-      - uses: nix-community/cache-nix-action@v6
+      - uses: nix-community/cache-nix-action@v7
         with:
           primary-key: nix-vm-${{ hashFiles('flake.lock') }}
           restore-prefixes-first-match: nix-vm-
