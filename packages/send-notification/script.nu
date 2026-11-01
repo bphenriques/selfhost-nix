@@ -12,10 +12,7 @@ def main [
   if ($message | is-empty) { error make {msg: "--message is required"} }
   let url = $env.NOTIFY_URL
   let token = open --raw $env.NOTIFY_TOKEN_FILE | str trim
-  mut headers = {
-    Authorization: $"Bearer ($token)"
-    Markdown: "yes"
-  }
+  mut headers = { Authorization: $"Bearer ($token)" }
   if ($title | is-not-empty) { $headers = ($headers | insert Title $title) }
   if ($tags | is-not-empty) { $headers = ($headers | insert Tags $tags) }
   if ($priority | is-not-empty) { $headers = ($headers | insert Priority $priority) }

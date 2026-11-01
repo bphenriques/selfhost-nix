@@ -28,7 +28,7 @@ def "main backup" [profile: string] {
   let s = $snapshot.summary
   let total = $s.total_bytes_processed | into filesize
   let added = $s.data_added_packed | into filesize
-  let summary = $"**\(($profile)\) Processed:** ($total) | **Added:** ($added)\n**Files:** ($s.files_new) new, ($s.files_changed) changed"
+  let summary = $"\(($profile)\) Processed: ($total) | Added: ($added)\nFiles: ($s.files_new) new, ($s.files_changed) changed"
   $summary | save --force $summary_file
   print "=== Pruning old snapshots ==="
   rustic -P $profile forget
