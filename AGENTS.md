@@ -71,5 +71,5 @@ Opinionated NixOS modules for a single-admin selfhost. Architecture is in [READM
 
 - VM tests in `tests/`, one concern per file, listed in `tests/default.nix`. `git add` new files at once: a flake can't see untracked paths, and only the VM job notices.
 - Eval checks catch option and assertion errors. VM tests catch integration bugs. Add a regression test when fixing a real bug.
-- After restarting a `simple` service, wait for its port, not its unit: the unit counts as started before the service is ready.
+- Wait for readiness, not the unit: a `simple` unit counts as started early. Wait for the port, or retry the request with `wait_until_succeeds` when a proxy fronts the service.
 - Services needing external infrastructure (SMB server, live OIDC) get eval coverage only.

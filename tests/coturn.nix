@@ -38,7 +38,7 @@ pkgs.testers.runNixOSTest {
     machine.succeed(f"test -z \"$(grep -rl {password} /nix/store/*turnserver.conf)\"")           # never the store
     machine.succeed("readlink /var/lib/romm/config/config.yml | grep -q '^/run/'")              # …so this one renders
 
-    cfg = machine.succeed("curl -fsS http://127.0.0.1:8095/api/config")
+    cfg = machine.wait_until_succeeds("curl -fsS http://127.0.0.1:8095/api/config", timeout=120)   # the vhost is up before the API
     assert '"EJS_NETPLAY_ENABLED":true' in cfg, cfg                               # …and RomM parsed it
   '';
 }
