@@ -126,14 +126,11 @@ in
     warnings =
       let
         unwired = lib.attrNames (
-          lib.filterAttrs (
-            _: t: t.integrations.notify.topic == null && t.systemdServices != [ ]
-          ) config.selfhost.tasks
+          lib.filterAttrs (_: t: t.integrations.notify.topic == null && t.systemdServices != [ ]) config.selfhost.tasks
         );
       in
-      lib.optional (
-        config.selfhost.notify.active && unwired != [ ]
-      ) "No notify topic, so a failure of these reports to nobody: ${lib.concatStringsSep ", " unwired}. Set tasks.<name>.integrations.notify.topic, or ignore if they should stay quiet.";
+      lib.optional (config.selfhost.notify.active && unwired != [ ])
+        "No notify topic, so a failure of these reports to nobody: ${lib.concatStringsSep ", " unwired}. Set tasks.<name>.integrations.notify.topic, or ignore if they should stay quiet.";
 
     systemd.services = lib.mkMerge (
       lib.attrValues (lib.mapAttrs mkFailureOverrides tasksWithNotify) ++ [ (lib.mapAttrs' mkNotifier tasksWithNotify) ]

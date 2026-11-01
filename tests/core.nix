@@ -16,7 +16,10 @@ pkgs.testers.runNixOSTest {
 
       # A publisher that runs on another host: provisioned here, its token carried across by hand. Two
       # topics, because this host cannot read the other one's config to learn where it routes failures.
-      notify.ntfy.remotePublishers.offsite.topics = [ "probes" "announce" ];
+      notify.ntfy.remotePublishers.offsite.topics = [
+        "probes"
+        "announce"
+      ];
 
       # A non-human principal needing a Unix identity. Ids are pinned because they end up in the
       # ownership of files that can outlive the root filesystem.

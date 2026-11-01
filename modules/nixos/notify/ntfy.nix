@@ -21,7 +21,13 @@ let
 
   # A failure topic that differs from the summary one is a second grant, not a replacement.
   publisherTopics =
-    p: lib.unique (lib.filter (t: t != null) [ p.integrations.notify.topic p.integrations.notify.failureTopic ]);
+    p:
+    lib.unique (
+      lib.filter (t: t != null) [
+        p.integrations.notify.topic
+        p.integrations.notify.failureTopic
+      ]
+    );
 
   notifyServices = lib.filterAttrs (_: s: s.integrations.notify.enable) cfg.services;
   notifyTasks = lib.filterAttrs (_: t: t.integrations.notify.enable) cfg.tasks;
