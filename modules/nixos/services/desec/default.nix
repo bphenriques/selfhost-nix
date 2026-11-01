@@ -1,10 +1,4 @@
-# deSEC dynamic DNS: keeps `domains` pointed at the host's current public IP.
-#
-# A good fit for reaching a WireGuard server on a residential connection whose IP changes — clients
-# dial a stable hostname instead of a moving IP. WireGuard is silent (it never answers an
-# unauthenticated packet), so a published home IP is invisible to scanners and offers nothing to
-# hit. Don't use this to expose services directly: that means opening ports, which the WireGuard
-# stealth property no longer covers.
+# deSEC dynamic DNS for a WireGuard endpoint on a changing IP (see the apps chapter). Not for exposing services.
 {
   config,
   lib,
@@ -53,10 +47,7 @@ in
         ProtectControlGroups = true;
         RestrictSUIDSGID = true;
       };
-      # deSEC autodetects the IP from the request source, so there's nothing to detect locally; -4
-      # (+ myipv6=preserve) keeps us to the A record and never clobbers an AAAA. The token is written
-      # to a curl config with printf (a bash builtin, so it never lands in a process's argv) and read
-      # back via -K, keeping it off the command line.
+      # -4 with myipv6=preserve keeps to the A record; the token goes through a printf'd curl config, never argv.
       path = [ pkgs.curl ];
       script = ''
         conf="$RUNTIME_DIRECTORY/curl.conf"
@@ -69,13 +60,10 @@ in
       '';
     };
 
-    # Registered so a consumer can attach notify or storage. No topic default: this timer runs every
-    # 30 minutes, and an OnFailure hook fires per tick, so a deSEC outage would page on every one.
+    # No topic default: OnFailure fires per 30-minute tick, so an outage would page on every one.
     selfhost.tasks.desec-ddns.systemdServices = [ "desec-ddns" ];
 
-    # A stale A record is only noticed when something cannot resolve the domain, so it does need an
-    # alert — one that rides out a blip. Needs node_exporter's systemd collector, as in smb-shares.
-    # `for` spans a retry: the unit stays failed between ticks, so this fires only after one lapsed.
+    # A stale A record shows only when resolution fails, so alert, with `for` spanning one retry.
     selfhost.monitoring.scopes = lib.mkIf config.selfhost.monitoring.enable {
       desec-ddns.rules = [
         {

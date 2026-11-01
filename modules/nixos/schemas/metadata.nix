@@ -13,8 +13,7 @@
       description = "Human-readable name (defaults to attribute name)";
     };
 
-    # Consumer-agnostic descriptive metadata, mirroring nixpkgs `meta` (name/displayName stay flat,
-    # like nixpkgs pname). `category` is selfhost's own grouping key.
+    # Descriptive metadata mirroring nixpkgs `meta`; `category` is selfhost's own grouping key.
     meta = {
       description = lib.mkOption {
         type = lib.types.str;

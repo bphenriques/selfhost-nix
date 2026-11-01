@@ -1,6 +1,4 @@
-# First-party Gitea app: a git server fronted by OIDC. Human accounts and the OIDC auth source are
-# provisioned via the stable `gitea admin` CLI; non-UI service accounts get SSH keys registered through
-# the admin API (the CLI can't add keys) using an ephemeral admin token the configure mints itself.
+# Gitea app behind OIDC. Service-account SSH keys go through the admin API with a token the configure mints.
 {
   config,
   lib,
@@ -109,8 +107,7 @@ in
         port = app.ssh.port;
       };
 
-      # Break-glass local admin (routine login is OIDC); reconciled each configure run, so the default
-      # regenerateIfMissing is safe (a lost file self-heals rather than drifting from the DB).
+      # Break-glass admin, reconciled each configure run, so regenerating a lost file is safe.
       runtimeSecrets.gitea-admin-password = {
         owner = "gitea";
         restartUnits = [ "gitea-configure.service" ];
@@ -168,9 +165,7 @@ in
 
     networking.firewall.allowedTCPPorts = lib.mkIf (app.ssh.enable && app.ssh.openFirewall) [ app.ssh.port ];
 
-    # Provision the OIDC source into the DB before the server registers providers (after nixpkgs' preStart).
-    # Non-fatal: gitea's server fail-soft-skips an unreachable source (first boot before the cert), so we
-    # mustn't be stricter — let it start; the next start provisions.
+    # Non-fatal, like gitea itself: an unreachable source on first boot is provisioned on the next start.
     systemd.services.gitea = lib.mkIf (serviceCfg.access.model == "oidc") {
       serviceConfig.SupplementaryGroups = serviceCfg.access.oidc.systemd.supplementaryGroups;
       environment = {
@@ -209,7 +204,6 @@ in
           serviceCfg.access.model == "oidc"
         ) serviceCfg.access.oidc.systemd.supplementaryGroups;
         # No filesystem sandbox: the gitea CLI writes the DB and app.ini under upstream's stateDir.
-        # See notify/ntfy.nix for the reasoning.
         ProtectHome = true;
         PrivateTmp = true;
         NoNewPrivileges = true;

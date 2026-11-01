@@ -1,6 +1,4 @@
-# First-party Radicale app: a CalDAV/CardDAV server. The web UI sits behind forwardAuth; a separate
-# dav.<domain> route serves sync clients on Radicale's own htpasswd auth (RFC 6764 .well-known
-# redirects for auto-discovery). Its htpasswd is derived from selfhost.users grants.
+# Radicale app: the web UI sits behind forwardAuth, and dav.<domain> serves sync clients on Radicale's htpasswd.
 {
   config,
   lib,
@@ -13,8 +11,7 @@ let
 
   enabledUsernames = builtins.attrNames (lib.filterAttrs (_: u: u.services.radicale.enable) config.selfhost.users);
 
-  # Storage location is the consumer's to relocate; read the effective value so backup and the reconciler
-  # follow it. The default below is set with mkDefault so overriding it doesn't conflict.
+  # The consumer may relocate storage, so backup and the reconciler read the effective value.
   dataDir = config.services.radicale.settings.storage.filesystem_folder;
   htpasswdFile = "/var/lib/radicale/users";
 
@@ -57,8 +54,7 @@ in
       port = lib.mkDefault 5232;
       subdomain = lib.mkDefault "radicale";
       access.allowedGroups = lib.mkDefault [ config.selfhost.groups.admin ];
-      # htpasswd protects every endpoint, but only the gateway can enforce allowedGroups, so the web
-      # route rides it. The dav route below stays on htpasswd for sync clients that cannot.
+      # Only the gateway can enforce allowedGroups, so the web route rides it.
       access.model = "forwardAuth";
       integrations.homepage.group = lib.mkDefault "Admin";
       healthcheck.path = "/.web/";
@@ -77,10 +73,7 @@ in
       };
     };
 
-    # Sync clients authenticate against Radicale's own htpasswd, so this endpoint needs no gateway and
-    # must stay up even when the web route is withheld for want of one. A second entry onto the same
-    # backend, so it gets routing and host-uniqueness like anything else (its healthcheck is the
-    # owner's, since the probe targets the backend they share).
+    # Sync clients use Radicale's htpasswd, so this route needs no gateway and stays up without one.
     selfhost.services.radicale-dav = {
       displayName = lib.mkDefault "Radicale (DAV)";
       meta.description = lib.mkDefault "CalDAV & CardDAV sync endpoint";
@@ -112,8 +105,7 @@ in
       enabledUsernames == [ ]
     ) "selfhost.apps.radicale: no selfhost.users have services.radicale.enable — Radicale will have no accounts.";
 
-    # radicale.service's StateDirectory creates /var/lib/radicale only when it starts, but the htpasswd is
-    # written by radicale-configure (ordered before it). Create the dir up front so first boot works.
+    # StateDirectory only appears when radicale starts, but the configure unit before it writes the htpasswd there.
     systemd.tmpfiles.rules = [ "d /var/lib/radicale 0750 radicale radicale -" ];
 
     selfhost.runtimeSecrets = lib.listToAttrs (
@@ -137,8 +129,7 @@ in
         Restart = "on-failure";
         RestartSec = 10;
         UMask = "0027";
-        # No filesystem sandbox: it writes the htpasswd next to Radicale's state, which upstream may
-        # relocate. See notify/ntfy.nix for the reasoning.
+        # No filesystem sandbox: the htpasswd lives beside state that upstream may relocate.
         ProtectHome = true;
         PrivateTmp = true;
         NoNewPrivileges = true;

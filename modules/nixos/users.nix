@@ -99,19 +99,11 @@ in
         ]
       );
       default = { };
-      description = ''
-        People, keyed by username. Non-human principals belong in `selfhost.serviceAccounts`: this
-        schema requires a name and an email and layers OIDC onto every entry, which a robot has
-        neither of. Per-service config mirrors the registry at `users.<name>.services.<service>`; a
-        concern's per-user opt-in mirrors the concern, e.g. `users.<name>.auth.oidc.enable`. One admin
-        is required once any service is registered.
-      '';
+      description = "People, keyed by username. Per-service config mirrors the registry at `users.<name>.services.<service>`.";
     };
   };
 
-  # At least one admin (someone must reach admin-gated services); more is a consumer choice. A host that
-  # registers no services has nothing to gate, so it needs none. The admin group's name stays
-  # configurable via selfhost.groups.admin.
+  # At least one admin wherever services exist, so admin-gated services stay reachable.
   config = {
     assertions = [
       {
@@ -124,13 +116,7 @@ in
       lib.optional (unpinnedUids != [ ])
         "Users with a POSIX account and no pinned uid: ${toString unpinnedUids}. Read each back with `getent passwd` and set `selfhost.users.<name>.unixAccount.uid`.";
 
-    # Identity only: a service resolving a session needs a uid, not a login. `isNormalUser` for the uid
-    # range people's files belong in, but nothing is created and no shell is given until a consumer asks.
-    # `home` keeps whatever nixpkgs names it, since nothing is there to find.
-    #
-    # 900 sits between `mkDefault` (1000) and a plain definition (100): it beats the `isNormalUser`
-    # defaults these would otherwise conflict with, and still loses to a consumer promoting the account
-    # with `users.users.<name>.createHome = true`.
+    # Identity only (a uid, no login or home). Priority 900 beats `isNormalUser` defaults yet loses to a consumer's createHome.
     users.users = lib.mapAttrs (_: u: {
       isNormalUser = true;
       createHome = lib.mkOverride 900 false;

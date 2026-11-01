@@ -1,5 +1,4 @@
-# Gitea's per-service-account surface, kept beside the app rather than in the core registry, mirroring
-# ./user.nix.
+# Gitea's per-service-account surface, beside the app like ./user.nix.
 { lib, ... }:
 {
   options.selfhost.serviceAccounts = lib.mkOption {

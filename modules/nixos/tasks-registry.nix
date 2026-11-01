@@ -27,9 +27,7 @@ in
       lib.types.submoduleWith {
         specialArgs = {
           selfhostCfg = cfg;
-          # Every task has a failure worth hearing about and the hook reporting it is the framework's, so
-          # notify.defaultTopic applies. A service is the other way round: its notifications are domain
-          # events it sends itself, and most have none, so those name a topic one at a time.
+          # A task's failure hook is the framework's, so notify.defaultTopic applies (unlike services).
           notifyDefaultTopic = cfg.notify.defaultTopic;
         };
         modules = [

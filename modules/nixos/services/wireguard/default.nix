@@ -8,8 +8,7 @@ let
   cfg = config.selfhost;
   wg = cfg.apps.wireguard;
 
-  # The server key must exist before whichever backend creates wg0 (systemd-networkd under networkd,
-  # wireguard-<iface>.service otherwise), so anchor keygen on it.
+  # The server key must exist before whichever backend creates wg0, so keygen anchors on it.
   ifaceBackend =
     if config.networking.wireguard.useNetworkd then "systemd-networkd.service" else "wireguard-${wg.interface}.service";
 
@@ -23,10 +22,7 @@ let
   netdevName = "40-${wg.interface}";
   peersDropInDir = "/run/systemd/network/${netdevName}.netdev.d";
 
-  # Ahead of nixos-fw so it polices what those services opened on the tunnel, and new connections only,
-  # so traffic the server itself initiated is untouched. An accept here skips this chain's drop, not
-  # nixos-fw: every base chain on the hook still runs. The v6 drop is not redundant, since `ip saddr`
-  # cannot match a v6 packet and it would fall through to whatever nixos-fw opened, family-agnostic.
+  # Ahead of nixos-fw, new connections only. The v6 drop matters: `ip saddr` never matches v6, which would fall through.
   restrictChain =
     let
       accept =
@@ -50,17 +46,13 @@ let
       }
     '';
 
-  # A magic packet is only useful as a broadcast (a powered-off host answers no ARP), so WoL is the one
-  # directed broadcast let through, on the magic-packet ports and from full-access clients only.
-  # `fib daddr type` classifies the destination without deriving the broadcast address from the subnet.
+  # WoL is the one directed broadcast let through (a powered-off host answers no ARP), from full-access clients only.
   wolRules = lib.optionals (wg.lanAccess.wakeOnLan && wg.fullAccessSubnet != null) [
     ''iifname "${wg.interface}" ip saddr ${wg.fullAccessSubnet} fib daddr type broadcast udp dport { 7, 9 } accept comment "Wake-on-LAN"''
     ''iifname "${wg.interface}" fib daddr type broadcast drop''
   ];
 
-  # Govern only WireGuard clients: full-access addresses forward to the LAN, the rest reach just the
-  # server. Other forwarding (containers, bridges) is left to whatever manages it, so this never has to
-  # know about podman/microvm/etc.
+  # Governs WireGuard clients only, so other forwarding (containers, bridges) is left alone.
   forwardRules =
     wolRules
     ++ lib.optional (wg.fullAccessSubnet != null) ''iifname "${wg.interface}" ip saddr ${wg.fullAccessSubnet} accept''
@@ -81,9 +73,7 @@ let
     ''
   );
 
-  # AllowedIPs is the client's routing table, so it decides what the device diverts away from its own
-  # network, not what it is permitted to reach. A restricted device therefore routes the server alone:
-  # sending it the whole LAN subnet captures the local network of anyone whose home uses the same one.
+  # AllowedIPs is the client routing table, so a restricted device routes only the server, not a LAN clashing with its own.
   allowedIPsFull = [ wg.clientSubnet ] ++ lib.optional wg.lanAccess.enable wg.lanAccess.subnet;
   allowedIPsRestricted =
     if wg.lanAccess.enable && wg.lanAccess.serverAddress != null then
@@ -94,8 +84,7 @@ let
     else
       allowedIPsFull;
 
-  # `fullAccessSubnet` has to name a block inside `clientSubnet`. Outside it, both the chain and
-  # `add --full-access` fail closed without saying why, so catch it at eval.
+  # Outside `clientSubnet`, the chain and `add --full-access` fail closed silently, so catch it at eval.
   ipToInt = s: lib.foldl' (acc: o: acc * 256 + lib.toInt o) 0 (lib.splitString "." s);
   netMask = prefix: 4294967296 - lib.foldl' (acc: _: acc * 2) 1 (lib.range 1 (32 - prefix));
   within =
@@ -109,9 +98,7 @@ let
     lib.toInt (lib.elemAt i 1) >= outerPrefix
     && builtins.bitAnd (ipToInt (lib.head i)) mask == builtins.bitAnd (ipToInt (lib.head o)) mask;
 
-  # One generated file rather than a spread of env vars, matching pocket-id-manage. It carries the
-  # address plan and the peer file's path, so allocation, policy and status all resolve a device's
-  # tier the same way the nftables chain above does.
+  # One generated config, so allocation, policy and status resolve a device's tier the way the chain does.
   manageConfigFile = pkgs.writeText "wg-manage-config.json" (
     builtins.toJSON {
       inherit (wg)
@@ -184,14 +171,7 @@ in
     dns = lib.mkOption {
       type = lib.types.str;
       example = "1.1.1.1";
-      description = ''
-        DNS server pushed to clients. A resolver the device reaches over its own connection works for
-        every device, and is what makes `<subdomain>.<domain>` resolve before the tunnel carries the
-        request.
-
-        Naming this host instead takes `restrictedPeers.udpPorts = [ 53 ]`, since a device outside
-        `fullAccessSubnet` reaches only the ports listed there.
-      '';
+      description = "DNS server pushed to clients. Naming this host needs `restrictedPeers.udpPorts = [ 53 ]`.";
     };
     openFirewall = lib.mkOption {
       type = lib.types.bool;
@@ -216,8 +196,7 @@ in
       wakeOnLan = lib.mkEnableOption "forwarding Wake-on-LAN magic packets (UDP 7 and 9) from full-access clients to the LAN broadcast address; every other directed broadcast stays in the tunnel";
     };
 
-    # What a device outside `fullAccessSubnet` reaches on this host, the counterpart to `lanAccess` governing
-    # what a full-access one reaches beyond it.
+    # Counterpart of `lanAccess`: what a restricted device reaches on this host.
     restrictedPeers = {
       tcpPorts = lib.mkOption {
         type = lib.types.listOf lib.types.port;
@@ -255,9 +234,7 @@ in
           displayName = lib.mkDefault "WireGuard";
           meta.description = lib.mkDefault "VPN";
 
-          # Device names, addresses and public keys. The server private key is deliberately left out:
-          # a leaked backup must not let anyone stand up the tunnel, and losing it costs one new config
-          # per device rather than a re-enrolment, since client keys and addresses survive here.
+          # The server private key is left out, so a leaked backup cannot stand up the tunnel.
           backup.package = pkgs.writeShellApplication {
             name = "backup-wireguard";
             text = ''
@@ -268,9 +245,7 @@ in
               fi
             '';
           };
-          # No port: WireGuard is a UDP daemon with no HTTP backend, so it is neither routed nor
-          # healthchecked. The entry exists for its metadata and metrics; the tunnel socket is
-          # registered below.
+          # No port: a UDP daemon, so it is neither routed nor healthchecked.
 
           integrations.monitoring = {
             exporters.wireguard = {
@@ -338,8 +313,7 @@ in
           '';
         };
 
-        # No peers here: they are runtime state that `wg-manage` owns and applies live (see
-        # wireguard-apply-peers below). This declares only the interface and the server key.
+        # Peers are runtime state owned by `wg-manage` and applied below.
         networking.wireguard.interfaces.${wg.interface} = {
           ips = [ wg.address ];
           inherit (wg) listenPort;
@@ -349,9 +323,7 @@ in
 
         networking.firewall.allowedUDPPorts = lib.optionals wg.openFirewall [ wg.listenPort ];
 
-        # Peers are runtime state that `wg-manage` writes and applies live, so this restores them when the
-        # interface appears: bound to the device, since networkd being up does not mean wg0 exists yet.
-        # A networkd restart keeps the device and re-applies its netdev, peers drop-in included.
+        # Restores peers when wg0 appears, since networkd being up does not mean the device exists yet.
         systemd.services.wireguard-apply-peers = {
           description = "Apply ${wg.interface} peers from ${peersFile}";
           after = [
@@ -379,8 +351,7 @@ in
         environment.systemPackages = [ wgManage ];
       }
 
-      # One table, three chains, rather than a table per concern: `nft list table inet wireguard-access`
-      # then shows everything this module installs, and a reload is one atomic delete-and-add.
+      # One table, so `nft list table` shows all of it and a reload is atomic.
       {
         networking.nftables.enable = true;
         networking.nftables.tables.wireguard-access = {
@@ -394,9 +365,7 @@ in
           "net.ipv4.ip_forward" = 1;
         }
         // lib.optionalAttrs wg.lanAccess.wakeOnLan {
-          # Routing drops a forwarded directed broadcast before the filter ever sees it, unless both
-          # `all` and the ingress interface opt in (AND, not OR, so no other interface is affected);
-          # the interface entry is applied by udev once the interface appears.
+          # Forwarded directed broadcasts need both `all` and the ingress interface to opt in; udev sets the latter.
           "net.ipv4.conf.all.bc_forwarding" = 1;
           "net.ipv4.conf.${wg.interface}.bc_forwarding" = 1;
         };

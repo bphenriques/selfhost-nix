@@ -13,10 +13,7 @@ let
     _: task: task.integrations.notify.enable && task.systemdServices != [ ]
   ) config.selfhost.tasks;
 
-  # `OnFailure` rather than an `ExecStopPost` hook, so this fires when systemd gives up rather than on
-  # every failed attempt: a unit with `Restart=on-failure` only reaches the failed state once its start
-  # limit is exhausted. A unit that does not restart still alerts on its first failure, as it should.
-  # One notifier per task (its topic and token differ), instanced by `%n` so the message names the unit.
+  # OnFailure, so it fires once systemd gives up rather than per attempt; `%n` names the unit in the message.
   notifierUnit = taskName: "homelab-notify-failure-${taskName}@";
 
   mkNotifier =
@@ -96,9 +93,7 @@ in
       description = "Systemd unit of the active provider that provisions publisher tokens; consumers that read a token via LoadCredential order `after` it. null = no provider, or a provider with no provisioning step.";
     };
 
-    # Notification seam used by backup, task-failure hooks, and simple service hooks. Swap to
-    # retarget all of them at once (e.g. an Apprise/gotify gateway). Producers that abstract
-    # notifications themselves (Alertmanager, *arr connectors) stay native, retargeted in their config.
+    # The seam backup and failure hooks share; producers with their own notifiers (Alertmanager, *arr) stay native.
     package = lib.mkOption {
       type = lib.types.package;
       default = pkgs.selfhost.send-notification;
@@ -120,9 +115,7 @@ in
         }
       ];
 
-    # Tasks only: a task's failure hook is the framework's own, so an unnamed topic means a failed unit
-    # reports to nobody. A service's notifications are domain events it sends itself, which having no
-    # topic is a normal answer to.
+    # Tasks only: their failure hook is the framework's, so no topic means a failure reports to nobody.
     warnings =
       let
         unwired = lib.attrNames (

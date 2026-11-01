@@ -95,14 +95,12 @@ in
       in
       [
         {
-          # The wildcard TLS SANs below interpolate the domain, so without one Traefik fails as a raw
-          # coercion error rather than saying what is missing.
+          # The wildcard SANs interpolate the domain, so fail here rather than as a raw coercion error.
           assertion = ingressCfg.domain != null;
           message = "selfhost.ingress.traefik.enable requires selfhost.ingress.domain, which is unset.";
         }
         {
-          # These are routed only because someone set ingress.enable explicitly: the registry otherwise
-          # leaves an access.model = "forwardAuth" service unrouted until a provider exists.
+          # Only reachable through an explicit ingress.enable, since the registry leaves these unrouted without a provider.
           assertion = forwardAuthServices == [ ] || cfg.auth.forwardAuth.active;
           message = "Services set access.model = \"forwardAuth\" and are routed, but no forward-auth provider is active (selfhost.auth.forwardAuth.url is unset): ${
             lib.concatMapStringsSep ", " (s: s.name) forwardAuthServices
@@ -191,9 +189,7 @@ in
           ++ lib.optional cfg.auth.forwardAuth.active {
             http.middlewares.forwardAuth.forwardAuth = {
               address = "${cfg.auth.forwardAuth.url}${cfg.auth.forwardAuth.path}";
-              # No `trustForwardHeader`. Inert today, since the entrypoint already drops client
-              # `X-Forwarded-*` while `forwardedHeaders.trustedIPs` is empty, but it is deprecated
-              # upstream and would go live the moment someone trusts an upstream proxy there.
+              # No `trustForwardHeader`: deprecated, and live the moment someone trusts an upstream proxy.
               authResponseHeaders = [
                 "Remote-User"
                 "Remote-Email"

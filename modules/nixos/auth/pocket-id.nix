@@ -10,8 +10,7 @@ let
   serviceCfg = config.selfhost.services.pocket-id;
   oidcCfg = config.selfhost.auth.oidc;
 
-  # Local rather than on `auth.oidc.provider`: how an implementation authenticates to itself is its
-  # own business, not part of the contract.
+  # Local rather than on `auth.oidc.provider`: how an implementation authenticates to itself is not the contract.
   apiKeyFile = cfg.runtimeSecrets.pocket-id-api-key.path;
   smtpCfg = config.selfhost.mail;
 
@@ -20,9 +19,7 @@ let
   usersConfigFile = pkgs.writeText "oidc-provision-users-config.json" (
     builtins.toJSON {
       inherit (oidcCfg.provisionConfig) users groups;
-      # The declared client set, so base provisioning can name what Pocket-ID still holds and Nix no
-      # longer asks for. Per-client units only ever see their own config, so this is the one place that
-      # knows the whole set.
+      # The whole declared client set, so base provisioning can find what Pocket-ID holds that Nix no longer asks for.
       clients = lib.attrNames oidcCfg.clients;
     }
   );
@@ -100,21 +97,17 @@ in
         clientProvisionUnitPrefix = "pocket-id-provision-client-";
       };
 
-      # OIDC provisioning fails silently otherwise — a broken login is only found when someone tries to
-      # log in. Wire the root-run units to the notify seam so a failure alerts the admin (fires per failed
-      # attempt, bounded by each unit's startLimitBurst).
+      # A broken OIDC provision only shows at the next login, so failures alert (bounded by startLimitBurst).
       tasks.oidc-provision.systemdServices = [
         baseServiceName
       ]
       ++ map (name: "pocket-id-provision-client-${name}") (lib.attrNames oidcCfg.clients);
 
       runtimeSecrets = {
-        # Encrypts Pocket-ID's DB: a replacement value would orphan it. generateOnce never silently
-        # regenerates; guarding on the DB dir means a secrets-dir wipe (no data) regenerates cleanly while a
-        # lost key over a surviving DB stays absent (restore, don't brick). The API key regenerates harmlessly.
+        # Encrypts the DB, so a lost key over a surviving DB stays absent rather than orphaning it.
         pocket-id-encryption-key = {
           owner = config.services.pocket-id.user;
-          generateOnce = config.services.pocket-id.dataDir;
+          onMissing.generateOnce = config.services.pocket-id.dataDir;
           restartUnits = [ "pocket-id.service" ];
         };
         pocket-id-api-key = {
@@ -145,9 +138,7 @@ in
         EMAIL_ONE_TIME_ACCESS_AS_ADMIN_ENABLED = true;
         EMAIL_ONE_TIME_ACCESS_AS_UNAUTHENTICATED_ENABLED = false;
       }
-      # SMTP is optional. Enrolment works without it — `pocket-id one-time-access-token <user>` mints the
-      # link, which is the default path anyway (users.auth.oidc.inviteByEmail is off, and auth/oidc.nix
-      # asserts mail is present for anyone who turns it on).
+      # SMTP is optional: `pocket-id one-time-access-token <user>` mints enrolment links without it.
       // lib.optionalAttrs smtpCfg.active {
         SMTP_HOST = smtpCfg.host;
         SMTP_PORT = toString smtpCfg.port;

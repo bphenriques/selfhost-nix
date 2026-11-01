@@ -1,5 +1,4 @@
-# Standalone FileBrowser Quantum: serves one source and reconciles per-user access over its API.
-# See the FileBrowser Quantum docs chapter for the model.
+# Standalone FileBrowser Quantum; the model is in its docs chapter.
 {
   config,
   lib,
@@ -68,9 +67,7 @@ let
     exec ${lib.getExe cfg.package} -c ${configFile}
   '';
 
-  # Beyond the repo baseline: this unit serves the host's most sensitive tree, and behind a public
-  # edge it is the reachable one. It needs no capabilities and only ordinary sockets. No filesystem
-  # sandbox: it writes where the consumer points it.
+  # Hardened beyond the baseline: it serves the most sensitive tree. No filesystem sandbox, since it writes where pointed.
   hardened = {
     CapabilityBoundingSet = "";
     AmbientCapabilities = "";
@@ -234,12 +231,10 @@ in
         port = lib.mkDefault 8085;
         database = lib.mkDefault "${cfg.stateDir}/database.db";
         cacheDir = lib.mkDefault "${cfg.stateDir}/cache";
-        # WebDAV authenticates with a JWT in the password field, so it cannot coexist with an edge
-        # that owns the Authorization header. Enable it only where nothing else claims that header.
+        # WebDAV sends a JWT as the password, so it cannot share an edge that owns the Authorization header.
         disableWebDAV = lib.mkDefault true;
         disableUpdateCheck = lib.mkDefault true;
-        # Quantum chmods new files after creating them, so UMask cannot reach them. Group-readable
-        # keeps share-backed setups working; world-readable is not a default worth shipping.
+        # Quantum chmods after creating, so UMask cannot reach new files. Group-readable keeps shares working.
         filesystem = {
           createFilePermission = lib.mkDefault "640";
           createDirectoryPermission = lib.mkDefault "750";
@@ -288,8 +283,7 @@ in
         mode = "0750";
       };
     }
-    # tmpfiles refuses to descend from our state dir into a root-owned one, so the default root has
-    # to be declared rather than left to parent auto-creation. A consumer-chosen path stays theirs.
+    # tmpfiles won't descend from our state dir into a root-owned one, so the default root is declared.
     // lib.optionalAttrs (cfg.source.path == "${cfg.stateDir}/root") {
       "${cfg.source.path}".d = {
         inherit (cfg) user group;
@@ -317,8 +311,7 @@ in
       // hardened;
     };
 
-    # Reconciles against the running server: the CLI only creates password accounts, so users of any
-    # other login method cannot be seeded offline. Users dropped from the config are deleted.
+    # Reconciles against the running server: the CLI can only seed password accounts. Dropped users are deleted.
     systemd.services.filebrowser-quantum-configure = {
       description = "Reconcile FileBrowser Quantum users";
       wantedBy = [ "filebrowser-quantum.service" ];

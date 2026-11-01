@@ -29,8 +29,6 @@ pkgs.testers.runNixOSTest {
           # no services.couchdb.enable → no account, no database
         };
 
-        runtimeSecrets."couchdb-admin-password".regenerateIfMissing = lib.mkForce true;
-        runtimeSecrets."couchdb-password-admin".regenerateIfMissing = lib.mkForce true;
       };
 
       services.couchdb.extraConfig.chttpd.enable_cors = true;

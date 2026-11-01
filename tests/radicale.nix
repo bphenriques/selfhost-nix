@@ -21,7 +21,6 @@ pkgs.testers.runNixOSTest {
           # no services.radicale.enable → must be absent from the htpasswd
         };
 
-        runtimeSecrets."radicale-password-admin".regenerateIfMissing = lib.mkForce true;
       };
     };
 

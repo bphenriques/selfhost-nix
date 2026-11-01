@@ -1,5 +1,4 @@
-# Builder for a media *arr (Radarr/Sonarr): framework wiring (ingress, auth, secrets, notify, backup) plus an
-# idempotent reconcile. Ships no acquisition config — all caller-supplied, empty by default (see media docs).
+# Builder for Radarr/Sonarr: framework wiring plus an idempotent reconcile, no acquisition config (see the media chapter).
 {
   name,
   displayName,
@@ -187,12 +186,7 @@ in
     notifyOnImport = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = ''
-        Publish a notification when an item is imported or upgraded. Turn this off when something
-        downstream already tells people content arrived (a request manager, for example) — otherwise one
-        arrival produces two messages describing the same thing. The failure events (health checks, manual
-        interaction required) are always published and are not affected by this.
-      '';
+      description = "Notify on import or upgrade. Turn off when something downstream already announces arrivals. Failures always notify.";
     };
 
     configureAfter = lib.mkOption {
@@ -304,8 +298,7 @@ in
         restartUnits = [ "${name}.service" ];
       };
 
-      # Surface reconcile failures (else a broken library config is silent until you notice missing media).
-      # Name a topic for it; there is no default, so notify stays off until one is.
+      # A broken library config is otherwise silent; notify stays off until a topic is named.
       tasks."${name}-configure".systemdServices = [ "${name}-configure" ];
     };
 

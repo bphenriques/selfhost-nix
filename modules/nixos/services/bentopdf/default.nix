@@ -1,5 +1,4 @@
-# First-party BentoPDF app: a static, client-side PDF toolkit served via darkhttpd behind selfhost
-# ingress (nixpkgs services.bentopdf only wires nginx/caddy, which the ingress model doesn't use).
+# BentoPDF app served by darkhttpd, since nixpkgs only wires nginx or caddy.
 {
   config,
   lib,

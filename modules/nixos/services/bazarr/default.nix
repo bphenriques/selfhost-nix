@@ -1,5 +1,4 @@
-# First-party Bazarr app: subtitle automation for Radarr/Sonarr. Framework wiring (ingress, auth, secrets,
-# metrics, backup) plus an idempotent reconcile. Ships no acquisition config (see media docs).
+# Bazarr app: framework wiring plus an idempotent reconcile, no acquisition config (see the media chapter).
 {
   config,
   lib,
@@ -50,9 +49,7 @@ let
     }
   );
 
-  # When the matching first-party *arr runs here, its registry entry and generated key already hold
-  # these values, so read them back rather than asking for them twice. A remote *arr still spells
-  # them out, which is the only case where they aren't already known.
+  # A first-party *arr on this host already holds these, so read them back; only a remote one spells them out.
   arrLinkModule = name: displayName: fallbackPort: {
     options =
       let
@@ -127,11 +124,7 @@ in
 
     languageProfiles = lib.mkOption {
       default = [ ];
-      description = ''
-        Language profiles to ensure. Which languages to want is taste, so the framework ships none — with
-        no profile Bazarr downloads nothing. The posted list is authoritative: a profile removed here is
-        removed from Bazarr.
-      '';
+      description = "Language profiles to ensure, authoritatively. None ship, and without one Bazarr downloads nothing.";
       example = lib.literalExpression ''
         [ { name = "English"; languages = [ "en" ]; cutoff = "en"; } ]
       '';
@@ -253,8 +246,7 @@ in
         ++ lib.optional serviceCfg.integrations.monitoring.enable "${exporterUnit}.service";
       };
 
-      # Surface reconcile failures — a Bazarr with no language profile silently fetches nothing.
-      # Name a topic for it; there is no default, so notify stays off until one is.
+      # A Bazarr with no language profile silently fetches nothing; notify stays off until a topic is named.
       tasks."bazarr-configure".systemdServices = [ "bazarr-configure" ];
     };
 

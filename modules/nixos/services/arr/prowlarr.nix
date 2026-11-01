@@ -1,6 +1,4 @@
-# First-party Prowlarr app: framework wiring only (ingress, forward-auth, API key out of the store). Prowlarr
-# is an indexer manager — the indexer/tracker list and the app-sync are acquisition config and stay in the
-# consumer/private config, which reads `apps.prowlarr.apiKeyFile` and the target apps' `apiKeyFile`.
+# Prowlarr app, wiring only. Indexers and app sync are the consumer's, read via `apiKeyFile`.
 {
   config,
   lib,

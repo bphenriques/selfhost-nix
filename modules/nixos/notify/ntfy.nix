@@ -1,5 +1,4 @@
-# Runs the ntfy-sh server. Publishers and topic visibility are declared here and reconciled by ntfy
-# itself; readers are runtime state that ntfy-manage owns.
+# ntfy server: publishers and topics are reconciled by ntfy from Nix, readers are runtime state owned by ntfy-manage.
 {
   config,
   lib,
@@ -13,8 +12,7 @@ let
 
   secretsDir = "/var/lib/homelab-secrets";
   tokenDir = "${secretsDir}/notify-publishers";
-  # Not server.yml: that file is a world-readable store path, and these lines carry password hashes and
-  # live tokens. systemd reads EnvironmentFile as root before dropping to the service's DynamicUser.
+  # Not server.yml, a world-readable store path: these lines carry password hashes and live tokens.
   authEnvFile = "${secretsDir}/notify-auth.env";
   # Upstream's, so the backup hook reads whatever the server was told to use rather than guessing.
   authFile = config.services.ntfy-sh.settings.auth-file;
@@ -101,8 +99,7 @@ in
         message = "Remote publishers shadow a local service/task publisher of the same name: ${toString shadowedPublishers}";
       }
       {
-        # Nothing self-registers a topic, so a declared one no publisher writes to is dead weight. Checked
-        # here rather than in the neutral layer because only the provider sees the remote publishers too.
+        # A declared topic no publisher writes to is dead weight. Only the provider sees remote publishers, so it checks.
         assertion = unusedTopics == [ ];
         message = "selfhost.notify.topics declares topics no publisher writes to: ${toString unusedTopics}. Remove them, or point a publisher at them.";
       }
@@ -126,10 +123,7 @@ in
         restartUnits = [ "ntfy-provision.service" ];
       };
 
-      # Only what a rebuild cannot put back: reader accounts, and the per-account preferences that hold
-      # each client's subscription list. Publishers, grants and tokens are all reconciled from Nix, so
-      # dumping them would back up the repo. Password hashes and tokens stay out: a leaked backup must
-      # not read the fleet's notifications, and losing this costs one `reader add` per device.
+      # Only what a rebuild cannot restore: reader accounts and their subscriptions, without hashes or tokens.
       services.ntfy.backup.package = pkgs.writeShellApplication {
         name = "backup-ntfy";
         runtimeInputs = [ pkgs.sqlite ];
@@ -171,9 +165,7 @@ in
       "d ${tokenDir} 0700 root root -"
     ];
 
-    # Runs before the server rather than after it: rendering the env file needs no DB, since
-    # `ntfy token generate` and `ntfy user hash` are both offline. ntfy then provisions from the env at
-    # startup, so there is no health-poll and no second pass.
+    # Before the server: rendering the env needs no DB, and ntfy provisions from it at startup.
     systemd.services.ntfy-provision = {
       description = "ntfy declarative auth";
       before = [ "ntfy-sh.service" ];

@@ -80,9 +80,7 @@ in
         };
       };
 
-      # Alert on failure via the notify integration (notify/notify.nix attaches the failure hook to this
-      # task's unit). Name a topic for it: a rotation that fails silently leaves clients holding secrets
-      # the provider no longer accepts.
+      # A failed rotation leaves clients holding secrets the provider rejects, so name a topic for it.
       selfhost.tasks.oidc-rotate.systemdServices = [ "oidc-rotate" ];
     })
   ];

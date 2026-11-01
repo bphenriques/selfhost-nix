@@ -1,5 +1,4 @@
-# Alertmanager: routes fired Prometheus alerts to the notify provider. Split from monitoring.nix so
-# metrics collection and alert delivery stay one concern per file.
+# Alertmanager: routes fired Prometheus alerts to the notify provider.
 {
   config,
   lib,
@@ -27,8 +26,7 @@ in
         message = "selfhost.monitoring.alertmanager.enable requires selfhost.monitoring.enable";
       }
       {
-        # Alertmanager routes to notify: without an active provider the webhook URL is empty and its
-        # notify-token is never provisioned, so the unit fails at runtime.
+        # Without an active notify provider the webhook URL is empty and the unit fails at runtime.
         assertion = cfg.notify.active;
         message = "selfhost.monitoring.alertmanager.enable requires an active notify provider (e.g. selfhost.notify.ntfy.enable).";
       }
@@ -44,9 +42,7 @@ in
       access.model = "forwardAuth"; # Alertmanager authenticates nobody
       access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
       integrations.homepage.group = "Admin";
-      # Alerting is the whole point of this service, so unlike other services it opts into the
-      # consumer's fallback rather than waiting to be named. Having neither is reported by the
-      # assertion in notify.nix, since enable is forced here.
+      # Alerting is its whole job, so it opts into the consumer's fallback topic. notify.nix asserts one exists.
       integrations.notify = {
         enable = true;
         topic = lib.mkDefault cfg.notify.defaultTopic;
@@ -79,8 +75,7 @@ in
               name = "notify";
               webhook_configs = [
                 {
-                  # toString so a missing topic surfaces as the assertion naming it rather than as a
-                  # null coercion from inside this attrset, whichever the evaluator reaches first.
+                  # toString so a missing topic surfaces as the assertion naming it, not a null coercion.
                   url = "${cfg.notify.url}/${toString alertmanagerCfg.integrations.notify.topic}?template=alertmanager";
                   send_resolved = true;
                   http_config.authorization = {

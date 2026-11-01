@@ -1,6 +1,4 @@
-# First-party RomM app: a ROM library manager with a built-in emulator. Upstream serves the frontend,
-# the ROM downloads and the emulator's cross-origin headers from its own nginx virtual host, so ingress
-# routes to that vhost and the API keeps a separate socket behind it.
+# RomM app. Upstream's nginx vhost serves the frontend, downloads and emulator headers, so ingress routes to it.
 {
   config,
   lib,
@@ -78,8 +76,7 @@ in
         meta.category = lib.mkDefault "media";
         port = lib.mkDefault 8095;
         healthcheck.path = "/api/heartbeat";
-        # The worker, the scheduler and the watcher read the same library, so the automount guards and
-        # the failure notifications have to cover them too.
+        # The worker, scheduler and watcher read the same library, so they get the same guards and notifications.
         systemdServices = units;
         # nginx serves the ROM downloads straight off the library, so it needs the share as well.
         storage.users = [ rommCfg.user ] ++ lib.optional rommCfg.nginx.enable config.services.nginx.user;
@@ -99,8 +96,7 @@ in
         }
       ];
 
-      # RomM reads the client credentials from the environment: the `_FILE` convention its container
-      # documents comes from that image's entrypoint, which the package does not ship.
+      # Credentials come from the environment: the `_FILE` convention exists only in upstream's container entrypoint.
       runtimeTemplates."romm.env" = lib.mkIf federated {
         content = ''
           OIDC_CLIENT_ID=${cfg.oidcPlaceholder.romm.id}
@@ -164,13 +160,11 @@ in
     };
 
     systemd.services = lib.mkMerge [
-      # Left off `services.romm.environmentFile` so the consumer keeps it for its own credentials:
-      # systemd concatenates EnvironmentFile across definitions.
+      # Left free for the consumer's own credentials; systemd concatenates EnvironmentFile entries.
       (lib.mkIf federated {
         romm.serviceConfig.EnvironmentFile = [ cfg.runtimeTemplates."romm.env".path ];
       })
-      # Every unit reads the config: the API serves it, the worker scans with it. The rendered path
-      # carries its own triggers through `restartUnits`.
+      # Every unit reads the config; the rendered path carries its own restart triggers.
       (lib.mkIf (declarative && !secretBearing) (
         lib.genAttrs units (_: {
           restartTriggers = [ configFile ];
@@ -178,8 +172,7 @@ in
       ))
     ];
 
-    # Default rather than fixed: a consumer fronting RomM with nginx itself replaces this wholesale.
-    # The gateway owns :80, so the vhost binds the registered socket instead.
+    # Default rather than fixed, so a consumer can replace it. The gateway owns :80, so the vhost binds the registered socket.
     services.nginx.virtualHosts.${rommCfg.nginx.virtualHost}.listen = lib.mkDefault [
       {
         addr = serviceCfg.host;

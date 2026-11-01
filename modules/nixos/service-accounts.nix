@@ -1,6 +1,4 @@
-# Non-human principals: CI bots, machine accounts that authenticate to a share. Separate from
-# `selfhost.users` because that schema requires a person's name and email and layers OIDC onto every
-# entry, which a robot neither has nor needs. Apps extend this the same way they extend users.
+# Non-human principals, apart from `selfhost.users`, which requires a person's name, email and OIDC.
 { config, lib, ... }:
 let
   cfg = config.selfhost;
@@ -43,15 +41,7 @@ in
       ]
     );
     default = { };
-    description = ''
-      Non-human principals, keyed by account name. Per-app config mirrors the registry at
-      `serviceAccounts.<name>.services.<app>`, the same shape as `users.<name>.services.<app>`.
-
-      `unixAccount.enable` additionally creates a POSIX account and its primary group on the host that
-      declares it, for accounts that need a Unix identity (an SMB principal owning files, say). It is
-      spelled the same on `users.<name>`, which gets a person-shaped account instead of a system one.
-      Accounts that only exist inside an application leave it off.
-    '';
+    description = "Non-human principals, keyed by account name. Per-app config mirrors the registry at `serviceAccounts.<name>.services.<app>`.";
   };
 
   config = {

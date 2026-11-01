@@ -65,8 +65,7 @@ in
 
     services.miniflux = {
       enable = true;
-      # Database is the consumer's deployment concern: nixpkgs already defaults to a local Postgres; leave
-      # it unset so `createDatabaseLocally = false` + a DATABASE_URL for external Postgres composes cleanly.
+      # Database left to nixpkgs' default, so an external Postgres composes cleanly.
       adminCredentialsFile = config.selfhost.runtimeTemplates."miniflux-admin-credentials.env".path;
       config = {
         LISTEN_ADDR = "127.0.0.1:${toString serviceCfg.port}";

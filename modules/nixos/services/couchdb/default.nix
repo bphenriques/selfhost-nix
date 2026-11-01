@@ -1,5 +1,4 @@
-# First-party CouchDB app. `native` access: it authenticates HTTP clients itself, which is the only
-# model a replicating client can speak. Accounts and their databases derive from selfhost.users.
+# CouchDB app on `native` access, the only model a replicating client speaks. Accounts derive from selfhost.users.
 {
   config,
   lib,
@@ -73,8 +72,7 @@ in
       integrations.homepage.enable = false; # a sync backend, not a destination
     };
 
-    # Plaintext in a tmpfs template, never the store. CouchDB rewrites it as a hash into its own
-    # writable local.ini on first start, and that later file is what wins from then on.
+    # Plaintext in a tmpfs template, never the store; CouchDB hashes it into its own local.ini on first start.
     selfhost.runtimeSecrets = {
       couchdb-admin-password.restartUnits = [
         "couchdb.service"
@@ -101,10 +99,7 @@ in
     services.couchdb = {
       enable = true;
       port = lib.mkDefault serviceCfg.port;
-      # Not extraConfig: that option is types.attrs, so a consumer defining `chttpd` at all replaces
-      # this whole section rather than merging into it, and require_valid_user disappears silently.
-      # CouchDB merges its ini chain per key, and these files sit after the one extraConfig renders,
-      # so the invariants hold whatever the consumer sets there.
+      # Not extraConfig (types.attrs): defining `chttpd` there would replace this section and drop require_valid_user.
       extraConfigFiles = [
         baseConfigFile
         config.selfhost.runtimeTemplates."couchdb-admin.ini".path

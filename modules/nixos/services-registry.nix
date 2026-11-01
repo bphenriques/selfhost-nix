@@ -20,16 +20,13 @@ let
       # No ingress route means no link to render, so default to no dashboard tile.
       config.integrations.homepage.enable = lib.mkDefault config.ingress.enable;
 
-      # Route it only if there is something to route to, and if its access model is satisfied:
-      # `forwardAuth` is the one model where the service authenticates nobody itself, so it waits for the
-      # gateway rather than going up unguarded. The others carry their own login.
+      # A `forwardAuth` service authenticates nobody itself, so it stays unrouted until a gateway exists.
       config.ingress.enable = lib.mkDefault (
         (config.backend != null || options.port.isDefined)
         && (config.access.model != "forwardAuth" || cfg.auth.forwardAuth.active)
       );
 
-      # Probe only the socket this entry owns: a borrowed one would re-probe what its owner already
-      # does (same URL, second alert on one outage), and an entry with no HTTP backend has no URL.
+      # Probe only owned sockets: a borrowed one would raise a second alert for the same outage.
       config.integrations.monitoring.healthcheck = lib.mkDefault config.ownsBackend;
 
       # `backend` first so a borrowed entry short-circuits: it has no port definition of its own.
@@ -42,13 +39,7 @@ let
           type = lib.types.nullOr lib.types.str;
           default = null;
           example = "radicale";
-          description = ''
-            Another registry entry whose backend this one routes to, instead of owning one. Its
-            `host`/`port`/`scheme` become this entry's, and only the owner is counted for port collisions.
-
-            For a second hostname onto the same process — one that wants its own `access.model`,
-            middlewares or healthcheck. Null means this entry owns its backend.
-          '';
+          description = "Another entry whose backend this one routes to, for a second hostname onto one process. Null means it owns its backend.";
         };
 
         ownsBackend = lib.mkOption {
@@ -67,9 +58,7 @@ let
 
         port = lib.mkOption {
           type = lib.types.port;
-          # Deliberately no default: absence is the signal that this entry has no HTTP backend, and
-          # `isDefined` reads it. A default here would be evaluated by that check, so a borrowed port
-          # is *defined* below rather than defaulted.
+          # No default: `isDefined` is the no-HTTP-backend signal, so a borrowed port is defined below instead.
           description = "Port the service listens on. Leave unset for a service with no HTTP backend (a UDP daemon, say).";
         };
 
@@ -123,14 +112,7 @@ let
             else
               [ name ];
           defaultText = lib.literalMD "the `backend` entry's units, else the matching OCI container's unit, else `<name>`";
-          description = ''
-            Systemd units this service owns; selfhost concerns attach to them (storage automount guards,
-            failure notifications).
-
-            Names are trusted, not checked: attaching ordering to a unit is what *defines* it, so a name
-            that matches nothing yields a stub carrying only the attachment rather than an error. Set this
-            when the unit is not named after the service.
-          '';
+          description = "Systemd units this service owns, which concerns attach to. Names are not checked, so set this when they differ from the service.";
         };
 
         access.model = lib.mkOption {
@@ -141,21 +123,7 @@ let
             "open"
           ];
           default = "native";
-          description = ''
-            Who authenticates this service's users.
-
-            - `oidc`: the service is its own client of the framework's OIDC provider (configure it under
-              `access.oidc`).
-            - `forwardAuth`: the gateway authenticates before the service sees the request. The service
-              has no login of its own, so it is routed only while a forward-auth provider is active.
-            - `native`: the service authenticates its own users by a mechanism the framework does not
-              manage.
-            - `open`: nobody authenticates. Anyone who can reach the route can use it. This says the service
-              has no lock, not that it faces the internet — nothing is exposed beyond
-              `ingress.allowedInterfaces` under any model.
-
-            Only `oidc` and `forwardAuth` let the framework enforce `access.allowedGroups`.
-          '';
+          description = "Who authenticates its users: `oidc`, `forwardAuth`, `native` or `open` (see the Authentication section of the concepts chapter).";
         };
 
         # Access control policy (consumed by whichever auth mechanism is active). Empty = any authenticated user.
@@ -191,8 +159,7 @@ in
         lib.types.submoduleWith {
           specialArgs = {
             selfhostCfg = cfg;
-            # A service's notifications are domain events it sends itself and most have none, so there is
-            # no fallback here: it names a topic when it has something to say. Contrast tasks-registry.
+            # No fallback topic: a service sends only its own domain events, unlike tasks.
             notifyDefaultTopic = null;
           };
           modules = [
@@ -233,8 +200,7 @@ in
       description = "External services not managed by this host (shown on homepage dashboard via integrations.homepage)";
     };
 
-    # Port registry: modules append their local listening sockets (services here, exporters in
-    # monitoring.nix, ...); the assertion below checks the whole set is collision-free.
+    # Modules append their listening sockets here; the assertion below checks the set for collisions.
     internal.listeningPorts = lib.mkOption {
       type = lib.types.listOf (
         lib.types.submodule {
@@ -270,12 +236,9 @@ in
 
   };
 
-  # Ungated: every module carries its own `enable`, and each assertion below is vacuously true on a host
-  # that registered nothing.
+  # Ungated: each assertion is vacuously true on a host that registered nothing.
   config = {
-    # Only sockets this host actually listens on can collide: a remote proxy target binds nothing here,
-    # an entry routing to another's backend binds nothing of its own, and an entry with no HTTP backend
-    # has no socket to speak of.
+    # Only sockets bound on this host can collide (not remote targets, borrowed backends or entries without HTTP).
     selfhost.internal.listeningPorts = map (s: {
       name = "service/${s.name}";
       inherit (s) host port;
@@ -288,9 +251,7 @@ in
         # Public hosts must be unique across ingress-enabled services.
         dupHosts = lib.attrNames (selfhostLib.collisions (builtins.groupBy lib.id cfg.ingress.hosts));
 
-        # One check over the whole registry: services + monitoring exporters + anything else registered.
-        # Within a port and transport, two entries collide when they share an address, or when either
-        # binds a wildcard, which occupies every address there.
+        # Same port and transport collide when the addresses match or either side binds a wildcard.
         portCollisions =
           let
             conflicting =
@@ -322,9 +283,7 @@ in
           message = "Service public hosts must be unique. Conflicting: ${lib.concatStringsSep ", " dupHosts}";
         }
         {
-          # Nothing provisions the client without a provider, so the service would come up
-          # authenticating nobody while the inventory reported it as SSO. The forwardAuth counterpart
-          # of this lives in the ingress implementation, which is what applies that gate.
+          # Without a provider nothing provisions the client, so the service would authenticate nobody while claiming SSO.
           assertion = oidcServices == [ ] || cfg.auth.oidc.active;
           message = "Services set access.model = \"oidc\" but no OIDC provider is active (enable one, e.g. selfhost.auth.oidc.pocket-id.enable): ${names oidcServices}";
         }
@@ -336,9 +295,7 @@ in
         }
       ];
 
-    # Only `oidc` and `forwardAuth` put the framework in the request path, so only they can enforce
-    # groups. Under the other two the service decides for itself, which is a legitimate choice — hence
-    # a warning naming what to do about it, not a hard failure.
+    # Only `oidc` and `forwardAuth` can enforce groups, so the others get a warning rather than a failure.
     warnings =
       let
         unenforced = lib.filter (

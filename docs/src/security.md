@@ -25,7 +25,7 @@ the split.
   only where the unit runs as root and writes nothing, or writes solely to paths this project owns — a
   reconciler writing into an upstream-owned data dir gets none, because a `ReadWritePaths` that misses a
   path fails at the write rather than at start. Nothing is added to units nixpkgs owns. The notify token
-  reaches non-root consumers via systemd `LoadCredential`.
+  reaches non-root consumers via systemd `LoadCredential`, so order those after `selfhost.notify.provisioningUnit`.
 - **WireGuard, not public exposure.** That is the way in.
 
 ## What it will NOT do: your responsibility
@@ -108,6 +108,11 @@ live host its profile is written to `/etc/rustic/<name>.toml` (repository + `pas
 your `bindings` (paths mounted read-only) and each hook's output under `extras/<hook>` (e.g. a Gitea repo copy,
 a DB dump). A hook output is *material to replay*, not a live service. Restoring a DB dump means importing it,
 not dropping it onto a running database.
+
+**Sharing a repository.** Snapshots are scoped by host and target, so several hosts can share one repository
+without applying each other's retention. rustic takes no lock and prune is unsafe against a concurrent prune, so
+exactly one host sets `prune`. The others still forget, and the pruner reclaims their space. Renaming a host
+leaves its old snapshots outside every scope, to be removed by id.
 
 **WireGuard peers are runtime state.** `/var/lib/wireguard/peers.json` is the only inventory of who may
 connect, and it is not in your repo. The app's backup hook covers it. The server private key is

@@ -132,17 +132,7 @@ in
       example = {
         TonemappingAlgorithm = "bt2390";
       };
-      description = ''
-        EncodingOptions fields, merged onto what Jellyfin holds and applied through the API after startup,
-        so anything not named here keeps its value.
-
-        `services.jellyfin.hardwareAcceleration` and `services.jellyfin.transcoding` cover part of the same
-        ground by writing `encoding.xml` directly. Use one or the other, never both: together the file
-        always differs from the generated template, and each restart leaves another
-        `encoding.xml.backup-<timestamp>` behind.
-
-        Unknown keys are dropped silently, since Jellyfin ignores properties it does not recognise.
-      '';
+      description = "EncodingOptions merged onto what Jellyfin holds. Never combine with `services.jellyfin.transcoding` (see the Jellyfin chapter).";
     };
 
     trickplay = lib.mkOption {
@@ -161,12 +151,10 @@ in
         meta.category = lib.mkDefault "media";
         port = lib.mkDefault 8096;
         healthcheck.path = "/health";
-        # Left off (the registry default): Jellyfin authenticates its own clients, and native apps
-        # cannot pass a forward-auth gateway.
+        # Off: Jellyfin authenticates its own clients, and native apps cannot pass a forward-auth gateway.
       };
 
-      # Set once by the startup wizard and never reconciled, so losing the file means the next run cannot
-      # authenticate and fails loudly. Restore it, or reset the password in Jellyfin.
+      # Never reconciled after the wizard, so a lost file fails loudly. Restore it or reset the password in Jellyfin.
       runtimeSecrets.jellyfin-admin-password.restartUnits = [ "jellyfin-configure.service" ];
     };
 

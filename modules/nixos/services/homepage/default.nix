@@ -1,6 +1,4 @@
-# First-party homepage app: renders the framework's generated tiles (selfhost.dashboards.generatedTiles)
-# with gethomepage. Visual presentation — theme, layout, widgets, branding — is the consumer's: set it on
-# services.homepage-dashboard directly.
+# Homepage app rendering the generated tiles; presentation stays on services.homepage-dashboard.
 { lib, config, ... }:
 let
   app = config.selfhost.apps.homepage;

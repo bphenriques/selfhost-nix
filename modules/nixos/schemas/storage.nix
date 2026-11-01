@@ -1,5 +1,4 @@
-# Shared by the service and task registries: both need to say which shares they read, and both attach
-# their automount guards to the entry's `systemdServices`.
+# Shared by services and tasks: which shares they read, with automount guards on `systemdServices`.
 {
   lib,
   selfhostCfg,

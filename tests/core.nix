@@ -35,7 +35,7 @@ pkgs.testers.runNixOSTest {
       # Guarded on a dir the test drives by hand, so the branches below are deterministic; the ordering
       # that makes a real service-owned guard safe is asserted separately.
       runtimeSecrets.test-guarded = {
-        generateOnce = "/var/lib/guard-data";
+        onMissing.generateOnce = "/var/lib/guard-data";
       };
 
       # A task publisher (not a system user) — its token is still provisioned root-owned, no chown
@@ -116,7 +116,8 @@ pkgs.testers.runNixOSTest {
 
     # A reader survives the reconcile it shares a table with.
     machine.systemctl("restart ntfy-sh.service")
-    machine.wait_for_unit("ntfy-sh.service")
+    # ntfy reconciles the DB before it listens, and the unit counts as started before either.
+    machine.wait_for_open_port(2586)
     machine.succeed("ntfy access phone")
 
     # Nix owns these names; taking one would be silently overwritten by the next reconcile.
@@ -140,7 +141,7 @@ pkgs.testers.runNixOSTest {
         "/var/lib/homelab-secrets/notify-auth.env"
     )
     machine.systemctl("restart ntfy-sh.service")
-    machine.wait_for_unit("ntfy-sh.service")
+    machine.wait_for_open_port(2586)
     revoked = machine.succeed("ntfy access")
     assert "read-only access to topic announce" not in revoked, revoked
 

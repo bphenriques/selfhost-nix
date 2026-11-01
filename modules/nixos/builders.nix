@@ -1,5 +1,4 @@
-# Small build helpers shared by modules. Imported directly (not via the overlay) so modules usable
-# standalone — without nixosModules.default and its overlay — can still call them.
+# Build helpers, imported directly so standalone modules can use them without the overlay.
 { pkgs, lib }:
 {
   # An executable `name` that runs a nu-checked nushell `script` with `runtimeInputs` (plus nushell) on PATH.

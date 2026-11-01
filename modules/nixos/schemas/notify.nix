@@ -30,8 +30,7 @@ in
             description = "Notification topic this service/task publishes to (null = none). A task falls back to `notify.defaultTopic`, since the hook reporting its failure is the framework's own; a service names one when it has something to say.";
           };
 
-          # Topic is the only granularity a subscriber can mute or prioritise, so a daily "backup OK"
-          # and a failed unit belong apart far more than two subsystems do.
+          # Topic is all a subscriber can mute, so split by urgency rather than by subsystem.
           failureTopic = lib.mkOption {
             type = lib.types.nullOr (lib.types.enum (lib.attrNames selfhostCfg.notify.topics));
             default = config.topic;
@@ -48,18 +47,7 @@ in
           tokenFile = lib.mkOption {
             type = lib.types.str;
             default = "${tokenDir}/${name}";
-            description = ''
-              Path to this publisher's access token, root-owned `0400`. A host running the notify provider
-              provisions it at the default path. A host that only publishes to another host's provider
-              points this at its own secret instead. How to read it depends on the publisher's user:
-
-              - **runs as root** (e.g. backup, task failure-hooks): read this path directly, at send time.
-                Best-effort — no dependency on the provider being up, so notify never blocks the publisher.
-              - **runs as a non-root user** (e.g. transmission): receive it via systemd
-                `LoadCredential = [ "notify-token:''${...tokenFile}" ]` and read `%d/notify-token`
-                (`$CREDENTIALS_DIRECTORY/notify-token`). Because LoadCredential reads the source at unit
-                start, order the unit `after` the provider's provisioning unit (`selfhost.notify.provisioningUnit`).
-            '';
+            description = "Root-owned path to this publisher's access token. Non-root publishers receive it via `LoadCredential` (see the security chapter).";
           };
         };
       }

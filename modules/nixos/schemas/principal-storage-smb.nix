@@ -1,5 +1,4 @@
-# Per-principal SMB surface, shared by `selfhost.users` and `selfhost.serviceAccounts`. Holding an
-# account is separate from being let into a share: grants live on the share.
+# Per-principal SMB surface for users and service accounts; share grants live on the share.
 { name, lib, ... }:
 let
   secretsDir = "/var/lib/homelab-secrets"; # persistent, see runtime-secrets.nix

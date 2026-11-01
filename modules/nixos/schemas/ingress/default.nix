@@ -1,9 +1,4 @@
-# The ingress facet of a service entry: whether it is published, and at what public address. Everything
-# here is transport-neutral, so any ingress implementation can consume it. Vendor-specific additions go
-# in a sibling file (traefik.nix) and should stay minimal — the neutral surface is the contract.
-#
-# The derived default for `ingress.enable` is not here: it lives with the registry's other composition
-# defaults in services-registry.nix, where they read as one block.
+# The transport-neutral ingress facet. Its derived `enable` lives in services-registry.nix.
 {
   name,
   config,
@@ -25,8 +20,7 @@
 
     publicHost = lib.mkOption {
       type = lib.types.str;
-      # Thrown rather than nullOr: keeping the type `str` spares every reader a null branch for a
-      # case that cannot happen on a host that routes anything.
+      # Thrown rather than nullOr, so readers need no null branch for a case that cannot occur.
       default =
         if selfhostCfg.ingress.domain == null then
           throw "selfhost.services.${name}.publicHost needs selfhost.ingress.domain, which is unset."

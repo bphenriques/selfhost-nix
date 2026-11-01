@@ -8,8 +8,7 @@ let
   selfhostCfg = config.selfhost;
   selfhostLib = import ../lib.nix { inherit lib; };
   cfg = selfhostCfg.auth.oidc;
-  # Persistent (not tmpfs): these have no source to re-derive from, so a tmpfs would regenerate them every
-  # boot → drift. Persisting (rotate-when-missing keeps the file) makes them stable; rotation is deliberate.
+  # Persistent, since nothing re-derives them: a tmpfs would regenerate them every boot.
   credentialsBaseDir = "/var/lib/homelab-oidc";
 
   oidcServices = lib.filterAttrs (_: svc: svc.access.model == "oidc") selfhostCfg.services;
@@ -18,9 +17,7 @@ let
 
   enabledUsers = lib.filterAttrs (_: u: u.auth.oidc.enable) selfhostCfg.users;
 
-  # Every group a policy may name, not just the ones an OIDC user holds: `access.allowedGroups` accepts
-  # the wider set, and a group the provider never heard of fails client provisioning at boot. A group
-  # whose only members opted out of OIDC lands here empty, which is what it means.
+  # Every group a policy may name: a group the provider never heard of fails client provisioning at boot.
   allGroups = selfhostLib.knownGroups selfhostCfg;
 in
 {
@@ -68,8 +65,7 @@ in
     };
 
     clients = lib.mkOption {
-      # Raw passthrough: mirrors the already-typed schemas/oidc.nix submodule, so re-declaring
-      # the fields here only risked drift. Read-only; consumers read attrs directly.
+      # Raw passthrough of the typed schemas/oidc.nix submodule, so the fields are declared once.
       type = lib.types.attrsOf lib.types.raw;
       default = derivedClients;
       readOnly = true;
@@ -119,8 +115,7 @@ in
       );
       hasProvisionUnits = cfg.systemd.baseProvisionUnit != null;
       invitedUsers = lib.attrNames (lib.filterAttrs (_: u: u.auth.oidc.inviteByEmail) enabledUsers);
-      # Scoped to OIDC users: the provider rejects a domain without a dot, while a placeholder like
-      # `guest@localhost` stays legal for accounts that never reach it.
+      # Only OIDC users need a dotted domain, so placeholders like `guest@localhost` stay legal elsewhere.
       badEmails = lib.attrNames (
         lib.filterAttrs (_: u: builtins.match "[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+" u.email == null) enabledUsers
       );

@@ -12,8 +12,7 @@ let
   mountUnit = mountCfg: "${utils.escapeSystemdPath mountCfg.localMount}.mount";
   automountUnit = mountCfg: "${utils.escapeSystemdPath mountCfg.localMount}.automount";
 
-  # Services and tasks are the same shape here: both name the units they own, and both want their
-  # shares' automount guards started first.
+  # Services and tasks share a shape here: both name their units and want their automount guards first.
   entriesWithStorage = lib.filter (e: e.storage.mounts != [ ]) (
     lib.attrValues selfhostCfg.services ++ lib.attrValues selfhostCfg.tasks
   );
@@ -76,11 +75,7 @@ in
     shares = lib.mkOption {
       type = lib.types.attrsOf smbMountCfg;
       default = { };
-      description = ''
-        CIFS shares keyed by remote root folder, each behind a dedicated access group and mounted on
-        demand. Boot does not wait for the SMB server. First access may wait up to 30 seconds; after a
-        failed mount, a later access retries.
-      '';
+      description = "CIFS shares keyed by remote root folder, each behind its own access group and mounted on demand.";
       example = lib.literalExpression ''
         {
           bphenriques = { };
@@ -118,8 +113,7 @@ in
 
     users.groups = lib.mapAttrs' (_name: mountCfg: lib.nameValuePair mountCfg.group { inherit (mountCfg) gid; }) cfg.shares;
 
-    # `uid = 0` means nobody owns these files, so the group is the only way in. An owner uid already grants
-    # rw, which DAC checks first. Not per-user (is *this* user the owner): most uids are null until activation.
+    # `uid = 0` owns nothing, so the group is the only way in. Not per-user: most uids are null until activation.
     users.users = lib.mkMerge (
       lib.concatMap (
         entry:
@@ -173,10 +167,7 @@ in
       }
     ) cfg.shares;
 
-    # node_exporter reports a hung mount as device_error="mountpoint timeout" (needs its filesystem
-    # collector). The automount retries on its own, so `for` outlasts a NAS reboot: this fires only
-    # once a share has failed to come back, not on every blip.
-    # Gated on the concern: with Prometheus off this renders nowhere, so declare nothing.
+    # A hung mount reports device_error="mountpoint timeout"; `for` outlasts a NAS reboot so only a lasting failure fires.
     selfhost.monitoring.scopes = lib.mkIf selfhostCfg.monitoring.enable {
       smb-storage.rules = [
         {

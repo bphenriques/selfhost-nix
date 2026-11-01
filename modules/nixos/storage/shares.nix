@@ -1,7 +1,4 @@
-# SMB file server, the counterpart to `storage.mounts.smb` on the client. The backing store stays the
-# host's, and so does ownership of what is in it: `path` points at what the host already mounted and
-# prepared, and this only exports it and decides who gets in.
-# Anything samba already exposes stays samba's: add `services.samba.settings.<share>` keys alongside.
+# SMB server: exports what the host already mounted and decides who gets in. Samba's own keys stay on `services.samba.settings`.
 {
   config,
   lib,
@@ -240,7 +237,6 @@ in
     ];
 
     # Needs node_exporter's systemd collector; without it the series is absent and this never fires.
-    # Gated on the concern: with Prometheus off this renders nowhere, so declare nothing.
     selfhost.monitoring.scopes = lib.mkIf selfhostCfg.monitoring.enable {
       smb-shares.rules = [
         {
@@ -274,8 +270,7 @@ in
           ) principals
         );
 
-    # Every hardening line but the filesystem sandbox: samba's passdb is consumer-relocatable, and a
-    # ReadWritePaths that misses it fails at the write rather than at start.
+    # No filesystem sandbox: samba's passdb is relocatable, and a missed ReadWritePaths fails at the write.
     systemd.services.selfhost-smb-passwords = {
       description = "Provision SMB passwords";
       before = [ "samba-smbd.service" ];

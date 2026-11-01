@@ -175,8 +175,7 @@ let
   allRules = lib.concatMap (s: s.rules) allScopes;
   allSystemdOverrides = map (s: s.systemdOverrides) allScopes;
 
-  # Exporter/blackbox sockets contributed to the shared port registry (services-registry.nix adds
-  # the services and runs the single collision assertion over the union).
+  # Exporter sockets join the shared port registry; services-registry.nix runs the collision check.
   exporterPorts =
     let
       fromExporters =
@@ -211,15 +210,7 @@ in
 {
   options.selfhost.monitoring = {
     enable = lib.mkEnableOption "Prometheus monitoring (metrics, healthchecks, alert rules)" // {
-      description = ''
-        Prometheus monitoring (metrics, healthchecks, alert rules).
-
-        Prometheus and Alertmanager authenticate nobody, so they are routed only once a forward-auth
-        provider is active — without one they stay on localhost and no `<name>.<domain>` route is
-        created. This is deliberate: publishing them ungated would expose every metric and let anyone
-        silence alerts. Set `selfhost.services.prometheus.ingress.enable` (or `.alertmanager.`) to
-        override, at which point authenticating them is yours to arrange.
-      '';
+      description = "Prometheus monitoring (metrics, healthchecks, alert rules). Prometheus and Alertmanager stay unrouted until a forward-auth provider is active.";
     };
 
     prometheusPort = lib.mkOption {
@@ -261,9 +252,7 @@ in
 
   config = lib.mkMerge [
     {
-      # Scopes render only where Prometheus runs; a host scraped by another declares them into the void.
-      # Only consumer-declared scopes reach here: a framework module gates its own on `monitoring.enable`,
-      # so it contributes nothing to warn about rather than needing to be excused from the warning.
+      # Only consumer-declared scopes reach here (framework modules gate their own), and they render only where Prometheus runs.
       warnings =
         let
           stranded = lib.attrNames (lib.filterAttrs (_: s: s.enable) cfg.monitoring.scopes);
@@ -293,9 +282,7 @@ in
         access.allowedGroups = lib.mkDefault [ cfg.groups.admin ];
         integrations.homepage.group = "Admin";
         integrations.monitoring = {
-          # mkDefault because scrape configs cannot be appended to: a second definition of this job
-          # name merges into a duplicate, which promtool rejects. Replacing the whole job is the only
-          # way for a consumer to filter what this scrape keeps.
+          # mkDefault: a second definition of the job would duplicate it, so a consumer can only replace the whole job.
           scrapeConfigs = lib.mkDefault [
             {
               job_name = "prometheus";
@@ -339,8 +326,7 @@ in
         ruleFiles = lib.optional (allRules != [ ]) (yaml.generate "alerts.yml" { groups = allRules; });
       };
 
-      # mkMerge, not recursiveUpdate: two scopes touching the same unit must combine their lists rather
-      # than the last one silently winning.
+      # mkMerge, not recursiveUpdate, so two scopes touching one unit combine rather than the last winning.
       systemd.services = lib.mkMerge allSystemdOverrides;
     })
   ];

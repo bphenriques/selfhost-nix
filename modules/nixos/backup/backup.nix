@@ -58,8 +58,7 @@ let
           tags = [ (scopeTag name) ];
           snapshots = [ { sources = [ (targetSrc name) ]; } ];
         };
-        # `forget` evaluates every snapshot the filter admits: unscoped, this host's retention would be
-        # applied to a co-tenant host's snapshots. Filters are only honoured under [snapshot-filter].
+        # Unscoped, `forget` would apply this host's retention to a co-tenant's snapshots. Filters only work under [snapshot-filter].
         snapshot-filter = {
           filter-hosts = [ config.networking.hostName ];
           filter-tags = [ (scopeTag name) ];
@@ -128,9 +127,7 @@ let
       ]
       ++ lib.optional (notifyCfg.provisioningUnit != null) notifyCfg.provisioningUnit;
       requires = hookDeps;
-      # Hard mount dependency rather than the automount guard used elsewhere: BindReadOnlyPaths
-      # captures each source when the namespace is built, so an untriggered autofs path would
-      # silently back up an empty directory.
+      # Hard mount, not the automount guard: BindReadOnlyPaths would capture an untriggered autofs path as empty.
       unitConfig.RequiresMountsFor = lib.attrValues t.bindings ++ lib.optional (lib.hasPrefix "/" t.repository) t.repository;
       environment = rusticManageEnv;
       serviceConfig = hardenedServiceConfig // {
@@ -202,15 +199,7 @@ in
 
     targets = lib.mkOption {
       default = { };
-      description = ''
-        Backup destinations. Each is an independent rustic pipeline with its own content, repository,
-        retention, and schedule.
-
-        Snapshots are scoped by host and target name, so several hosts may share one repository without
-        applying each other's retention. Renaming a host leaves its existing snapshots outside every
-        scope (rustic cannot rewrite a snapshot's hostname): they are never forgotten, and have to be
-        removed by id.
-      '';
+      description = "Backup destinations, each an independent rustic pipeline. See the security chapter before sharing a repository.";
       type = lib.types.attrsOf (
         lib.types.submodule {
           options = {
@@ -267,21 +256,12 @@ in
                 "!$RECYCLE.BIN"
                 "!.DS_Store"
                 "!Thumbs.db"
-                # Filesystem-managed snapshot views: each holds a full point-in-time copy of the
-                # tree, so binding a share root without these walks it once per snapshot. Synology
-                # exposes #snapshot; ZFS exposes .zfs once snapdir=visible is set.
+                # Snapshot views hold full copies, so binding a share root without these walks it once per snapshot.
                 "!#snapshot"
                 "!#recycle"
                 "!.zfs"
               ];
-              description = ''
-                rustic include/exclude globs ('!' = exclude). Default excludes common NAS/sync/OS metadata.
-
-                A bare name matches every directory carrying it. One specific directory takes its absolute
-                path inside this target's staging tree, `/var/lib/homelab-backup/<target>/src` plus the
-                `bindings` key it sits under. Dropping a whole source is better done by leaving it out of
-                `bindings`, and a `.nobackup` file excludes its directory whoever puts it there.
-              '';
+              description = "rustic include/exclude globs (`!` excludes), matched inside the staging tree. Defaults exclude NAS, sync and OS metadata.";
             };
 
             bindings = lib.mkOption {
@@ -306,15 +286,7 @@ in
             prune = lib.mkOption {
               type = lib.types.bool;
               default = true;
-              description = ''
-                Whether this target's `forget` also prunes, reclaiming space from unreferenced packs.
-
-                rustic takes no repository lock, and its delayed-delete only makes prune safe against a
-                concurrent *backup*, not against a concurrent *prune*: prune repacks by reading packs the
-                other run may be deleting. So in a repository shared by several hosts, exactly one may
-                prune. The others still forget, and the pruning host reclaims their space too, because
-                reachability is evaluated across the whole repository.
-              '';
+              description = "Whether `forget` also prunes. In a repository shared by several hosts, exactly one may.";
             };
 
             backupSchedule = lib.mkOption {
@@ -334,13 +306,9 @@ in
   };
 
   config = lib.mkMerge [
-    # The task's identity, as opposed to its activation: a consumer that enables notify for the backup
-    # task still needs a topic when every target is paused, or it fails on a missing one.
+    # Still needs a topic when every target is paused, or enabling notify fails on a missing one.
     (lib.mkIf (cfg.targets != { }) {
-      # No topic default: naming them is the consumer's, so that a topic cannot outlive the publisher
-      # that a default pointed at. Notify stays off until one is named.
-      #
-      # Every host backing up publishes to the same topic, and the unit name is identical on each.
+      # No topic default, so a topic cannot outlive the publisher a default pointed at.
       selfhost.tasks.backup.integrations.notify.titlePrefix = lib.mkDefault config.networking.hostName;
     })
     (lib.mkIf (activeTargets != { }) {
@@ -359,8 +327,7 @@ in
           referencedServices = lib.unique (lib.concatMap (t: t.services) (lib.attrValues activeTargets));
           orphanServices = lib.subtractLists referencedServices (lib.attrNames servicesWithBackup);
 
-          # Only catches the same-host case: a host cannot see another host's targets, so the fleet-wide
-          # form of this has to be asserted by whatever evaluates every host.
+          # Same-host case only; the fleet-wide form belongs to whatever evaluates every host.
           pruning = lib.filterAttrs (_: t: t.prune) activeTargets;
           doublePruned = lib.attrNames (
             lib.filterAttrs (_: names: lib.length names > 1) (

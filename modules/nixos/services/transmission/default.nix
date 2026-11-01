@@ -1,6 +1,4 @@
-# First-party Transmission app: the torrent client wired into selfhost (ingress, forward-auth, and
-# download notifications). Deployment specifics — download/incomplete dirs, seeding/ratio tuning, the
-# storage backing — stay with the consumer; those are nixpkgs `services.transmission` options we don't proxy.
+# Transmission app. Download dirs, seeding and storage stay on nixpkgs `services.transmission`.
 {
   config,
   lib,
@@ -13,8 +11,7 @@ let
   notifyCfg = config.selfhost.notify;
   notify = serviceCfg.integrations.notify;
 
-  # Transmission spawns these as subprocesses that don't inherit $CREDENTIALS_DIRECTORY, so point at the
-  # credential's stable path directly — LoadCredential (below) makes it readable by the transmission user.
+  # Subprocesses don't inherit $CREDENTIALS_DIRECTORY, so point at the credential's stable path.
   torrentNotify =
     { title, tags }:
     pkgs.writeShellScript "transmission-notify" ''
@@ -35,8 +32,7 @@ in
       port = lib.mkDefault 9091;
       healthcheck.path = "/transmission/web/";
       access.allowedGroups = lib.mkDefault [ config.selfhost.groups.admin ];
-      # rpc-bind-address below is localhost-only and no RPC auth is set, so the gateway is the only
-      # thing standing in front of it.
+      # RPC is localhost-only with no auth, so the gateway is the only thing in front of it.
       access.model = "forwardAuth";
       # Sane default topic when one exists; consumers with a different taxonomy override it.
       integrations.notify.topic = lib.mkDefault (if notifyCfg.topics ? "downloads" then "downloads" else null);

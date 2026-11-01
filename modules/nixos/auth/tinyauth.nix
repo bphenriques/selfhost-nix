@@ -6,12 +6,7 @@ let
   serviceCfg = cfg.services.tinyauth;
   selfhostLib = import ../lib.nix { inherit lib; };
 
-  # tinyauth keys an app's settings by its subdomain, uppercased, and reads that config from the
-  # environment where "_" separates nesting levels. Two ways that bites, both asserted below:
-  # anything but letters and digits makes the key undecodable ("my-app" → APPS_MY_APP_*, parsed as
-  # APPS.MY.APP), which takes the gateway down for every gated service; and two subdomains can normalize
-  # to one key ("my-app" and "my_app"), where listToAttrs keeps the first and the later service silently
-  # loses its group restriction — open, not closed.
+  # Env keys nest on `_`, so a non-alphanumeric subdomain breaks tinyauth and two can merge, opening one.
   gatedServices = lib.filterAttrs (_: s: s.access.model == "forwardAuth" && s.access.allowedGroups != [ ]) cfg.services;
   appKey = subdomain: lib.toUpper (lib.replaceStrings [ "-" ] [ "_" ] subdomain);
 in
@@ -81,8 +76,7 @@ in
         lib.mapAttrsToList (_: svc: {
           name = "APPS_${appKey svc.subdomain}_OAUTH_GROUPS";
           value = lib.concatStringsSep "," svc.access.allowedGroups;
-          # Empty allowedGroups means unrestricted, which is the absent key — emitting "" would ask
-          # tinyauth to match a group nobody has.
+          # Empty allowedGroups means unrestricted, which is the absent key; "" would match nobody.
         }) gatedServices
       );
     };
@@ -90,8 +84,7 @@ in
     assertions =
       let
         collisions = selfhostLib.collisions (builtins.groupBy (s: appKey s.subdomain) (lib.attrValues gatedServices));
-        # Stated as what an app key may contain, not as the separators to reject: a `.` is as undecodable
-        # as a `-`, and the next punctuation someone puts in a subdomain would be too.
+        # An allowlist, not a denylist: the next punctuation in a subdomain would break decoding too.
         undecodable = lib.filter (s: builtins.match "[A-Za-z0-9]+" s.subdomain == null) (lib.attrValues gatedServices);
       in
       [

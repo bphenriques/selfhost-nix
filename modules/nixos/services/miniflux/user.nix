@@ -4,8 +4,7 @@
   options.selfhost.users = lib.mkOption {
     type = lib.types.attrsOf (
       lib.types.submodule {
-        # Freeform passthrough to Miniflux's stable, idempotent partial-update PUT; don't copy to apps
-        # without those properties.
+        # Freeform passthrough, safe only because Miniflux's partial-update PUT is idempotent.
         options.services.miniflux.settings = lib.mkOption {
           type = lib.types.attrsOf lib.types.anything;
           default = { };

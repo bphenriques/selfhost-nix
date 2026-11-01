@@ -1,5 +1,4 @@
-# Data tier: derive dashboard tiles from services/externals that opt into integrations.homepage. Read-only;
-# the bundled renderer (selfhost.apps.homepage) consumes it, or read it into a dashboard you own.
+# Derives read-only dashboard tiles from entries opting into integrations.homepage.
 { lib, config, ... }:
 let
   cfg = config.selfhost;

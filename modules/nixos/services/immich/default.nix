@@ -65,8 +65,7 @@ in
         };
       };
 
-      # Set once at admin sign-up and never reconciled, so losing the file means the next run cannot
-      # authenticate and fails loudly. Restore it, or reset the password in Immich.
+      # Never reconciled after sign-up, so a lost file fails loudly. Restore it or reset the password in Immich.
       runtimeSecrets.immich-admin-password = {
         owner = config.services.immich.user;
         restartUnits = [ "immich-configure.service" ];
@@ -124,8 +123,7 @@ in
         Group = config.services.immich.group;
         Restart = "on-failure";
         RestartSec = 10;
-        # No filesystem sandbox: this runs as the immich user, whose home and caches are upstream's to
-        # place. See notify/ntfy.nix.
+        # No filesystem sandbox: it runs as the immich user, whose home and caches upstream places.
         ProtectHome = true;
         PrivateTmp = true;
         NoNewPrivileges = true;

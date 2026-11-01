@@ -3,7 +3,7 @@
   "sends": {
     "post /Startup/Configuration": ["UICulture", "MetadataCountryCode", "PreferredMetadataLanguage"],
     "post /Startup/User": ["Name", "Password"],
-    "post /Startup/RemoteAccess": ["EnableRemoteAccess", "EnableAutomaticPortMapping"],
+    "post /Startup/RemoteAccess": ["EnableRemoteAccess"],
     "post /Users/AuthenticateByName": ["Username", "Pw"],
     "post /Users/New": ["Name", "Password"],
     "post /Library/VirtualFolders/LibraryOptions": ["Id", "LibraryOptions"]

@@ -26,12 +26,7 @@ in
               type = lib.types.str;
               default = mkPlaceholder "ID";
               readOnly = true;
-              description = ''
-                Stable opaque stand-in for the client ID, for a service whose config the framework does
-                not render. Embed it, then substitute it yourself from `id.file` (a `preStart`
-                `replace-secret`, say). Distinct from `selfhost.oidcPlaceholder.<client>.id`, which is
-                the scheme `runtimeTemplates` substitutes for you and is what an env-file service wants.
-              '';
+              description = "Stable stand-in for the client ID in config the framework does not render. Substitute it yourself from `id.file`.";
             };
           };
 

@@ -1,5 +1,4 @@
-# First-party coturn app: a STUN/TURN relay for apps whose clients need one to reach each other.
-# Logins are registered by those apps, so nothing here names a service.
+# coturn app: a STUN/TURN relay whose logins the consuming apps register.
 {
   config,
   lib,
@@ -74,8 +73,7 @@ in
       services.coturn = {
         displayName = lib.mkDefault "coturn";
         meta.description = lib.mkDefault "STUN/TURN relay";
-        # No port: a UDP relay has no HTTP backend to route or healthcheck. The entry carries the unit,
-        # which is what notifies on failure.
+        # No port: a UDP relay, so nothing to route or healthcheck. The entry carries the unit for failure notices.
         systemdServices = [ "coturn" ];
       };
 

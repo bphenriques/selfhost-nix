@@ -46,7 +46,7 @@ def complete_startup_wizard [] {
     error make {msg: $"Failed to create admin: ($r3.status) - ($r3.body)"}
   }
 
-  let r4 = http post $"($base_url)/Startup/RemoteAccess" {EnableRemoteAccess: true, EnableAutomaticPortMapping: false} --content-type application/json --full --allow-errors
+  let r4 = http post $"($base_url)/Startup/RemoteAccess" {EnableRemoteAccess: true} --content-type application/json --full --allow-errors
   if $r4.status != 204 {
     error make {msg: $"Failed to configure remote access: ($r4.status) - ($r4.body)"}
   }

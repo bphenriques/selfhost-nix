@@ -1,7 +1,4 @@
-# First-party *arr apps (selfhost.apps.{radarr,sonarr,prowlarr}). radarr/sonarr share the media-arr builder;
-# prowlarr is wiring-only. The framework wires plumbing (ingress, auth, secrets, notify, backup, root
-# folders, download clients) and ships zero acquisition config — indexers and quality profiles are the
-# consumer's, kept in their own/private config.
+# The *arr apps: radarr and sonarr share the media-arr builder, prowlarr is wiring only. No acquisition config.
 {
   imports = [
     (import ./media-arr.nix {

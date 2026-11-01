@@ -26,7 +26,6 @@
   # From a builtins.groupBy result, the buckets that hold more than one element.
   collisions = lib.filterAttrs (_: group: lib.length group > 1);
 
-  # Every group a policy may name: the canonical set plus any group a user actually holds. A custom
-  # group becomes nameable once someone is in it, while typos still fail.
+  # The canonical groups plus any a user holds, so a custom group is nameable once used while typos fail.
   knownGroups = cfg: lib.unique (lib.attrValues cfg.groups ++ lib.concatMap (u: u.groups) (lib.attrValues cfg.users));
 }

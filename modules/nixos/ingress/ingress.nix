@@ -21,8 +21,7 @@
         description = "ACME account email for certificate registration";
       };
 
-      # Challenge-specific settings sit under the challenge that needs them, so an implementation
-      # solving HTTP-01 or managing its own certificates forces none of these.
+      # Settings sit under the challenge that needs them, so HTTP-01 or self-managed certs force none.
       dns01 = {
         provider = lib.mkOption {
           type = lib.types.str;

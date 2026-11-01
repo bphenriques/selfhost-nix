@@ -1,5 +1,4 @@
-# First-party FileBrowser Quantum app: drives the base module and wires it into the framework,
-# deriving users and per-user SMB binds from selfhost.users grants.
+# FileBrowser Quantum app: users and per-user SMB binds derive from selfhost.users grants.
 { config, lib, ... }:
 let
   cfg = config.selfhost;
@@ -107,8 +106,7 @@ in
         issuerUrl = oidcCfg.provider.issuerUrl;
         # Upstream asks for "openid email profile", which carries no groups claim for userGroups to read.
         scopes = "openid email profile groups";
-        # Second check behind the provider's own. Pocket-ID already refuses a user outside the client's
-        # allowed groups, but the OIDC contract does not oblige a provider to, so the service repeats it.
+        # Repeats the provider's group check, since the OIDC contract does not oblige a provider to make it.
         userGroups = serviceCfg.access.allowedGroups;
       };
     })
@@ -118,8 +116,7 @@ in
         name: _: "selfhost.users.${name}.services.filebrowser-quantum is enabled with no storage grants — empty FileBrowser."
       ) (lib.filterAttrs (_: u: u.services.filebrowser-quantum.storage == { }) enabledUsers);
 
-      # Every listed user needs their scope to exist: grants bind *into* it, so a user with none would
-      # otherwise fail the scope check for everyone. The unlisted scope stays empty and unwritable.
+      # Grants bind into each user's scope, so a missing one fails the scope check for everyone.
       systemd.tmpfiles.settings.filebrowser-quantum-selfhost =
         lib.mapAttrs' (
           name: _:
