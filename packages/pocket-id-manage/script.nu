@@ -42,30 +42,19 @@ def write_credential [path: string, content: string, group: string] {
   mv --force $tmp $path # atomic rename
 }
 
-# Provisioning is one-way: renaming or removing a service leaves its client behind in Pocket-ID with a
-# live secret, and its credential dir on disk. Report both rather than delete — a client may have been
-# created by hand, and this runs unattended on every boot.
-def report_stale_clients [declared: list<string>, credentials_dir: string] {
-  let remote = get_all "oidc/clients" | get name | where {|n| $n not-in $declared }
-  let local = (
-    ls --short-names $credentials_dir
-    | where type == dir
-    | get name
-    | where {|n| $n not-in $declared }
-  )
-  if ($remote | is-not-empty) {
-    print --stderr $"WARNING: OIDC clients in Pocket-ID that Nix does not declare: ($remote | str join ', ')"
-    print --stderr "  A renamed or removed service leaves its client behind, secret still valid. Delete it in Pocket-ID, or ignore if you created it by hand."
-    # Only a group grant makes a leftover reachable, and a client's groups have no GET, so ask each group.
-    let granting = get_all "user-groups" | each {|g|
-      let stale = ((http get $"($base_url)/api/user-groups/($g.id)" --headers $headers).allowedOidcClients? | default [] | get name | where {|n| $n in $remote })
-      if ($stale | is-empty) { null } else { $"($g.name) -> ($stale | str join ', ')" }
-    } | compact
-    if ($granting | is-not-empty) { print --stderr $"  Granting access right now: ($granting | str join '; ')" }
+# Nix is the source of truth for clients: a renamed or removed service would otherwise leave its client in
+# Pocket-ID with a live secret, and its credentials on disk. Clients made by hand are removed too.
+def prune_stale_clients [declared: list<string>, credentials_dir: string] {
+  for client in (get_all "oidc/clients" | where {|c| $c.name not-in $declared }) {
+    let r = http delete $"($base_url)/api/oidc/clients/($client.id)" --headers $headers --full --allow-errors
+    if $r.status not-in [200 204] {
+      error make { msg: $"Failed to delete OIDC client ($client.name): ($r.status) - ($r.body)" }
+    }
+    print $"Deleted undeclared OIDC client: ($client.name)"
   }
-  if ($local | is-not-empty) {
-    print --stderr $"WARNING: credential directories with no declared client: ($local | str join ', ')"
-    print --stderr $"  Stale id/secret files under ($credentials_dir). Remove them once the client is gone."
+  for dir in (ls --short-names $credentials_dir | where type == dir | get name | where {|n| $n not-in $declared }) {
+    rm --recursive $"($credentials_dir)/($dir)"
+    print $"Removed credentials of undeclared client: ($dir)"
   }
 }
 
@@ -150,7 +139,7 @@ def "main provision-users" [] {
   chmod 0644 $users_tmp
   mv --force $users_tmp $users_file # atomic rename
   print $"Wrote users mapping to ($users_file)"
-  report_stale_clients ($config.clients? | default []) $credentials_dir
+  prune_stale_clients ($config.clients? | default []) $credentials_dir
   print "Pocket ID base provisioning complete"
 }
 

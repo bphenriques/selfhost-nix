@@ -321,6 +321,7 @@ in
         RestartSec = "10s";
         RestartMaxDelaySec = "5min";
         RestartSteps = 5;
+        StateDirectoryMode = "0700"; # nixpkgs' sonarr leaves its StateDirectory, and the API key in it, world-readable
       };
     };
 

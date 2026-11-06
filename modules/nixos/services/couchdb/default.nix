@@ -105,6 +105,13 @@ in
         config.selfhost.runtimeTemplates."couchdb-admin.ini".path
       ];
     };
+
+    # nixpkgs creates it without a mode, and local.ini in it carries the admin password hash.
+    systemd.tmpfiles.settings."20-couchdb-private".${config.services.couchdb.databaseDir}.z = {
+      mode = "0700";
+      inherit (config.services.couchdb) user group;
+    };
+
     warnings = lib.optional (
       enabledUsers == { }
     ) "selfhost.apps.couchdb: no selfhost.users have services.couchdb.enable — CouchDB will have no accounts.";
