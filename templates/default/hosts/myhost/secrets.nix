@@ -7,7 +7,7 @@
     age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ]; # decrypt with the host key
 
     secrets.cloudflare-dns-token = { };
-    secrets.smtp-password.owner = config.services.pocket-id.user; # Pocket-ID reads it directly
+    secrets.smtp-password = { };
 
     templates."traefik-cloudflare" = {
       owner = "traefik";

@@ -42,7 +42,7 @@
 
     passwordFile = lib.mkOption {
       type = lib.types.str;
-      description = "Path to file containing the SMTP password (typically a sops secret path). Each consumer reads it as its own service user, so own the file by that user — today Pocket-ID's, the only one that sends mail.";
+      description = "Path to a root-readable file containing the SMTP password, loaded into each consumer via systemd credentials.";
     };
   };
 }

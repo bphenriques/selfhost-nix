@@ -88,40 +88,39 @@ def add_key [username: string, key: record, token: string] {
   print $"  ($username): ssh key registered"
 }
 
-# Usernames from the CLI listing (no token needed). Column 1 is the username; the header row is skipped.
-def list_usernames [--admin] {
+# Accounts from the CLI listing (no token needed): username is column 1 and type the last. The header row
+# is skipped.
+def list_accounts [--admin] {
   let r = if $admin {
     gitea $config_flag admin user list --admin | complete
   } else {
     gitea $config_flag admin user list | complete
   }
+  if $r.exit_code != 0 { error make {msg: $"Failed to list users: ($r.stderr)"} }
   $r.stdout
   | str trim
   | lines
   | skip 1
-  | each {|line| ($line | split row " " | where ($it | str length) > 0) | get 1? | default "" }
-  | where ($it | is-not-empty)
-}
-
-# `admin user list` leaves bots out, so the public keys view (404 when absent) is what proves one exists.
-def account_exists [username: string] {
-  (http get $"($base_url)/($username).keys" --full --allow-errors).status == 200
+  | each {|line| $line | split row --regex '\s+' }
+  | where ($it | length) >= 3
+  | each {|cols| {username: $cols.1, type: ($cols | last)} }
 }
 
 # Creates the account if missing (admin status and SSH keys are reconciled separately, in main). A service
 # account is a bot: no password, so no web login, while git over SSH still works.
-def ensure_user [user: record, existing: list<string>] {
+def ensure_user [user: record, existing: list<record>] {
+  let found = $existing | where username == $user.username | get 0?
   if $user.bot {
-    if $user.username in $existing {
-      gitea $config_flag admin user change-type --username $user.username --user-type Bot
-      print $"Converted '($user.username)' to a bot"
-    } else if not (account_exists $user.username) {
+    if $found == null {
       gitea $config_flag admin user create --username $user.username --email $user.email --user-type Bot
       print $"Created bot '($user.username)'"
+    } else if $found.type != "Bot" {
+      gitea $config_flag admin user change-type --username $user.username --user-type Bot
+      print $"Converted '($user.username)' to a bot"
     }
     return
   }
-  if $user.username in $existing { return }
+  if $found != null { return }
   let password = (random chars --length 32)
   gitea $config_flag admin user create --username $user.username --password $password --email $user.email --must-change-password=false
   print $"Created user '($user.username)'"
@@ -135,12 +134,12 @@ def main [] {
   ensure_admin
 
   # Create any missing accounts first (no token needed), so the keys endpoint below is valid for every user.
-  let existing = list_usernames
+  let existing = list_accounts
   for u in $users { ensure_user $u $existing }
 
   # Detect work token-free (CLI admin list + the public keys endpoint), then mint the ephemeral admin token
   # only on a real delta — a missing SSH key or an admin-status change — so a steady-state run touches nothing.
-  let current_admins = list_usernames --admin
+  let current_admins = list_accounts --admin | get username
   let missing_keys = $users | each {|u|
     let desired = $u.sshKeys? | default []
     if ($desired | is-empty) { [] } else {

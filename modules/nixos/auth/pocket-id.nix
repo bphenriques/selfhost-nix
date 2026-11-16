@@ -145,8 +145,9 @@ in
         SMTP_FROM = smtpCfg.from;
         SMTP_USER = smtpCfg.user;
         SMTP_TLS = smtpCfg.tls;
-        SMTP_PASSWORD_FILE = smtpCfg.passwordFile;
       };
+      # LoadCredential, so the consumer's mail secret stays root-owned instead of handed to pocket-id.
+      credentials = lib.mkIf smtpCfg.active { SMTP_PASSWORD = smtpCfg.passwordFile; };
     };
 
     # Credentials base dir (persistent); 0755 so services can traverse to their own 0750 client subdirs.

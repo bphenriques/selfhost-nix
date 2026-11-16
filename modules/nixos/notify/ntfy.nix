@@ -140,6 +140,7 @@ in
 
     services.ntfy-sh = {
       enable = true;
+      environmentFile = authEnvFile;
       settings = {
         base-url = serviceCfg.publicUrl;
         listen-http = "${serviceCfg.host}:${toString serviceCfg.port}";
@@ -154,7 +155,6 @@ in
       RestartSec = "10s";
       RestartMaxDelaySec = "5min";
       RestartSteps = 5;
-      EnvironmentFile = [ authEnvFile ];
     };
 
     # The declared set changes only on a deploy, and the env file is what carries it into the server.
