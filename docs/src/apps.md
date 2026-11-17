@@ -17,7 +17,8 @@ from the bare hostname.
 Each person reaches only their own collections. A service account with `services.radicale.enable` gets a login
 and nothing else, until a person grants it theirs with `services.radicale.access.serviceAccounts`. It may then
 add and change items and collections, but never delete, replace, rename or share a collection. Its client syncs
-from the owner's home, `dav.<domain>/<owner>/`.
+from the owner's home, `dav.<domain>/<owner>/`, with the password generated for it
+(`homelab-secrets cat radicale-password-<account>`).
 
 Every change is a commit in the collections folder, named after the login that made it. To restore an item:
 

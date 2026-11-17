@@ -170,15 +170,30 @@ in
     # StateDirectory only appears when radicale starts, but the configure unit before it writes the htpasswd there.
     systemd.tmpfiles.rules = [ "d /var/lib/radicale 0750 radicale radicale -" ];
 
-    selfhost.runtimeSecrets = lib.listToAttrs (
-      map (uname: {
-        name = "radicale-password-${uname}";
-        value = {
-          bytes = 12; # a person types this into a calendar app
-          restartUnits = [ "radicale-configure.service" ];
-        };
-      }) enabledUsernames
-    );
+    selfhost.runtimeSecrets =
+      lib.listToAttrs (
+        map (uname: {
+          name = "radicale-password-${uname}";
+          value = {
+            bytes = 12; # a person types this into a calendar app
+            restartUnits = [ "radicale-configure.service" ];
+          };
+        }) enabledUsernames
+      )
+      //
+        lib.mapAttrs'
+          (
+            name: _:
+            lib.nameValuePair "radicale-password-${name}" {
+              bytes = 32; # only ever copied into the client's own secrets
+              restartUnits = [ "radicale-configure.service" ];
+            }
+          )
+          (
+            lib.filterAttrs (
+              name: a: a.services.radicale.passwordFile == "${config.selfhost.runtimeSecretsDir}/radicale-password-${name}"
+            ) serviceAccounts
+          );
 
     systemd.services.radicale-configure = {
       description = "Generate Radicale htpasswd from selfhost users";

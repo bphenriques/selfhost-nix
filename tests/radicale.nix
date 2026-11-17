@@ -38,10 +38,7 @@ pkgs.testers.runNixOSTest {
           # no services.radicale.enable → must be absent from the htpasswd
         };
 
-        serviceAccounts.agent.services.radicale = {
-          enable = true;
-          passwordFile = "${pkgs.writeText "agent-password" "agentpw"}";
-        };
+        serviceAccounts.agent.services.radicale.enable = true; # its password is generated, like a person's
       };
     };
 
@@ -66,8 +63,7 @@ pkgs.testers.runNixOSTest {
       # crash-restart loop while deriving the htpasswd.
       machine.succeed("test \"$(systemctl show radicale-configure.service -p NRestarts --value)\" = 0")
 
-      machine.succeed("printf agentpw > /tmp/agent")
-      for user in ["admin", "carol"]:
+      for user in ["admin", "carol", "agent"]:
           machine.succeed(f"cp ${secrets}/radicale-password-{user} /tmp/{user}")
 
       def expect(user, method, path, codes, body="", xml=False):
