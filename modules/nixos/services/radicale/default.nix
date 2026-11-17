@@ -9,7 +9,12 @@ let
   app = config.selfhost.apps.radicale;
   serviceCfg = config.selfhost.services.radicale;
 
-  enabledUsernames = builtins.attrNames (lib.filterAttrs (_: u: u.services.radicale.enable) config.selfhost.users);
+  enabledUsers = lib.filterAttrs (_: u: u.services.radicale.enable) config.selfhost.users;
+  enabledUsernames = builtins.attrNames enabledUsers;
+  serviceAccounts = lib.filterAttrs (_: a: a.services.radicale.enable) config.selfhost.serviceAccounts;
+  ungranted = lib.subtractLists (lib.attrNames serviceAccounts) (
+    lib.concatMap (u: u.services.radicale.access.serviceAccounts) (lib.attrValues enabledUsers)
+  );
 
   # The consumer may relocate storage, so backup and the reconciler read the effective value.
   dataDir = config.services.radicale.settings.storage.filesystem_folder;
@@ -18,16 +23,61 @@ let
   configFile = pkgs.writeText "radicale-configure.json" (
     builtins.toJSON {
       inherit htpasswdFile;
-      users = lib.listToAttrs (
-        map (uname: {
-          name = uname;
-          value = {
-            passwordFile = config.selfhost.runtimeSecrets."radicale-password-${uname}".path;
-          };
-        }) enabledUsernames
-      );
+      users =
+        lib.genAttrs enabledUsernames (uname: {
+          passwordFile = config.selfhost.runtimeSecrets."radicale-password-${uname}".path;
+        })
+        // lib.mapAttrs (_: a: { inherit (a.services.radicale) passwordFile; }) serviceAccounts;
     }
   );
+
+  anyOf = names: "(${lib.concatMapStringsSep "|" lib.escapeRegex names})";
+
+  # Radicale's owner_only for people. A service account reaches only what an owner granted, and never deletes,
+  # replaces, shares or renames a collection there (`d`, `o`, `t` and `m`, `l`).
+  rights =
+    lib.optionalAttrs (enabledUsernames != [ ]) {
+      root = {
+        user = anyOf (enabledUsernames ++ lib.attrNames serviceAccounts);
+        collection = "";
+        permissions = "R";
+      };
+      owner-principal = {
+        user = anyOf enabledUsernames;
+        collection = "{user}";
+        permissions = "RW";
+      };
+      owner-collections = {
+        user = anyOf enabledUsernames;
+        collection = "{user}/[^/]+";
+        permissions = "rw";
+      };
+    }
+    # Radicale creates the login's own principal on its first request, or warns on every one. Nothing grants it collections.
+    // lib.optionalAttrs (serviceAccounts != { }) {
+      service-account-principal = {
+        user = anyOf (lib.attrNames serviceAccounts);
+        collection = "{user}";
+        permissions = "RW";
+      };
+    }
+    // lib.concatMapAttrs (
+      owner: u:
+      lib.optionalAttrs (u.services.radicale.access.serviceAccounts != [ ]) {
+        "grant-${owner}-principal" = {
+          user = anyOf u.services.radicale.access.serviceAccounts;
+          collection = lib.escapeRegex owner;
+          permissions = "R";
+        };
+        "grant-${owner}-collections" = {
+          user = anyOf u.services.radicale.access.serviceAccounts;
+          collection = "${lib.escapeRegex owner}/[^/]+";
+          permissions = "rwdotml";
+        };
+      }
+    ) enabledUsers;
+
+  git = lib.getExe pkgs.git;
 
   radicale-configure = (import ../../builders.nix { inherit pkgs lib; }).writeNushellApplication {
     name = "radicale-configure";
@@ -39,7 +89,10 @@ let
   };
 in
 {
-  imports = [ ./user.nix ];
+  imports = [
+    ./user.nix
+    ./service-account.nix
+  ];
 
   options.selfhost.apps.radicale = {
     enable = lib.mkEnableOption "the first-party Radicale app (CalDAV/CardDAV server)";
@@ -99,11 +152,20 @@ in
         };
         server.hosts = [ "127.0.0.1:${toString serviceCfg.port}" ];
         storage.filesystem_folder = lib.mkDefault "/var/lib/radicale/collections";
+        # Every change is a commit in the collections folder, named after its login, so any item can be restored.
+        storage.hook = lib.mkDefault "[ -d .git ] || { ${git} init -q && printf '.Radicale.cache\\n.Radicale.lock\\n.Radicale.tmp-*\\n' > .git/info/exclude; }; ${git} add -A && (${git} diff --cached --quiet || ${git} -c user.name=Radicale -c user.email=radicale@localhost commit -q -m \"Changes by %(user)s\")";
       };
+      inherit rights;
     };
     warnings = lib.optional (
       enabledUsernames == [ ]
     ) "selfhost.apps.radicale: no selfhost.users have services.radicale.enable — Radicale will have no accounts.";
+    assertions = [
+      {
+        assertion = ungranted == [ ];
+        message = "selfhost.users.*.services.radicale.access.serviceAccounts names accounts without a Radicale login: ${toString ungranted}. Set `services.radicale.enable` on their selfhost.serviceAccounts entry.";
+      }
+    ];
 
     # StateDirectory only appears when radicale starts, but the configure unit before it writes the htpasswd there.
     systemd.tmpfiles.rules = [ "d /var/lib/radicale 0750 radicale radicale -" ];

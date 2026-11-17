@@ -14,6 +14,22 @@ Two routes onto one process. `radicale.<domain>` serves the web UI behind the fo
 gateway. `.well-known/caldav` and `/.well-known/carddav` redirect to the root so clients find the server
 from the bare hostname.
 
+Each person reaches only their own collections. A service account with `services.radicale.enable` gets a login
+and nothing else, until a person grants it theirs with `services.radicale.access.serviceAccounts`. It may then
+add and change items and collections, but never delete, replace, rename or share a collection. Its client syncs
+from the owner's home, `dav.<domain>/<owner>/`.
+
+Every change is a commit in the collections folder, named after the login that made it. To restore an item:
+
+```console
+$ cd /var/lib/radicale/collections
+$ sudo -u radicale git log -- collection-root/<owner>/<collection>/<item>.ics
+$ sudo -u radicale git checkout <commit>^ -- collection-root/<owner>/<collection>/<item>.ics
+$ sudo -u radicale git commit -m "Restore <item>"
+```
+
+Clients pick it up on their next sync.
+
 ## CouchDB
 
 `access.model` is `native`: a replicating client speaks HTTP basic auth and nothing else, so no gateway
